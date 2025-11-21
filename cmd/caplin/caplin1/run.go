@@ -330,7 +330,7 @@ func RunCaplinPhase1(ctx context.Context, engine execution_client.ExecutionEngin
 			proposerSlashingService,
 			nil,     // builderClient
 			stateSn, // stateSnapshots
-			false,   // enableMemoizedHeadState
+			true,    // enableMemoizedHeadState
 			peerDas, // peerDas
 		)
 		go beacon.ListenAndServe(&beacon.LayeredBeaconHandler{
