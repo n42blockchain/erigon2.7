@@ -718,9 +718,24 @@ func (db *MdbxKV) waitTxsAllDoneOnClose() {
 // Close closes db
 // All transactions must be closed before closing the database.
 func (db *MdbxKV) Close() {
+	// Flush any pending batch before closing to avoid data loss
+	// This must be done BEFORE setting closed=true, otherwise batch.run()
+	// will fail because trackTxBegin() checks the closed flag
+	db.batchMu.Lock()
+	if db.batch != nil {
+		// Trigger the batch to flush pending writes
+		b := db.batch
+		db.batch = nil
+		db.batchMu.Unlock()
+		b.trigger()
+	} else {
+		db.batchMu.Unlock()
+	}
+
 	if ok := db.closed.CompareAndSwap(false, true); !ok {
 		return
 	}
+
 	db.waitTxsAllDoneOnClose()
 
 	db.env.Close()
