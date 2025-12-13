@@ -18,11 +18,26 @@ package ssz
 
 import (
 	"encoding/binary"
+	"reflect"
 
 	"github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon-lib/common/length"
 	"github.com/erigontech/erigon-lib/types/clonable"
 )
+
+// newInstance creates a new instance of type T using reflection
+// This is needed because make([]T, n) creates nil pointers for pointer types
+func newInstance[T any]() T {
+	var zero T
+	t := reflect.TypeOf(zero)
+	if t == nil {
+		return zero
+	}
+	if t.Kind() == reflect.Ptr {
+		return reflect.New(t.Elem()).Interface().(T)
+	}
+	return reflect.New(t).Elem().Interface().(T)
+}
 
 var (
 	BaseExtraDataSSZOffsetHeader = 536
@@ -112,7 +127,8 @@ func DecodeDynamicList[T Unmarshaler](bytes []byte, start, end uint32, max uint6
 		if endOffset < currentOffset || len(buf) < int(endOffset) {
 			return nil, ErrBadOffset
 		}
-		objs[i] = objs[i].Clone().(T)
+		// Use newInstance to properly create a new object (handles pointer types)
+		objs[i] = newInstance[T]()
 		if err := objs[i].DecodeSSZ(buf[currentOffset:endOffset], version); err != nil {
 			return nil, err
 		}
@@ -136,7 +152,8 @@ func DecodeStaticList[T Unmarshaler](bytes []byte, start, end, bytesPerElement u
 	}
 	objs := make([]T, elementsNum)
 	for i := range objs {
-		objs[i] = objs[i].Clone().(T)
+		// Use newInstance to properly create a new object (handles pointer types)
+		objs[i] = newInstance[T]()
 		if err := objs[i].DecodeSSZ(buf[i*int(bytesPerElement):], version); err != nil {
 			return nil, err
 		}
