@@ -17,11 +17,12 @@ package eth
 
 import (
 	"context"
+	"errors"
 
 	"github.com/erigontech/erigon-lib/common/datadir"
+	protodownloader "github.com/erigontech/erigon-lib/gointerfaces/downloader"
 	"github.com/erigontech/erigon-lib/kv"
 	"github.com/erigontech/erigon-lib/log/v3"
-	protodownloader "github.com/erigontech/erigon-lib/gointerfaces/downloader"
 	"google.golang.org/grpc/credentials"
 
 	"github.com/erigontech/erigon/cl/beacon/beacon_router_configuration"
@@ -50,9 +51,9 @@ type CaplinService struct {
 	snDownloader    protodownloader.DownloaderClient
 	blockReader     freezeblocks.BeaconSnapshotReader
 	creds           credentials.TransportCredentials
-	
-	indexDB     kv.RwDB
-	running     bool
+
+	indexDB kv.RwDB
+	running bool
 }
 
 // NewCaplinService creates a new embedded Caplin CL service
@@ -69,7 +70,7 @@ func NewCaplinService(
 	networkConfig, beaconConfig := clparams.GetConfigsByNetwork(networkType)
 
 	ctx, cancel := context.WithCancel(ctx)
-	
+
 	return &CaplinService{
 		ctx:             ctx,
 		cancel:          cancel,
@@ -89,16 +90,16 @@ func (s *CaplinService) Start() error {
 	if s.running {
 		return nil
 	}
-	
+
 	s.logger.Info("Starting embedded Caplin consensus layer")
-	
+
 	// Get the genesis state for this network
 	genesisState, err := initial_state.GetGenesisState(clparams.NetworkType(s.config.NetworkID))
 	if err != nil {
 		s.logger.Error("Failed to get genesis state", "err", err)
 		return err
 	}
-	
+
 	// Try to get checkpoint state if available
 	var beaconState *state.CachingBeaconState
 	checkpointUri := clparams.GetCheckpointSyncEndpoint(clparams.NetworkType(s.config.NetworkID))
@@ -111,9 +112,9 @@ func (s *CaplinService) Start() error {
 	} else {
 		beaconState = genesisState
 	}
-	
+
 	ethClock := eth_clock.NewEthereumClock(beaconState.GenesisTime(), beaconState.GenesisValidatorsRoot(), s.beaconConfig)
-	
+
 	// Open Caplin database
 	indexDB, blobStorage, err := caplin1.OpenCaplinDatabase(
 		s.ctx,
@@ -123,7 +124,7 @@ func (s *CaplinService) Start() error {
 		s.dirs.CaplinIndexing,
 		s.dirs.CaplinBlobs,
 		s.executionEngine,
-		false, // wipeout
+		false,   // wipeout
 		100_000, // blobPruneDistance
 	)
 	if err != nil {
@@ -131,7 +132,7 @@ func (s *CaplinService) Start() error {
 		return err
 	}
 	s.indexDB = indexDB
-	
+
 	// Setup beacon router configuration
 	rcfg := beacon_router_configuration.RouterConfiguration{
 		Protocol:         "tcp",
@@ -145,7 +146,7 @@ func (s *CaplinService) Start() error {
 		Active:           s.config.BeaconRouter.Active,
 		Validator:        s.config.BeaconRouter.Validator,
 	}
-	
+
 	// Run Caplin in a goroutine
 	go func() {
 		if err := caplin1.RunCaplinPhase1(
@@ -173,10 +174,15 @@ func (s *CaplinService) Start() error {
 			blobStorage,
 			s.creds,
 		); err != nil {
-			s.logger.Error("Caplin service error", "err", err)
+			// Don't log context cancellation as error - it's normal shutdown
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				s.logger.Debug("Caplin service stopped", "reason", err)
+			} else {
+				s.logger.Error("Caplin service error", "err", err)
+			}
 		}
 	}()
-	
+
 	s.running = true
 	s.logger.Info("Caplin consensus layer started successfully")
 	return nil
@@ -187,14 +193,14 @@ func (s *CaplinService) Stop() {
 	if !s.running {
 		return
 	}
-	
+
 	s.logger.Info("Stopping Caplin consensus layer")
 	s.cancel()
-	
+
 	if s.indexDB != nil {
 		s.indexDB.Close()
 	}
-	
+
 	s.running = false
 	s.logger.Info("Caplin consensus layer stopped")
 }
@@ -203,4 +209,3 @@ func (s *CaplinService) Stop() {
 func (s *CaplinService) Running() bool {
 	return s.running
 }
-
