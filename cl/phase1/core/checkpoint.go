@@ -22,6 +22,34 @@ func extractSlotFromSerializedBeaconState(beaconState []byte) (uint64, error) {
 	return binary.LittleEndian.Uint64(beaconState[40:48]), nil
 }
 
+// extractForkVersionFromSerializedBeaconState extracts the current fork version from serialized beacon state
+// Fork structure starts at byte 48: PreviousVersion(4) + CurrentVersion(4) + Epoch(8)
+// CurrentVersion is at bytes 52-55
+func extractForkVersionFromSerializedBeaconState(beaconState []byte) (uint32, error) {
+	if len(beaconState) < 56 {
+		return 0, fmt.Errorf("checkpoint sync read failed, too short for fork version")
+	}
+	return binary.LittleEndian.Uint32(beaconState[52:56]), nil
+}
+
+// getVersionFromForkVersion determines the state version from the fork version
+func getVersionFromForkVersion(beaconConfig *clparams.BeaconChainConfig, forkVersion uint32) clparams.StateVersion {
+	switch forkVersion {
+	case uint32(beaconConfig.ElectraForkVersion):
+		return clparams.ElectraVersion
+	case uint32(beaconConfig.DenebForkVersion):
+		return clparams.DenebVersion
+	case uint32(beaconConfig.CapellaForkVersion):
+		return clparams.CapellaVersion
+	case uint32(beaconConfig.BellatrixForkVersion):
+		return clparams.BellatrixVersion
+	case uint32(beaconConfig.AltairForkVersion):
+		return clparams.AltairVersion
+	default:
+		return clparams.Phase0Version
+	}
+}
+
 func RetrieveBeaconState(ctx context.Context, beaconConfig *clparams.BeaconChainConfig, uri string) (*state.CachingBeaconState, error) {
 	log.Info("[Checkpoint Sync] Requesting beacon state", "uri", uri)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, nil)
@@ -53,12 +81,38 @@ func RetrieveBeaconState(ctx context.Context, beaconConfig *clparams.BeaconChain
 		return nil, fmt.Errorf("checkpoint sync read failed %s", err)
 	}
 
-	// Convert slot to epoch for version detection
-	epoch := slot / beaconConfig.SlotsPerEpoch
+	// Try to detect version from fork version in the beacon state itself
+	// This is more reliable than using fork epochs from config
+	forkVersion, err := extractForkVersionFromSerializedBeaconState(marshaled)
+	var version clparams.StateVersion
+	if err == nil {
+		version = getVersionFromForkVersion(beaconConfig, forkVersion)
+		log.Info("[Checkpoint Sync] Detected version from fork", "forkVersion", fmt.Sprintf("0x%08x", forkVersion), "version", clparams.ClVersionToString(version))
+	}
+
+	// Fallback to epoch-based version detection if fork version doesn't match any known version
+	if version == clparams.Phase0Version && forkVersion != uint32(beaconConfig.GenesisForkVersion) {
+		epoch := slot / beaconConfig.SlotsPerEpoch
+		version = beaconConfig.GetCurrentStateVersion(epoch)
+		log.Info("[Checkpoint Sync] Using epoch-based version detection", "epoch", epoch, "version", clparams.ClVersionToString(version))
+	}
+
+	log.Info("[Checkpoint Sync] Attempting to decode beacon state", "version", clparams.ClVersionToString(version), "dataSize", len(marshaled))
 	beaconState := state.New(beaconConfig)
-	err = beaconState.DecodeSSZ(marshaled, int(beaconConfig.GetCurrentStateVersion(epoch)))
+	err = beaconState.DecodeSSZ(marshaled, int(version))
 	if err != nil {
-		return nil, fmt.Errorf("checkpoint sync decode failed %s", err)
+		log.Warn("[Checkpoint Sync] Initial decode failed, trying fallback versions", "initialVersion", clparams.ClVersionToString(version), "err", err)
+		// If decoding fails, try with progressively newer versions as fallback
+		for tryVersion := version + 1; tryVersion <= clparams.ElectraVersion; tryVersion++ {
+			log.Info("[Checkpoint Sync] Retrying with newer version", "version", clparams.ClVersionToString(tryVersion))
+			beaconState = state.New(beaconConfig)
+			if err = beaconState.DecodeSSZ(marshaled, int(tryVersion)); err == nil {
+				log.Info("[Checkpoint Sync] Successfully decoded with version", "version", clparams.ClVersionToString(tryVersion))
+				return beaconState, nil
+			}
+			log.Warn("[Checkpoint Sync] Decode with version failed", "version", clparams.ClVersionToString(tryVersion), "err", err)
+		}
+		return nil, fmt.Errorf("checkpoint sync decode failed (tried all versions up to electra): %s", err)
 	}
 	return beaconState, nil
 }
