@@ -100,13 +100,20 @@ func (s *CaplinService) Start() error {
 		return err
 	}
 
-	// Try to get checkpoint state if available
+	// Try to get checkpoint state if available - try all endpoints until one succeeds
 	var beaconState *state.CachingBeaconState
-	checkpointUri := clparams.GetCheckpointSyncEndpoint(clparams.NetworkType(s.config.NetworkID))
-	if checkpointUri != "" {
-		beaconState, err = core.RetrieveBeaconState(s.ctx, s.beaconConfig, checkpointUri)
-		if err != nil {
-			s.logger.Warn("Failed to retrieve checkpoint state, starting from genesis", "err", err)
+	checkpointEndpoints := clparams.GetAllCheckpointSyncEndpoints(clparams.NetworkType(s.config.NetworkID))
+	if len(checkpointEndpoints) > 0 {
+		for _, checkpointUri := range checkpointEndpoints {
+			beaconState, err = core.RetrieveBeaconState(s.ctx, s.beaconConfig, checkpointUri)
+			if err == nil {
+				s.logger.Info("Successfully retrieved checkpoint state", "uri", checkpointUri)
+				break
+			}
+			s.logger.Warn("Failed to retrieve checkpoint state from endpoint, trying next", "uri", checkpointUri, "err", err)
+		}
+		if beaconState == nil {
+			s.logger.Warn("All checkpoint endpoints failed, starting from genesis")
 			beaconState = genesisState
 		}
 	} else {

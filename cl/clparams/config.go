@@ -1117,6 +1117,15 @@ func GetCheckpointSyncEndpoint(net NetworkType) string {
 	return checkpoints[n.Int64()]
 }
 
+// GetAllCheckpointSyncEndpoints returns all available checkpoint sync endpoints for a network
+func GetAllCheckpointSyncEndpoints(net NetworkType) []string {
+	checkpoints, ok := CheckpointSyncEndpoints[net]
+	if !ok {
+		return nil
+	}
+	return checkpoints
+}
+
 // Check if chain with a specific ID is supported or not
 // 1 is Ethereum Mainnet
 // 5 is Goerli Testnet
