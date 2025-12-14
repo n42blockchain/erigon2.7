@@ -2577,17 +2577,15 @@ func openClient(ctx context.Context, dbDir, snapDir string, cfg *torrent.ClientC
 		return nil, nil, nil, nil, fmt.Errorf("torrentcfg.NewMdbxPieceCompletion: %w", err)
 	}
 
-	//Reasons why using MMAP instead of files-API:
-	// - i see "10K threads exchaused" error earlier (on `--torrent.download.slots=500` and `pd-ssd`)
-	// - "sig-bus" at disk-full - may happen anyway, because DB is mmap
-	// - MMAP - means less GC pressure, more zero-copy
-	// - MMAP files are pre-allocated - which is not cool, but: 1. we can live with it 2. maybe can just resize MMAP in future
+	// Use file-based storage instead of MMAP to avoid data loss on shutdown
+	// MMAP can lose data if msync is not called before close
+	// File-based storage is safer as it syncs data to disk on each write
 	// See also: https://github.com/erigontech/erigon/pull/10074
-	m = storage.NewMMapWithCompletion(snapDir, c)
-	//m = storage.NewFileOpts(storage.NewFileClientOpts{
-	//	ClientBaseDir:   snapDir,
-	//	PieceCompletion: c,
-	//})
+	//m = storage.NewMMapWithCompletion(snapDir, c)
+	m = storage.NewFileOpts(storage.NewFileClientOpts{
+		ClientBaseDir:   snapDir,
+		PieceCompletion: c,
+	})
 	cfg.DefaultStorage = m
 
 	dnsResolver := &downloadercfg.DnsCacheResolver{RefreshTimeout: 24 * time.Hour}
