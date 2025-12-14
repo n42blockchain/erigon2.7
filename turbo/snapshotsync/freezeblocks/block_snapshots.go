@@ -573,11 +573,10 @@ func (s *RoSnapshots) rebuildSegments(fileNames []string, open bool, optimistic 
 		if open {
 			if err := sn.reopenSeg(s.dir); err != nil {
 				if errors.Is(err, os.ErrNotExist) {
-					if optimistic {
-						continue
-					} else {
-						break
-					}
+					// File doesn't exist (maybe deleted due to corruption), skip it
+					// Don't break the loop - continue loading other segments
+					s.logger.Debug("[snapshots] segment file not found, skipping", "file", f.Path)
+					continue
 				}
 				if optimistic {
 					s.logger.Warn("[snapshots] open segment", "err", err)
@@ -610,10 +609,13 @@ func (s *RoSnapshots) rebuildSegments(fileNames []string, open bool, optimistic 
 
 	if segmentsMaxSet {
 		s.segmentsMax.Store(segmentsMax)
+		s.logger.Info("[snapshots] Loaded segments", "segmentsMax", segmentsMax)
 	}
 	s.segmentsReady.Store(true)
-	s.idxMax.Store(s.idxAvailability())
+	idxMax := s.idxAvailability()
+	s.idxMax.Store(idxMax)
 	s.indicesReady.Store(true)
+	s.logger.Info("[snapshots] Snapshot loading complete", "segmentsMax", segmentsMax, "idxMax", idxMax, "blocksAvailable", s.BlocksAvailable())
 
 	return nil
 }
