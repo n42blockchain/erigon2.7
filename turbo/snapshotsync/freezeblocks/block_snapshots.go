@@ -119,8 +119,22 @@ func (s *Segment) reopenSeg(dir string) (err error) {
 	if s.Decompressor != nil {
 		return nil
 	}
-	s.Decompressor, err = seg.NewDecompressor(filepath.Join(dir, s.FileName()))
+	filePath := filepath.Join(dir, s.FileName())
+	s.Decompressor, err = seg.NewDecompressor(filePath)
 	if err != nil {
+		// If file is corrupted, delete it so it can be re-downloaded
+		var corruptedErr *seg.ErrCompressedFileCorrupted
+		if errors.As(err, &corruptedErr) {
+			log.Warn("[snapshots] Corrupted segment file detected, deleting for re-download", "file", s.FileName(), "reason", corruptedErr.Reason)
+			if removeErr := os.Remove(filePath); removeErr != nil && !os.IsNotExist(removeErr) {
+				log.Warn("[snapshots] Failed to remove corrupted file", "file", s.FileName(), "err", removeErr)
+			}
+			// Also try to remove related index files
+			idxPath := strings.TrimSuffix(filePath, ".seg") + ".idx"
+			if removeErr := os.Remove(idxPath); removeErr != nil && !os.IsNotExist(removeErr) {
+				log.Debug("[snapshots] Failed to remove index file", "file", idxPath, "err", removeErr)
+			}
+		}
 		return fmt.Errorf("%w, fileName: %s", err, s.FileName())
 	}
 	return nil
