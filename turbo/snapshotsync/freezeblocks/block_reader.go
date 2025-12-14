@@ -630,6 +630,8 @@ func (r *BlockReader) blockWithSenders(ctx context.Context, tx kv.Getter, hash c
 
 	maxBlockNumInFiles := r.sn.BlocksAvailable()
 	if maxBlockNumInFiles == 0 || blockHeight > maxBlockNumInFiles {
+		// Block is beyond snapshot range, try to read from database
+		log.Debug("[snapshots] Block beyond snapshot range, reading from DB", "blockHeight", blockHeight, "maxInSnapshots", maxBlockNumInFiles)
 		if tx == nil {
 			if dbgLogs {
 				log.Info(dbgPrefix + "RoTx is nil")
@@ -652,6 +654,9 @@ func (r *BlockReader) blockWithSenders(ctx context.Context, tx kv.Getter, hash c
 		block, senders, err = rawdb.ReadBlockWithSenders(tx, hash, blockHeight)
 		if err != nil {
 			return nil, nil, err
+		}
+		if block == nil {
+			log.Warn("[snapshots] Block not found in DB", "blockHeight", blockHeight, "hash", hash.Hex())
 		}
 		if dbgLogs {
 			log.Info(dbgPrefix + fmt.Sprintf("found_in_db=%t", block != nil))

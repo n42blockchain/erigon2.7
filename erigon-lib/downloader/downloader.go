@@ -2520,22 +2520,19 @@ func (d *Downloader) Stats() AggStats {
 }
 
 func (d *Downloader) Close() {
-	d.logger.Info("[snapshots] stopping downloader")
+	d.logger.Debug("[snapshots] stopping downloader")
 	d.stopMainLoop()
 	d.wg.Wait()
-	d.logger.Info("[snapshots] closing torrents")
+	d.logger.Debug("[snapshots] closing torrents")
 	d.torrentClient.Close()
-	d.logger.Info("[snapshots] closing folder (mmap storage)")
 	if err := d.folder.Close(); err != nil {
 		d.logger.Warn("[snapshots] folder.close", "err", err)
 	}
-	d.logger.Info("[snapshots] closing pieceCompletionDB")
 	if err := d.pieceCompletionDB.Close(); err != nil {
 		d.logger.Warn("[snapshots] pieceCompletionDB.close", "err", err)
 	}
-	d.logger.Info("[snapshots] closing db")
 	d.db.Close()
-	d.logger.Info("[snapshots] downloader stopped")
+	d.logger.Debug("[snapshots] downloader stopped")
 }
 
 func (d *Downloader) PeerID() []byte {

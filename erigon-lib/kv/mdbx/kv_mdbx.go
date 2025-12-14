@@ -718,8 +718,6 @@ func (db *MdbxKV) waitTxsAllDoneOnClose() {
 // Close closes db
 // All transactions must be closed before closing the database.
 func (db *MdbxKV) Close() {
-	db.log.Info("[db] Close called", "label", db.opts.label)
-
 	// Flush any pending batch before closing to avoid data loss
 	// This must be done BEFORE setting closed=true, otherwise batch.run()
 	// will fail because trackTxBegin() checks the closed flag
@@ -729,23 +727,17 @@ func (db *MdbxKV) Close() {
 		b := db.batch
 		db.batch = nil
 		db.batchMu.Unlock()
-		db.log.Info("[db] Flushing pending batch", "label", db.opts.label, "calls", len(b.calls))
 		b.trigger()
-		db.log.Info("[db] Batch flushed", "label", db.opts.label)
 	} else {
 		db.batchMu.Unlock()
-		db.log.Info("[db] No pending batch to flush", "label", db.opts.label)
 	}
 
 	if ok := db.closed.CompareAndSwap(false, true); !ok {
-		db.log.Info("[db] Already closed", "label", db.opts.label)
 		return
 	}
 
-	db.log.Info("[db] Waiting for transactions to complete", "label", db.opts.label)
 	db.waitTxsAllDoneOnClose()
 
-	db.log.Info("[db] Closing mdbx env", "label", db.opts.label)
 	db.env.Close()
 	db.env = nil
 
@@ -755,7 +747,6 @@ func (db *MdbxKV) Close() {
 		}
 	}
 	removeFromPathDbMap(db.path)
-	db.log.Info("[db] Close completed", "label", db.opts.label)
 }
 
 func (db *MdbxKV) BeginRo(ctx context.Context) (txn kv.Tx, err error) {
