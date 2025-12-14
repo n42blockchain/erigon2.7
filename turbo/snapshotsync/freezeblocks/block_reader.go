@@ -630,8 +630,6 @@ func (r *BlockReader) blockWithSenders(ctx context.Context, tx kv.Getter, hash c
 
 	maxBlockNumInFiles := r.sn.BlocksAvailable()
 	if maxBlockNumInFiles == 0 || blockHeight > maxBlockNumInFiles {
-		// Block is beyond snapshot range, try to read from database
-		log.Debug("[snapshots] Block beyond snapshot range, reading from DB", "blockHeight", blockHeight, "maxInSnapshots", maxBlockNumInFiles)
 		if tx == nil {
 			if dbgLogs {
 				log.Info(dbgPrefix + "RoTx is nil")
@@ -654,9 +652,6 @@ func (r *BlockReader) blockWithSenders(ctx context.Context, tx kv.Getter, hash c
 		block, senders, err = rawdb.ReadBlockWithSenders(tx, hash, blockHeight)
 		if err != nil {
 			return nil, nil, err
-		}
-		if block == nil {
-			log.Warn("[snapshots] Block not found in DB", "blockHeight", blockHeight, "hash", hash.Hex())
 		}
 		if dbgLogs {
 			log.Info(dbgPrefix + fmt.Sprintf("found_in_db=%t", block != nil))
@@ -755,24 +750,20 @@ func (r *BlockReader) headerFromSnapshot(blockHeight uint64, sn *Segment, buf []
 	index := sn.Index()
 
 	if index == nil {
-		log.Warn("[snapshots] headerFromSnapshot: index is nil", "blockHeight", blockHeight, "segment", sn.FileName())
 		return nil, buf, nil
 	}
 	headerOffset := index.OrdinalLookup(blockHeight - index.BaseDataID())
 	gg := sn.MakeGetter()
 	gg.Reset(headerOffset)
 	if !gg.HasNext() {
-		log.Warn("[snapshots] headerFromSnapshot: no next item", "blockHeight", blockHeight, "segment", sn.FileName())
 		return nil, buf, nil
 	}
 	buf, _ = gg.Next(buf[:0])
 	if len(buf) == 0 {
-		log.Warn("[snapshots] headerFromSnapshot: empty buffer", "blockHeight", blockHeight, "segment", sn.FileName())
 		return nil, buf, nil
 	}
 	h := &types.Header{}
 	if err := rlp2.DecodeBytes(buf[1:], h); err != nil {
-		log.Warn("[snapshots] headerFromSnapshot: RLP decode failed", "blockHeight", blockHeight, "segment", sn.FileName(), "err", err, "bufLen", len(buf))
 		return nil, buf, err
 	}
 	return h, buf, nil
@@ -849,7 +840,6 @@ func (r *BlockReader) bodyForStorageFromSnapshot(blockHeight uint64, sn *Segment
 	index := sn.Index()
 
 	if index == nil {
-		log.Warn("[snapshots] bodyForStorageFromSnapshot: index is nil", "blockHeight", blockHeight, "segment", sn.FileName())
 		return nil, buf, nil
 	}
 
@@ -858,18 +848,15 @@ func (r *BlockReader) bodyForStorageFromSnapshot(blockHeight uint64, sn *Segment
 	gg := sn.MakeGetter()
 	gg.Reset(bodyOffset)
 	if !gg.HasNext() {
-		log.Warn("[snapshots] bodyForStorageFromSnapshot: no next item", "blockHeight", blockHeight, "segment", sn.FileName(), "offset", bodyOffset)
 		return nil, buf, nil
 	}
 	buf, _ = gg.Next(buf[:0])
 	if len(buf) == 0 {
-		log.Warn("[snapshots] bodyForStorageFromSnapshot: empty buffer", "blockHeight", blockHeight, "segment", sn.FileName())
 		return nil, buf, nil
 	}
 	b := &types.BodyForStorage{}
 	reader := bytes.NewReader(buf)
 	if err := rlp2.Decode(reader, b); err != nil {
-		log.Warn("[snapshots] bodyForStorageFromSnapshot: RLP decode failed", "blockHeight", blockHeight, "segment", sn.FileName(), "err", err, "bufLen", len(buf))
 		return nil, buf, err
 	}
 

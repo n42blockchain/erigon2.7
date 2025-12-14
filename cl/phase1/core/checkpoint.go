@@ -87,33 +87,28 @@ func RetrieveBeaconState(ctx context.Context, beaconConfig *clparams.BeaconChain
 	var version clparams.StateVersion
 	if err == nil {
 		version = getVersionFromForkVersion(beaconConfig, forkVersion)
-		log.Info("[Checkpoint Sync] Detected version from fork", "forkVersion", fmt.Sprintf("0x%08x", forkVersion), "version", clparams.ClVersionToString(version))
 	}
 
 	// Fallback to epoch-based version detection if fork version doesn't match any known version
 	if version == clparams.Phase0Version && forkVersion != uint32(beaconConfig.GenesisForkVersion) {
 		epoch := slot / beaconConfig.SlotsPerEpoch
 		version = beaconConfig.GetCurrentStateVersion(epoch)
-		log.Info("[Checkpoint Sync] Using epoch-based version detection", "epoch", epoch, "version", clparams.ClVersionToString(version))
 	}
 
-	log.Info("[Checkpoint Sync] Attempting to decode beacon state", "version", clparams.ClVersionToString(version), "dataSize", len(marshaled))
 	beaconState := state.New(beaconConfig)
 	err = beaconState.DecodeSSZ(marshaled, int(version))
 	if err != nil {
-		log.Warn("[Checkpoint Sync] Initial decode failed, trying fallback versions", "initialVersion", clparams.ClVersionToString(version), "err", err)
 		// If decoding fails, try with progressively newer versions as fallback
 		for tryVersion := version + 1; tryVersion <= clparams.ElectraVersion; tryVersion++ {
-			log.Info("[Checkpoint Sync] Retrying with newer version", "version", clparams.ClVersionToString(tryVersion))
 			beaconState = state.New(beaconConfig)
 			if err = beaconState.DecodeSSZ(marshaled, int(tryVersion)); err == nil {
-				log.Info("[Checkpoint Sync] Successfully decoded with version", "version", clparams.ClVersionToString(tryVersion))
+				log.Info("[Checkpoint Sync] Beacon state retrieved", "slot", slot)
 				return beaconState, nil
 			}
-			log.Warn("[Checkpoint Sync] Decode with version failed", "version", clparams.ClVersionToString(tryVersion), "err", err)
 		}
 		return nil, fmt.Errorf("checkpoint sync decode failed (tried all versions up to electra): %s", err)
 	}
+	log.Info("[Checkpoint Sync] Beacon state retrieved", "slot", slot)
 	return beaconState, nil
 }
 
