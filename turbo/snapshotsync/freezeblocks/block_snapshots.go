@@ -134,6 +134,9 @@ func (s *Segment) reopenSeg(dir string) (err error) {
 			if removeErr := os.Remove(idxPath); removeErr != nil && !os.IsNotExist(removeErr) {
 				log.Debug("[snapshots] Failed to remove index file", "file", idxPath, "err", removeErr)
 			}
+			// Return ErrNotExist so the caller knows the file needs to be re-downloaded
+			// instead of treating it as a fatal error
+			return os.ErrNotExist
 		}
 		return fmt.Errorf("%w, fileName: %s", err, s.FileName())
 	}
