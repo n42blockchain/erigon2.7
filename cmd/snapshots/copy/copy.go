@@ -169,7 +169,7 @@ func copy(cliCtx *cli.Context) error {
 	version := cliCtx.Int(VersionFlag.Name)
 
 	if version != 0 {
-		dst.Version = snaptype.Version(version)
+		dst.Version = snaptype.Version{Major: uint8(version), Minor: 0}
 	}
 
 	if cliCtx.Args().Len() > pos {
@@ -311,7 +311,7 @@ func selectFiles(entries []fs.DirEntry, version snaptype.Version, firstBlock, la
 
 			switch {
 			case snapInfo != nil && snapInfo.Type() != nil:
-				if (version == 0 || version == snapInfo.Version()) &&
+				if (version.IsZero() || version == snapInfo.Version()) &&
 					(firstBlock == 0 || snapInfo.From() >= firstBlock) &&
 					(lastBlock == 0 || snapInfo.From() < lastBlock) {
 

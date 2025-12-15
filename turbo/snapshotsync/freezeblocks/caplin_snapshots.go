@@ -367,7 +367,7 @@ func (v *CaplinView) BlobSidecarsSegment(slot uint64) (*Segment, bool) {
 func dumpBeaconBlocksRange(ctx context.Context, db kv.RoDB, fromSlot uint64, toSlot uint64, salt uint32, dirs datadir.Dirs, workers int, lvl log.Lvl, logger log.Logger) error {
 	tmpDir, snapDir := dirs.Tmp, dirs.Snap
 
-	segName := snaptype.BeaconBlocks.FileName(0, fromSlot, toSlot)
+	segName := snaptype.BeaconBlocks.FileName(snaptype.Version{}, fromSlot, toSlot)
 	f, _, _ := snaptype.ParseFileName(snapDir, segName)
 
 	sn, err := seg.NewCompressor(ctx, "Snapshot BeaconBlocks", f.Path, tmpDir, seg.MinPatternScore, workers, lvl, logger)
@@ -435,7 +435,7 @@ func dumpBeaconBlocksRange(ctx context.Context, db kv.RoDB, fromSlot uint64, toS
 func dumpBlobSidecarsRange(ctx context.Context, db kv.RoDB, storage blob_storage.BlobStorage, fromSlot uint64, toSlot uint64, salt uint32, dirs datadir.Dirs, workers int, lvl log.Lvl, logger log.Logger) error {
 	tmpDir, snapDir := dirs.Tmp, dirs.Snap
 
-	segName := snaptype.BlobSidecars.FileName(0, fromSlot, toSlot)
+	segName := snaptype.BlobSidecars.FileName(snaptype.Version{}, fromSlot, toSlot)
 	f, _, _ := snaptype.ParseFileName(snapDir, segName)
 
 	sn, err := seg.NewCompressor(ctx, "Snapshot BlobSidecars", f.Path, tmpDir, seg.MinPatternScore, workers, lvl, logger)

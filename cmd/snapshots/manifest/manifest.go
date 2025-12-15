@@ -136,7 +136,7 @@ func manifest(cliCtx *cli.Context, command string) error {
 	var version *snaptype.Version
 
 	if val := cliCtx.Int(VersionFlag.Name); val != 0 {
-		v := snaptype.Version(val)
+		v := snaptype.Version{Major: uint8(val), Minor: 0}
 		version = &v
 	}
 

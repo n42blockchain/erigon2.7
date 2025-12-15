@@ -65,8 +65,8 @@ var (
 		Enums.Headers,
 		"headers",
 		snaptype.Versions{
-			Current:      1, //2,
-			MinSupported: 1,
+			Current:      snaptype.V1_1,
+			MinSupported: snaptype.V1_0,
 		},
 		nil,
 		[]snaptype.Index{Indexes.HeaderHash},
@@ -99,8 +99,8 @@ var (
 		Enums.Bodies,
 		"bodies",
 		snaptype.Versions{
-			Current:      1, //2,
-			MinSupported: 1,
+			Current:      snaptype.V1_1,
+			MinSupported: snaptype.V1_0,
 		},
 		nil,
 		[]snaptype.Index{Indexes.BodyHash},
@@ -128,8 +128,8 @@ var (
 		Enums.Transactions,
 		"transactions",
 		snaptype.Versions{
-			Current:      1, //2,
-			MinSupported: 1,
+			Current:      snaptype.V1_1,
+			MinSupported: snaptype.V1_0,
 		},
 		nil,
 		[]snaptype.Index{Indexes.TxnHash, Indexes.TxnHash2BlockNum},

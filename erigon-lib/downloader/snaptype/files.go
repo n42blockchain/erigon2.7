@@ -38,7 +38,7 @@ var (
 )
 
 func FileName(version Version, from, to uint64, fileType string) string {
-	return fmt.Sprintf("v%d-%06d-%06d-%s", version, from/1_000, to/1_000, fileType)
+	return fmt.Sprintf("%s-%06d-%06d-%s", version.String(), from/1_000, to/1_000, fileType)
 }
 
 func SegmentFileName(version Version, from, to uint64, t Enum) string {
@@ -78,7 +78,7 @@ func FilterExt(in []FileInfo, expectExt string) (out []FileInfo) {
 			return -1
 		}
 
-		return int(a.Version) - int(b.Version)
+		return a.Version.Cmp(b.Version)
 	})
 
 	return out
@@ -309,7 +309,7 @@ func ParseDir(name string) (res []FileInfo, err error) {
 	slices.SortFunc(res, func(i, j FileInfo) int {
 		switch {
 		case i.Version != j.Version:
-			return cmp.Compare(i.Version, j.Version)
+			return i.Version.Cmp(j.Version)
 
 		case i.From != j.From:
 			return cmp.Compare(i.From, j.From)

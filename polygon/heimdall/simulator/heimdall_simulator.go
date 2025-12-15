@@ -224,7 +224,7 @@ func (h *HeimdallSimulator) Close() {
 }
 
 func (h *HeimdallSimulator) downloadData(ctx context.Context, spans *freezeblocks.Segment, sType snaptype.Type) error {
-	fileName := snaptype.SegmentFileName(1, spans.From(), spans.To(), sType.Enum())
+	fileName := snaptype.SegmentFileName(snaptype.V1_0, spans.From(), spans.To(), sType.Enum())
 	session := sync.NewTorrentSession(h.downloader, h.chain)
 	info, _, _ := snaptype.ParseFileName(session.LocalFsRoot(), fileName)
 

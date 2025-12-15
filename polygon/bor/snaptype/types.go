@@ -73,8 +73,8 @@ var (
 		Enums.BorEvents,
 		"borevents",
 		snaptype.Versions{
-			Current:      1, //2,
-			MinSupported: 1,
+			Current:      snaptype.V1_1,
+			MinSupported: snaptype.V1_0,
 		},
 		snaptype.RangeExtractorFunc(
 			func(ctx context.Context, blockFrom, blockTo uint64, _ snaptype.FirstKeyGetter, db kv.RoDB, chainConfig *chain.Config, collect func([]byte) error, workers int, lvl log.Lvl, logger log.Logger) (uint64, error) {
@@ -232,8 +232,8 @@ var (
 		Enums.BorSpans,
 		"borspans",
 		snaptype.Versions{
-			Current:      1, //2,
-			MinSupported: 1,
+			Current:      snaptype.V1_1,
+			MinSupported: snaptype.V1_0,
 		},
 		snaptype.RangeExtractorFunc(
 			func(ctx context.Context, blockFrom, blockTo uint64, firstKeyGetter snaptype.FirstKeyGetter, db kv.RoDB, _ *chain.Config, collect func([]byte) error, workers int, lvl log.Lvl, logger log.Logger) (uint64, error) {
@@ -261,8 +261,8 @@ var (
 		Enums.BorCheckpoints,
 		"borcheckpoints",
 		snaptype.Versions{
-			Current:      1, //2,
-			MinSupported: 1,
+			Current:      snaptype.V1_1,
+			MinSupported: snaptype.V1_0,
 		},
 		snaptype.RangeExtractorFunc(
 			func(ctx context.Context, blockFrom, blockTo uint64, firstKeyGetter snaptype.FirstKeyGetter, db kv.RoDB, _ *chain.Config, collect func([]byte) error, workers int, lvl log.Lvl, logger log.Logger) (uint64, error) {
@@ -336,8 +336,8 @@ var (
 		Enums.BorMilestones,
 		"bormilestones",
 		snaptype.Versions{
-			Current:      1, //2,
-			MinSupported: 1,
+			Current:      snaptype.V1_1,
+			MinSupported: snaptype.V1_0,
 		},
 		snaptype.RangeExtractorFunc(
 			func(ctx context.Context, blockFrom, blockTo uint64, firstKeyGetter snaptype.FirstKeyGetter, db kv.RoDB, _ *chain.Config, collect func([]byte) error, workers int, lvl log.Lvl, logger log.Logger) (uint64, error) {

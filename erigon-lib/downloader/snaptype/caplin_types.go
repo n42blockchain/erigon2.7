@@ -5,8 +5,8 @@ var (
 		enum: CaplinEnums.BeaconBlocks,
 		name: "beaconblocks",
 		versions: Versions{
-			Current:      1,
-			MinSupported: 1,
+			Current:      V1_1,
+			MinSupported: V1_0,
 		},
 		indexes: []Index{CaplinIndexes.BeaconBlockSlot},
 	}
@@ -14,8 +14,8 @@ var (
 		enum: CaplinEnums.BlobSidecars,
 		name: "blobsidecars",
 		versions: Versions{
-			Current:      1,
-			MinSupported: 1,
+			Current:      V1_1,
+			MinSupported: V1_0,
 		},
 		indexes: []Index{CaplinIndexes.BlobSidecarSlot},
 	}

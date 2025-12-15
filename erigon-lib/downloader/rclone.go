@@ -46,7 +46,7 @@ func (i *rcloneInfo) Version() snaptype.Version {
 		return i.snapInfo.Version
 	}
 
-	return 0
+	return snaptype.Version{}
 }
 
 func (i *rcloneInfo) From() uint64 {

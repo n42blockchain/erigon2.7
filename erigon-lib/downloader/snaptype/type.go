@@ -22,33 +22,96 @@ import (
 	"github.com/erigontech/erigon-lib/seg"
 )
 
-type Version uint8
+// Version represents a snapshot file version with major and minor components.
+// V1.0 files use format: v1-000000-000100-headers.seg
+// V1.1+ files use format: v1.1-000000-000100-headers.seg
+type Version struct {
+	Major uint8
+	Minor uint8
+}
+
+// Common version constants
+var (
+	V1_0 = Version{1, 0}
+	V1_1 = Version{1, 1}
+)
 
 func ParseVersion(v string) (Version, error) {
 	if strings.HasPrefix(v, "v") {
-		v, err := strconv.ParseUint(v[1:], 10, 8)
-
-		if err != nil {
-			return 0, fmt.Errorf("invalid version: %w", err)
+		versionStr := v[1:]
+		// Check if it contains a dot (v1.1 format)
+		if strings.Contains(versionStr, ".") {
+			parts := strings.Split(versionStr, ".")
+			if len(parts) != 2 {
+				return Version{}, fmt.Errorf("invalid version format: %s", v)
+			}
+			major, err := strconv.ParseUint(parts[0], 10, 8)
+			if err != nil {
+				return Version{}, fmt.Errorf("invalid major version: %w", err)
+			}
+			minor, err := strconv.ParseUint(parts[1], 10, 8)
+			if err != nil {
+				return Version{}, fmt.Errorf("invalid minor version: %w", err)
+			}
+			return Version{Major: uint8(major), Minor: uint8(minor)}, nil
 		}
-
-		return Version(v), nil
+		// Old format (v1)
+		major, err := strconv.ParseUint(versionStr, 10, 8)
+		if err != nil {
+			return Version{}, fmt.Errorf("invalid version: %w", err)
+		}
+		return Version{Major: uint8(major), Minor: 0}, nil
 	}
 
 	if len(v) == 0 {
-		return 0, fmt.Errorf("invalid version: no prefix")
+		return Version{}, fmt.Errorf("invalid version: no prefix")
 	}
 
-	return 0, fmt.Errorf("invalid version prefix: %s", v[0:1])
+	return Version{}, fmt.Errorf("invalid version prefix: %s", v[0:1])
 }
 
 func (v Version) String() string {
-	return "v" + strconv.Itoa(int(v))
+	if v.Minor == 0 {
+		return "v" + strconv.Itoa(int(v.Major))
+	}
+	return fmt.Sprintf("v%d.%d", v.Major, v.Minor)
+}
+
+// Cmp compares two versions. Returns -1 if v < other, 0 if equal, 1 if v > other
+func (v Version) Cmp(other Version) int {
+	if v.Major < other.Major {
+		return -1
+	}
+	if v.Major > other.Major {
+		return 1
+	}
+	if v.Minor < other.Minor {
+		return -1
+	}
+	if v.Minor > other.Minor {
+		return 1
+	}
+	return 0
+}
+
+// Less returns true if v < other
+func (v Version) Less(other Version) bool {
+	return v.Cmp(other) < 0
+}
+
+// GreaterOrEqual returns true if v >= other
+func (v Version) GreaterOrEqual(other Version) bool {
+	return v.Cmp(other) >= 0
 }
 
 type Versions struct {
 	Current      Version
 	MinSupported Version
+}
+
+// IsSupported checks if a file version is supported by this Versions configuration
+func (v Versions) IsSupported(fileVersion Version) bool {
+	return fileVersion.GreaterOrEqual(v.MinSupported)
 }
 
 type FirstKeyGetter func(ctx context.Context) uint64
@@ -223,11 +286,16 @@ func (s snapType) String() string {
 }
 
 func (s snapType) FileName(version Version, from uint64, to uint64) string {
-	if version == 0 {
+	if version.IsZero() {
 		version = s.versions.Current
 	}
 
 	return SegmentFileName(version, from, to, s.enum)
+}
+
+// IsZero returns true if the version is the zero value
+func (v Version) IsZero() bool {
+	return v.Major == 0 && v.Minor == 0
 }
 
 func (s snapType) FileInfo(dir string, from uint64, to uint64) FileInfo {
