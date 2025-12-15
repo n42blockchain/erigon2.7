@@ -492,8 +492,8 @@ Loop:
 
 		// Incremental move of next stages depend on fully written ChangeSets, Receipts, CallTraceSet
 		writeChangeSets := nextStagesExpectData || blockNum > cfg.prune.History.PruneTo(to)
-		writeReceipts := nextStagesExpectData || blockNum > cfg.prune.Receipts.PruneTo(to)
-		writeCallTraces := nextStagesExpectData || blockNum > cfg.prune.CallTraces.PruneTo(to)
+		writeReceipts := false
+		writeCallTraces := false
 
 		metrics.UpdateBlockConsumerPreExecutionDelay(block.Time(), blockNum, logger)
 
