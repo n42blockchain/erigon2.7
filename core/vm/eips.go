@@ -28,6 +28,7 @@ import (
 )
 
 var activators = map[int]func(*JumpTable){
+	7939: enable7939,
 	7702: enable7702,
 	7516: enable7516,
 	6780: enable6780,
@@ -323,4 +324,23 @@ func enable7702(jt *JumpTable) {
 	jt[CALLCODE].dynamicGas = gasCallCodeEIP7702
 	jt[STATICCALL].dynamicGas = gasStaticCallEIP7702
 	jt[DELEGATECALL].dynamicGas = gasDelegateCallEIP7702
+}
+
+// opCLZ implements the CLZ (Count Leading Zeros) opcode (EIP-7939)
+func opCLZ(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
+	x := scope.Stack.Peek()
+	// count leading zero bits in x
+	x.SetUint64(256 - uint64(x.BitLen()))
+	return nil, nil
+}
+
+// enable7939 applies EIP-7939 (CLZ opcode)
+// - Adds an opcode that counts the leading zero bits in a 256-bit value
+func enable7939(jt *JumpTable) {
+	jt[CLZ] = &operation{
+		execute:     opCLZ,
+		constantGas: GasFastStep,
+		numPop:      1,
+		numPush:     1,
+	}
 }

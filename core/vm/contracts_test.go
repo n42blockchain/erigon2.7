@@ -54,6 +54,7 @@ var allPrecompiles = map[libcommon.Address]PrecompiledContract{
 	libcommon.BytesToAddress([]byte{4}):          &dataCopy{},
 	libcommon.BytesToAddress([]byte{5}):          &bigModExp{eip2565: false},
 	libcommon.BytesToAddress([]byte{0xf5}):       &bigModExp{eip2565: true},
+	libcommon.BytesToAddress([]byte{0xb5}):       &bigModExp{osaka: true}, // EIP-7823 & EIP-7883
 	libcommon.BytesToAddress([]byte{6}):          &bn256AddIstanbul{},
 	libcommon.BytesToAddress([]byte{7}):          &bn256ScalarMulIstanbul{},
 	libcommon.BytesToAddress([]byte{8}):          &bn256PairingIstanbul{},
@@ -242,6 +243,102 @@ func BenchmarkPrecompiledModExp(b *testing.B) { benchJson("modexp", "05", b) }
 
 func TestPrecompiledModExpEip2565(t *testing.T)      { testJson("modexp_eip2565", "f5", t) }
 func BenchmarkPrecompiledModExpEip2565(b *testing.B) { benchJson("modexp_eip2565", "f5", b) }
+
+// Tests EIP-7883: ModExp gas cost changes for Osaka
+func TestPrecompiledModExpEip7883(t *testing.T)      { testJson("modexp_eip7883", "b5", t) }
+func BenchmarkPrecompiledModExpEip7883(b *testing.B) { benchJson("modexp_eip7883", "b5", b) }
+
+// Tests EIP-7823: ModExp length limits for Osaka
+func TestPrecompiledModExpEip7823Fail(t *testing.T) { testJsonFail("modexp-eip7823", "b5", t) }
+
+// TestPrecompiledModExpInputEip7823 tests EIP-7823 length limits with actual precompile calls
+func TestPrecompiledModExpInputEip7823(t *testing.T) {
+	pragueModExp := allPrecompiles[libcommon.BytesToAddress([]byte{0xf5})]
+	osakaModExp := allPrecompiles[libcommon.BytesToAddress([]byte{0xb5})]
+
+	// length_of_EXPONENT = 1024; everything else is zero (should pass for both)
+	in := libcommon.Hex2Bytes("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000000")
+	gas := pragueModExp.RequiredGas(in)
+	res, _, err := RunPrecompiledContract(pragueModExp, in, gas)
+	if err != nil {
+		t.Errorf("Prague ModExp with exp=1024 failed: %v", err)
+	}
+	if common.Bytes2Hex(res) != "" {
+		t.Errorf("Prague ModExp with exp=1024: expected empty result, got %s", common.Bytes2Hex(res))
+	}
+	gas = osakaModExp.RequiredGas(in)
+	res, _, err = RunPrecompiledContract(osakaModExp, in, gas)
+	if err != nil {
+		t.Errorf("Osaka ModExp with exp=1024 failed: %v", err)
+	}
+	if common.Bytes2Hex(res) != "" {
+		t.Errorf("Osaka ModExp with exp=1024: expected empty result, got %s", common.Bytes2Hex(res))
+	}
+
+	// length_of_EXPONENT = 1025; everything else is zero (should fail for Osaka)
+	in = libcommon.Hex2Bytes("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004010000000000000000000000000000000000000000000000000000000000000000")
+	gas = pragueModExp.RequiredGas(in)
+	res, _, err = RunPrecompiledContract(pragueModExp, in, gas)
+	if err != nil {
+		t.Errorf("Prague ModExp with exp=1025 failed: %v", err)
+	}
+	if common.Bytes2Hex(res) != "" {
+		t.Errorf("Prague ModExp with exp=1025: expected empty result, got %s", common.Bytes2Hex(res))
+	}
+	gas = osakaModExp.RequiredGas(in)
+	_, _, err = RunPrecompiledContract(osakaModExp, in, gas)
+	if err != errModExpExponentLengthTooLarge {
+		t.Errorf("Osaka ModExp with exp=1025: expected errModExpExponentLengthTooLarge, got %v", err)
+	}
+
+	// length_of_EXPONENT = 2048; everything else is zero (should fail for Osaka)
+	in = libcommon.Hex2Bytes("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000000")
+	gas = pragueModExp.RequiredGas(in)
+	res, _, err = RunPrecompiledContract(pragueModExp, in, gas)
+	if err != nil {
+		t.Errorf("Prague ModExp with exp=2048 failed: %v", err)
+	}
+	if common.Bytes2Hex(res) != "" {
+		t.Errorf("Prague ModExp with exp=2048: expected empty result, got %s", common.Bytes2Hex(res))
+	}
+	gas = osakaModExp.RequiredGas(in)
+	_, _, err = RunPrecompiledContract(osakaModExp, in, gas)
+	if err != errModExpExponentLengthTooLarge {
+		t.Errorf("Osaka ModExp with exp=2048: expected errModExpExponentLengthTooLarge, got %v", err)
+	}
+
+	// length_of_EXPONENT = 2^32; everything else is zero (should fail for Osaka)
+	in = libcommon.Hex2Bytes("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000")
+	gas = pragueModExp.RequiredGas(in)
+	res, _, err = RunPrecompiledContract(pragueModExp, in, gas)
+	if err != nil {
+		t.Errorf("Prague ModExp with exp=2^32 failed: %v", err)
+	}
+	if common.Bytes2Hex(res) != "" {
+		t.Errorf("Prague ModExp with exp=2^32: expected empty result, got %s", common.Bytes2Hex(res))
+	}
+	gas = osakaModExp.RequiredGas(in)
+	_, _, err = RunPrecompiledContract(osakaModExp, in, gas)
+	if err != errModExpExponentLengthTooLarge {
+		t.Errorf("Osaka ModExp with exp=2^32: expected errModExpExponentLengthTooLarge, got %v", err)
+	}
+
+	// length_of_EXPONENT = 2^64; everything else is zero (should fail for Osaka)
+	in = libcommon.Hex2Bytes("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000")
+	gas = pragueModExp.RequiredGas(in)
+	res, _, err = RunPrecompiledContract(pragueModExp, in, gas)
+	if err != nil {
+		t.Errorf("Prague ModExp with exp=2^64 failed: %v", err)
+	}
+	if common.Bytes2Hex(res) != "" {
+		t.Errorf("Prague ModExp with exp=2^64: expected empty result, got %s", common.Bytes2Hex(res))
+	}
+	gas = osakaModExp.RequiredGas(in)
+	_, _, err = RunPrecompiledContract(osakaModExp, in, gas)
+	if err != errModExpExponentLengthTooLarge {
+		t.Errorf("Osaka ModExp with exp=2^64: expected errModExpExponentLengthTooLarge, got %v", err)
+	}
+}
 
 // Tests the sample inputs from the elliptic curve addition EIP 213.
 func TestPrecompiledBn256Add(t *testing.T)      { testJson("bn256Add", "06", t) }

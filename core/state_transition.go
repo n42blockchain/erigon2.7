@@ -240,6 +240,11 @@ func CheckEip1559TxGasFeeCap(from libcommon.Address, gasFeeCap, tip, baseFee *ui
 
 // DESCRIBED: docs/programmers_guide/guide.md#nonce
 func (st *StateTransition) preCheck(gasBailout bool) error {
+	// EIP-7594: Check blob count limit for Osaka
+	if st.evm.ChainRules().IsOsaka && len(st.msg.BlobHashes()) > params.MaxBlobsPerTxn {
+		return fmt.Errorf("%w: address %v, blobs: %d", ErrTooManyBlobs, st.msg.From().Hex(), len(st.msg.BlobHashes()))
+	}
+
 	// Make sure this transaction's nonce is correct.
 	if st.msg.CheckNonce() {
 		stNonce := st.state.GetNonce(st.msg.From())
@@ -288,6 +293,11 @@ func (st *StateTransition) preCheck(gasBailout bool) error {
 			return fmt.Errorf("%w: address %v, maxFeePerBlobGas: %v < blobGasPrice: %v",
 				ErrMaxFeePerBlobGas, st.msg.From().Hex(), st.msg.MaxFeePerBlobGas(), blobGasPrice)
 		}
+	}
+
+	// EIP-7825: Transaction Gas Limit Cap
+	if st.evm.ChainRules().IsOsaka && st.msg.Gas() > params.MaxTxnGasLimit {
+		return fmt.Errorf("%w: address %v, gas limit %d", ErrGasLimitTooHigh, st.msg.From().Hex(), st.msg.Gas())
 	}
 
 	return st.buyGas(gasBailout)

@@ -448,6 +448,8 @@ type BeaconChainConfig struct {
 	DenebForkEpoch       uint64            `yaml:"DENEB_FORK_EPOCH" spec:"true" json:"DENEB_FORK_EPOCH,string"`         // DenebForkEpoch is used to represent the assigned fork epoch for Deneb.
 	ElectraForkVersion   ConfigForkVersion `yaml:"ELECTRA_FORK_VERSION" spec:"true" json:"ELECTRA_FORK_VERSION"`        // ElectraForkVersion is used to represent the fork version for Electra.
 	ElectraForkEpoch     uint64            `yaml:"ELECTRA_FORK_EPOCH" spec:"true" json:"ELECTRA_FORK_EPOCH,string"`     // ElectraForkEpoch is used to represent the assigned fork epoch for Electra.
+	FuluForkVersion      ConfigForkVersion `yaml:"FULU_FORK_VERSION" spec:"true" json:"FULU_FORK_VERSION"`              // FuluForkVersion is used to represent the fork version for Fulu (Fusaka CL).
+	FuluForkEpoch        uint64            `yaml:"FULU_FORK_EPOCH" spec:"true" json:"FULU_FORK_EPOCH,string"`           // FuluForkEpoch is used to represent the assigned fork epoch for Fulu (Fusaka CL).
 
 	ForkVersionSchedule map[libcommon.Bytes4]uint64 `json:"-"` // Schedule of fork epochs by version.
 	ForkVersionNames    map[libcommon.Bytes4]string `json:"-"` // Human-readable names of fork versions.
@@ -543,7 +545,7 @@ func (b *BeaconChainConfig) RoundSlotToVotePeriod(slot uint64) uint64 {
 }
 
 func (b *BeaconChainConfig) GetCurrentStateVersion(epoch uint64) StateVersion {
-	forkEpochList := []uint64{b.AltairForkEpoch, b.BellatrixForkEpoch, b.CapellaForkEpoch, b.DenebForkEpoch, b.ElectraForkEpoch}
+	forkEpochList := []uint64{b.AltairForkEpoch, b.BellatrixForkEpoch, b.CapellaForkEpoch, b.DenebForkEpoch, b.ElectraForkEpoch, b.FuluForkEpoch}
 	stateVersion := Phase0Version
 	for _, forkEpoch := range forkEpochList {
 		if forkEpoch > epoch {
@@ -568,6 +570,7 @@ func configForkSchedule(b *BeaconChainConfig) map[libcommon.Bytes4]uint64 {
 	fvs[utils.Uint32ToBytes4(uint32(b.CapellaForkVersion))] = b.CapellaForkEpoch
 	fvs[utils.Uint32ToBytes4(uint32(b.DenebForkVersion))] = b.DenebForkEpoch
 	fvs[utils.Uint32ToBytes4(uint32(b.ElectraForkVersion))] = b.ElectraForkEpoch
+	fvs[utils.Uint32ToBytes4(uint32(b.FuluForkVersion))] = b.FuluForkEpoch
 	return fvs
 }
 
@@ -579,6 +582,7 @@ func configForkNames(b *BeaconChainConfig) map[libcommon.Bytes4]string {
 	fvn[utils.Uint32ToBytes4(uint32(b.CapellaForkVersion))] = "capella"
 	fvn[utils.Uint32ToBytes4(uint32(b.DenebForkVersion))] = "deneb"
 	fvn[utils.Uint32ToBytes4(uint32(b.ElectraForkVersion))] = "electra"
+	fvn[utils.Uint32ToBytes4(uint32(b.FuluForkVersion))] = "fulu"
 	return fvn
 }
 
@@ -716,8 +720,10 @@ var MainnetBeaconConfig BeaconChainConfig = BeaconChainConfig{
 	CapellaForkEpoch:     194048,
 	DenebForkVersion:     0x04000000,
 	DenebForkEpoch:       269568,
-	ElectraForkVersion:   0x05000000, // Mainnet Electra/Pectra fork version (not yet activated)
-	ElectraForkEpoch:     math.MaxUint64,
+	ElectraForkVersion:   0x05000000, // Mainnet Electra/Pectra fork version
+	ElectraForkEpoch:     364032,     // Mainnet Electra/Pectra fork epoch
+	FuluForkVersion:      0x06000000, // Mainnet Fulu/Fusaka fork version
+	FuluForkEpoch:        math.MaxUint64,
 
 	// New values introduced in Altair hard fork 1.
 	// Participation flag indices.
@@ -825,6 +831,8 @@ func sepoliaConfig() BeaconChainConfig {
 	cfg.DenebForkVersion = 0x90000073
 	cfg.ElectraForkEpoch = 222464
 	cfg.ElectraForkVersion = 0x90000074
+	cfg.FuluForkEpoch = 272640
+	cfg.FuluForkVersion = 0x90000075
 	cfg.TerminalTotalDifficulty = "17000000000000000"
 	cfg.DepositContractAddress = "0x7f02C3E3c98b133055B8B348B2Ac625669Ed295D"
 	cfg.InitializeForkSchedule()
@@ -876,6 +884,8 @@ func holeskyConfig() BeaconChainConfig {
 	cfg.DenebForkVersion = 0x05017000
 	cfg.ElectraForkEpoch = 115968
 	cfg.ElectraForkVersion = 0x06017000
+	cfg.FuluForkEpoch = 50688
+	cfg.FuluForkVersion = 0x70000910
 	cfg.TerminalTotalDifficulty = "0"
 	cfg.TerminalBlockHash = [32]byte{}
 	cfg.TerminalBlockHashActivationEpoch = math.MaxUint64
@@ -916,6 +926,10 @@ func gnosisConfig() BeaconChainConfig {
 	cfg.CapellaForkVersion = 0x03000064
 	cfg.DenebForkEpoch = 889856
 	cfg.DenebForkVersion = 0x04000064
+	cfg.ElectraForkEpoch = 1337856
+	cfg.ElectraForkVersion = 0x05000064
+	cfg.FuluForkEpoch = math.MaxUint64
+	cfg.FuluForkVersion = 0x06000064
 	cfg.TerminalTotalDifficulty = "8626000000000000000000058750000000000000000000"
 	cfg.DepositContractAddress = "0x0B98057eA310F4d31F2a452B414647007d1645d9"
 	cfg.BaseRewardFactor = 25
@@ -955,6 +969,8 @@ func chiadoConfig() BeaconChainConfig {
 	cfg.DenebForkVersion = 0x0400006f
 	cfg.ElectraForkEpoch = 948224
 	cfg.ElectraForkVersion = 0x0500006f
+	cfg.FuluForkEpoch = math.MaxUint64
+	cfg.FuluForkVersion = 0x0600006f
 	cfg.TerminalTotalDifficulty = "231707791542740786049188744689299064356246512"
 	cfg.DepositContractAddress = "0xb97036A26259B7147018913bD58a774cf91acf25"
 	cfg.BaseRewardFactor = 25
@@ -979,7 +995,7 @@ func (b *BeaconChainConfig) GetMinSlashingPenaltyQuotient(version StateVersion) 
 		return b.MinSlashingPenaltyQuotientBellatrix
 	case DenebVersion:
 		return b.MinSlashingPenaltyQuotientBellatrix
-	case ElectraVersion:
+	case ElectraVersion, FuluVersion:
 		return b.MinSlashingPenaltyQuotientBellatrix
 	default:
 		panic("not implemented")
@@ -998,7 +1014,7 @@ func (b *BeaconChainConfig) GetPenaltyQuotient(version StateVersion) uint64 {
 		return b.InactivityPenaltyQuotientBellatrix
 	case DenebVersion:
 		return b.InactivityPenaltyQuotientBellatrix
-	case ElectraVersion:
+	case ElectraVersion, FuluVersion:
 		return b.InactivityPenaltyQuotientBellatrix
 	default:
 		panic("not implemented")
@@ -1049,6 +1065,8 @@ func (b *BeaconChainConfig) GetForkVersionByVersion(v StateVersion) uint32 {
 		return uint32(b.DenebForkVersion)
 	case ElectraVersion:
 		return uint32(b.ElectraForkVersion)
+	case FuluVersion:
+		return uint32(b.FuluForkVersion)
 	}
 	panic("invalid version")
 }
@@ -1067,6 +1085,8 @@ func (b *BeaconChainConfig) GetForkEpochByVersion(v StateVersion) uint64 {
 		return b.DenebForkEpoch
 	case ElectraVersion:
 		return b.ElectraForkEpoch
+	case FuluVersion:
+		return b.FuluForkEpoch
 	}
 	panic("invalid version")
 }

@@ -11,6 +11,7 @@ const (
 	CapellaVersion   StateVersion = 3
 	DenebVersion     StateVersion = 4
 	ElectraVersion   StateVersion = 5
+	FuluVersion      StateVersion = 6 // Fulu is the CL name for Fusaka (Fulu + Osaka)
 )
 
 // stringToClVersion converts the string to the current state version.
@@ -28,6 +29,8 @@ func StringToClVersion(s string) (StateVersion, error) {
 		return DenebVersion, nil
 	case "electra":
 		return ElectraVersion, nil
+	case "fulu":
+		return FuluVersion, nil
 	default:
 		return 0, fmt.Errorf("unsupported fork version %s", s)
 	}
@@ -47,6 +50,8 @@ func ClVersionToString(s StateVersion) string {
 		return "deneb"
 	case ElectraVersion:
 		return "electra"
+	case FuluVersion:
+		return "fulu"
 	default:
 		panic("unsupported fork version")
 	}

@@ -21,6 +21,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"math/big"
+	"math/bits"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
@@ -149,7 +150,31 @@ var PrecompiledContractsPrague = map[libcommon.Address]PrecompiledContract{
 	libcommon.BytesToAddress([]byte{0x11}): &bls12381MapFp2ToG2{},
 }
 
+// PrecompiledContractsOsaka contains the precompiled contracts for the Osaka fork
+// Includes EIP-7823/7883 (MODEXP changes) and EIP-7951 (p256Verify changes)
+var PrecompiledContractsOsaka = map[libcommon.Address]PrecompiledContract{
+	libcommon.BytesToAddress([]byte{0x01}):       &ecrecover{},
+	libcommon.BytesToAddress([]byte{0x02}):       &sha256hash{},
+	libcommon.BytesToAddress([]byte{0x03}):       &ripemd160hash{},
+	libcommon.BytesToAddress([]byte{0x04}):       &dataCopy{},
+	libcommon.BytesToAddress([]byte{0x05}):       &bigModExp{eip2565: true, osaka: true},
+	libcommon.BytesToAddress([]byte{0x06}):       &bn256AddIstanbul{},
+	libcommon.BytesToAddress([]byte{0x07}):       &bn256ScalarMulIstanbul{},
+	libcommon.BytesToAddress([]byte{0x08}):       &bn256PairingIstanbul{},
+	libcommon.BytesToAddress([]byte{0x09}):       &blake2F{},
+	libcommon.BytesToAddress([]byte{0x0a}):       &pointEvaluation{},
+	libcommon.BytesToAddress([]byte{0x0b}):       &bls12381G1Add{},
+	libcommon.BytesToAddress([]byte{0x0c}):       &bls12381G1MultiExp{},
+	libcommon.BytesToAddress([]byte{0x0d}):       &bls12381G2Add{},
+	libcommon.BytesToAddress([]byte{0x0e}):       &bls12381G2MultiExp{},
+	libcommon.BytesToAddress([]byte{0x0f}):       &bls12381Pairing{},
+	libcommon.BytesToAddress([]byte{0x10}):       &bls12381MapFpToG1{},
+	libcommon.BytesToAddress([]byte{0x11}):       &bls12381MapFp2ToG2{},
+	libcommon.BytesToAddress([]byte{0x01, 0x00}): &p256Verify{eip7951: true},
+}
+
 var (
+	PrecompiledAddressesOsaka     []libcommon.Address
 	PrecompiledAddressesPrague    []libcommon.Address
 	PrecompiledAddressesNapoli    []libcommon.Address
 	PrecompiledAddressesCancun    []libcommon.Address
@@ -181,11 +206,16 @@ func init() {
 	for k := range PrecompiledContractsPrague {
 		PrecompiledAddressesPrague = append(PrecompiledAddressesPrague, k)
 	}
+	for k := range PrecompiledContractsOsaka {
+		PrecompiledAddressesOsaka = append(PrecompiledAddressesOsaka, k)
+	}
 }
 
 // ActivePrecompiles returns the precompiles enabled with the current configuration.
 func ActivePrecompiles(rules *chain.Rules) []libcommon.Address {
 	switch {
+	case rules.IsOsaka:
+		return PrecompiledAddressesOsaka
 	case rules.IsPrague:
 		return PrecompiledAddressesPrague
 	case rules.IsNapoli:
@@ -305,6 +335,7 @@ func (c *dataCopy) Run(in []byte) ([]byte, error) {
 // bigModExp implements a native big integer exponential modular operation.
 type bigModExp struct {
 	eip2565 bool
+	osaka   bool // EIP-7823 & EIP-7883
 }
 
 var (
@@ -322,6 +353,11 @@ var (
 	big1024   = big.NewInt(1024)
 	big3072   = big.NewInt(3072)
 	big199680 = big.NewInt(199680)
+
+	// EIP-7823 errors
+	errModExpBaseLengthTooLarge     = errors.New("base length is too large")
+	errModExpExponentLengthTooLarge = errors.New("exponent length is too large")
+	errModExpModulusLengthTooLarge  = errors.New("modulus length is too large")
 )
 
 // modexpMultComplexity implements bigModexp multComplexity formula, as defined in EIP-198
@@ -353,8 +389,149 @@ func modexpMultComplexity(x *big.Int) *big.Int {
 	return x
 }
 
+// modExpMultComplexityEip2565 implements modExp multiplication complexity formula, as defined in EIP-2565
+//
+// def mult_complexity(x):
+//
+//	words = math.ceil(x / 8)
+//	return words**2
+//
+// where is x is max(base_length, modulus_length)
+func modExpMultComplexityEip2565(x uint32) uint64 {
+	numWords := (uint64(x) + 7) / 8
+	return numWords * numWords
+}
+
+// modExpMultComplexityEip7883 implements modExp multiplication complexity formula, as defined in EIP-7883
+//
+// def mult_complexity(x):
+//
+// words = math.ceil(x / 8)
+// multiplication_complexity = 16
+// if x > 32: multiplication_complexity = 2 * words**2
+// return multiplication_complexity
+//
+// where is x is max(base_length, modulus_length)
+func modExpMultComplexityEip7883(x uint32) uint64 {
+	if x > 32 {
+		return modExpMultComplexityEip2565(x) * 2
+	}
+	return 16
+}
+
+// modExpMultComplexityEip198 implements modExp multiplication complexity formula, as defined in EIP-198
+func modExpMultComplexityEip198(x uint32) uint64 {
+	xx := uint64(x) * uint64(x)
+	switch {
+	case x <= 64:
+		return xx
+	case x <= 1024:
+		return xx/4 + 96*uint64(x) - 3072
+	default:
+		return xx/16 + 480*uint64(x) - 199680
+	}
+}
+
 // RequiredGas returns the gas required to execute the pre-compiled contract.
 func (c *bigModExp) RequiredGas(input []byte) uint64 {
+	// EIP-7883 and EIP-2565 use a new implementation with uint32/uint64
+	if c.osaka || c.eip2565 {
+		return c.requiredGasNew(input)
+	}
+	// Legacy EIP-198 implementation using big.Int
+	return c.requiredGasLegacy(input)
+}
+
+// requiredGasNew implements gas calculation for EIP-2565 and EIP-7883
+func (c *bigModExp) requiredGasNew(input []byte) uint64 {
+	var minGas uint64
+	var adjExpFactor uint64
+	var finalDivisor uint64
+	var calcMultComplexity func(uint32) uint64
+	switch {
+	case c.osaka:
+		minGas = 500
+		adjExpFactor = 16
+		finalDivisor = 1
+		calcMultComplexity = modExpMultComplexityEip7883
+	case c.eip2565:
+		minGas = 200
+		adjExpFactor = 8
+		finalDivisor = 3
+		calcMultComplexity = modExpMultComplexityEip2565
+	default:
+		minGas = 0
+		adjExpFactor = 8
+		finalDivisor = 20
+		calcMultComplexity = modExpMultComplexityEip198
+	}
+
+	header := getData(input, 0, 3*32)
+	baseLen256 := new(uint256.Int).SetBytes32(header[0:32])
+	expLen256 := new(uint256.Int).SetBytes32(header[32:64])
+	modLen256 := new(uint256.Int).SetBytes32(header[64:96])
+	lenLimit := uint64(math.MaxUint32)
+
+	// If base or mod is bigger than uint32, the gas cost will be huge.
+	if baseLen256.CmpUint64(lenLimit) > 0 || modLen256.CmpUint64(lenLimit) > 0 {
+		return math.MaxUint64
+	}
+
+	// If exp is bigger than uint32:
+	if expLen256.CmpUint64(lenLimit) > 0 {
+		// Before EIP-7883, 0 multiplication complexity cancels the big exp.
+		if !c.osaka && baseLen256.IsZero() && modLen256.IsZero() {
+			return minGas
+		}
+		// Otherwise, the gas cost will be huge.
+		return math.MaxUint64
+	}
+
+	var (
+		baseLen = uint32(baseLen256.Uint64())
+		expLen  = uint32(expLen256.Uint64())
+		modLen  = uint32(modLen256.Uint64())
+	)
+	if len(input) > 96 {
+		input = input[96:]
+	} else {
+		input = input[:0]
+	}
+	// Retrieve the head 32 bytes of exp for the adjusted exponent length
+	expHeadLen := min(expLen, 32)
+	expOffset := baseLen
+	var expHeadExplicitBytes []byte
+	if expOffset < uint32(len(input)) {
+		endIdx := expOffset + min(expHeadLen, uint32(len(input))-expOffset)
+		expHeadExplicitBytes = input[expOffset:endIdx]
+	}
+	// Compute the exp bit width
+	expBitWidth := uint32(0)
+	for i := 0; i < len(expHeadExplicitBytes); i++ {
+		expByte := expHeadExplicitBytes[i]
+		if expByte != 0 {
+			expTopByteBitWidth := 8 - uint32(bits.LeadingZeros8(expByte))
+			expBitWidth = 8*(expHeadLen-uint32(i)-1) + expTopByteBitWidth
+			break
+		}
+	}
+	// Compute the adjusted exp length
+	expTailLen := expLen - expHeadLen
+	expHeadBits := max(expBitWidth, 1) - 1
+	adjExpLen := max(adjExpFactor*uint64(expTailLen)+uint64(expHeadBits), 1)
+
+	maxLen := max(baseLen, modLen)
+	multComplexity := calcMultComplexity(maxLen)
+	gasHi, gasLo := bits.Mul64(multComplexity, adjExpLen)
+	if gasHi != 0 {
+		return math.MaxUint64
+	}
+	gas := gasLo / finalDivisor
+	return max(gas, minGas)
+}
+
+// requiredGasLegacy implements gas calculation for legacy EIP-198
+func (c *bigModExp) requiredGasLegacy(input []byte) uint64 {
 	var (
 		baseLen = new(big.Int).SetBytes(getData(input, 0, 32))
 		expLen  = new(big.Int).SetBytes(getData(input, 32, 32))
@@ -389,31 +566,7 @@ func (c *bigModExp) RequiredGas(input []byte) uint64 {
 	adjExpLen.Add(adjExpLen, big.NewInt(int64(msb)))
 	// Calculate the gas cost of the operation
 	gas := new(big.Int).Set(math2.BigMax(modLen, baseLen))
-	if c.eip2565 {
-		// EIP-2565 has three changes
-		// 1. Different multComplexity (inlined here)
-		// in EIP-2565 (https://eips.ethereum.org/EIPS/eip-2565):
-		//
-		// def mult_complexity(x):
-		//    ceiling(x/8)^2
-		//
-		//where is x is max(length_of_MODULUS, length_of_BASE)
-		gas = gas.Add(gas, big7)
-		gas = gas.Div(gas, big8)
-		gas.Mul(gas, gas)
 
-		gas.Mul(gas, math2.BigMax(adjExpLen, big1))
-		// 2. Different divisor (`GQUADDIVISOR`) (3)
-		gas.Div(gas, big3)
-		if gas.BitLen() > 64 {
-			return math.MaxUint64
-		}
-		// 3. Minimum price of 200 gas
-		if gas.Uint64() < 200 {
-			return 200
-		}
-		return gas.Uint64()
-	}
 	gas = modexpMultComplexity(gas)
 	gas.Mul(gas, math2.BigMax(adjExpLen, big1))
 	gas.Div(gas, big20)
@@ -425,19 +578,45 @@ func (c *bigModExp) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bigModExp) Run(input []byte) ([]byte, error) {
+	header := getData(input, 0, 96)
 	var (
-		baseLen = new(big.Int).SetBytes(getData(input, 0, 32)).Uint64()
-		expLen  = new(big.Int).SetBytes(getData(input, 32, 32)).Uint64()
-		modLen  = new(big.Int).SetBytes(getData(input, 64, 32)).Uint64()
+		baseLen = new(big.Int).SetBytes(header[0:32]).Uint64()
+		expLen  = new(big.Int).SetBytes(header[32:64]).Uint64()
+		modLen  = new(big.Int).SetBytes(header[64:96]).Uint64()
+
+		// Check if high bits are zero (for EIP-7823)
+		baseLenHighBitsAreZero = allZero(header[0 : 32-8])
+		expLenHighBitsAreZero  = allZero(header[32 : 64-8])
+		modLenHighBitsAreZero  = allZero(header[64 : 96-8])
 	)
+
+	// EIP-7823: Set upper bounds for MODEXP (Osaka)
+	if c.osaka {
+		if !baseLenHighBitsAreZero || baseLen > 1024 {
+			return nil, errModExpBaseLengthTooLarge
+		}
+		if !expLenHighBitsAreZero || expLen > 1024 {
+			return nil, errModExpExponentLengthTooLarge
+		}
+		if !modLenHighBitsAreZero || modLen > 1024 {
+			return nil, errModExpModulusLengthTooLarge
+		}
+	}
+
+	// Handle a special case when mod length is zero
+	if modLen == 0 && modLenHighBitsAreZero {
+		return []byte{}, nil
+	}
+
+	// If high bits are not zero, we run out of gas
+	if !baseLenHighBitsAreZero || !expLenHighBitsAreZero || !modLenHighBitsAreZero {
+		return nil, ErrOutOfGas
+	}
+
 	if len(input) > 96 {
 		input = input[96:]
 	} else {
 		input = input[:0]
-	}
-	// Handle a special case when both the base and mod length is zero
-	if baseLen == 0 && modLen == 0 {
-		return []byte{}, nil
 	}
 	// Retrieve the operands and execute the exponentiation
 	var (
@@ -1121,7 +1300,9 @@ func (c *pointEvaluation) Run(input []byte) ([]byte, error) {
 
 // P256VERIFY (secp256r1 signature verification)
 // implemented as a native contract
-type p256Verify struct{}
+type p256Verify struct {
+	eip7951 bool // EIP-7951: updated gas cost
+}
 
 // RequiredGas returns the gas required to execute the precompiled contract
 func (c *p256Verify) RequiredGas(input []byte) uint64 {

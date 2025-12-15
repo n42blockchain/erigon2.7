@@ -19,6 +19,7 @@ package chain
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"math/big"
 	"strconv"
 
@@ -155,7 +156,7 @@ type BorConfig interface {
 func (c *Config) String() string {
 	engine := c.getEngine()
 
-	return fmt.Sprintf("{ChainID: %v, Homestead: %v, DAO: %v, Tangerine Whistle: %v, Spurious Dragon: %v, Byzantium: %v, Constantinople: %v, Petersburg: %v, Istanbul: %v, Muir Glacier: %v, Berlin: %v, London: %v, Arrow Glacier: %v, Gray Glacier: %v, Terminal Total Difficulty: %v, Merge Netsplit: %v, Shanghai: %v, Cancun: %v, Prague: %v, Osaka: %v, Engine: %v}",
+	return fmt.Sprintf("{ChainID: %v, Homestead: %v, DAO: %v, Tangerine Whistle: %v, Spurious Dragon: %v, Byzantium: %v, Constantinople: %v, Petersburg: %v, Istanbul: %v, Muir Glacier: %v, Berlin: %v, London: %v, Arrow Glacier: %v, Gray Glacier: %v, Terminal Total Difficulty: %v, Merge Netsplit: %v, Shanghai: %v, Cancun: %v, Pectra: %v, Fusaka: %v, Engine: %v}",
 		c.ChainID,
 		c.HomesteadBlock,
 		c.DAOForkBlock,
@@ -328,6 +329,23 @@ func (c *Config) GetTargetBlobGasPerBlock(t uint64) uint64 {
 		b = c.BlobSchedule
 	}
 	return b.TargetBlobsPerBlock(c.IsPrague(t)) * fixedgas.BlobGasPerBlob
+}
+
+func (c *Config) GetTargetBlobsPerBlock(time uint64) uint64 {
+	var b *BlobSchedule
+	if c != nil {
+		b = c.BlobSchedule
+	}
+	return b.TargetBlobsPerBlock(c.IsPrague(time))
+}
+
+// GetMaxRlpBlockSize returns the maximum RLP-encoded block size.
+// In Osaka, this is limited by EIP-7892.
+func (c *Config) GetMaxRlpBlockSize(time uint64) int {
+	if c.IsOsaka(time) {
+		return 10_485_760 - 2_097_152 // ~8 MiB (MaxBlockSize - SafetyMargin)
+	}
+	return math.MaxInt
 }
 
 func (c *Config) GetBlobGasPriceUpdateFraction(t uint64) uint64 {

@@ -18,6 +18,7 @@ package misc
 
 import (
 	"fmt"
+	"math/big"
 
 	"github.com/holiman/uint256"
 
@@ -25,23 +26,43 @@ import (
 	"github.com/erigontech/erigon-lib/common/fixedgas"
 
 	"github.com/erigontech/erigon/core/types"
+	"github.com/erigontech/erigon/params"
+)
+
+var (
+	blobBaseCost = big.NewInt(int64(params.BlobBaseCost))
+	gasPerBlob   = big.NewInt(int64(fixedgas.BlobGasPerBlob))
 )
 
 // CalcExcessBlobGas implements calc_excess_blob_gas from EIP-4844
 // Updated for EIP-7691: currentHeaderTime is used to determine the fork, and hence params
+// Also updated for EIP-7918: Blob base fee bounded by execution cost
 func CalcExcessBlobGas(config *chain.Config, parent *types.Header, currentHeaderTime uint64) uint64 {
-	var excessBlobGas, blobGasUsed uint64
+	var parentExcessBlobGas, parentBlobGasUsed uint64
 	if parent.ExcessBlobGas != nil {
-		excessBlobGas = *parent.ExcessBlobGas
+		parentExcessBlobGas = *parent.ExcessBlobGas
 	}
 	if parent.BlobGasUsed != nil {
-		blobGasUsed = *parent.BlobGasUsed
+		parentBlobGasUsed = *parent.BlobGasUsed
 	}
+	target := config.GetTargetBlobsPerBlock(currentHeaderTime)
+	targetBlobGas := target * fixedgas.BlobGasPerBlob
 
-	if excessBlobGas+blobGasUsed < config.GetTargetBlobGasPerBlock(currentHeaderTime) {
+	if parentExcessBlobGas+parentBlobGasUsed < targetBlobGas {
 		return 0
 	}
-	return excessBlobGas + blobGasUsed - config.GetTargetBlobGasPerBlock(currentHeaderTime)
+	if config.IsOsaka(currentHeaderTime) {
+		// EIP-7918: Blob base fee bounded by execution cost
+		max := config.GetMaxBlobsPerBlock(currentHeaderTime)
+		refBlobBaseFee, err := GetBlobGasPrice(config, parentExcessBlobGas, currentHeaderTime)
+		if err != nil {
+			panic(err) // should never happen assuming the parent is valid
+		}
+		if big.NewInt(0).Mul(blobBaseCost, parent.BaseFee).Cmp(big.NewInt(0).Mul(gasPerBlob, refBlobBaseFee.ToBig())) > 0 {
+			return parentExcessBlobGas + parentBlobGasUsed*(max-target)/max
+		}
+	}
+	return parentExcessBlobGas + parentBlobGasUsed - targetBlobGas
 }
 
 // FakeExponential approximates factor * e ** (num / denom) using a taylor expansion

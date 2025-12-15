@@ -64,6 +64,7 @@ var (
 	napoliInstructionSet           = newNapoliInstructionSet()
 	cancunInstructionSet           = newCancunInstructionSet()
 	pragueInstructionSet           = newPragueInstructionSet()
+	osakaInstructionSet            = newOsakaInstructionSet()
 )
 
 // JumpTable contains the EVM opcodes supported at a given fork.
@@ -93,6 +94,16 @@ func validateAndFillMaxStack(jt *JumpTable) {
 func newPragueInstructionSet() JumpTable {
 	instructionSet := newCancunInstructionSet()
 	enable7702(&instructionSet) // EIP-7702: set code tx
+	validateAndFillMaxStack(&instructionSet)
+	return instructionSet
+}
+
+// newOsakaInstructionSet returns the frontier, homestead, byzantium,
+// constantinople, istanbul, petersburg, berlin, london, paris, shanghai,
+// cancun, prague, and osaka instructions.
+func newOsakaInstructionSet() JumpTable {
+	instructionSet := newPragueInstructionSet()
+	enable7939(&instructionSet) // EIP-7939: CLZ opcode
 	validateAndFillMaxStack(&instructionSet)
 	return instructionSet
 }

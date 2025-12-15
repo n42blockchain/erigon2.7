@@ -26,6 +26,7 @@ const (
 	GasLimitBoundDivisor uint64 = 1024               // The bound divisor of the gas limit, used in update calculations.
 	MinGasLimit          uint64 = 5000               // Minimum the gas limit may ever be.
 	MaxGasLimit          uint64 = 0x7fffffffffffffff // Maximum the gas limit may ever be.
+	MaxTxnGasLimit       uint64 = 16_777_216         // EIP-7825: Transaction Gas Limit Cap.
 	GenesisGasLimit      uint64 = 4712388            // Gas limit of the Genesis block.
 
 	MaximumExtraDataSize  uint64 = 32    // Maximum size extra data may be after Genesis.
@@ -131,6 +132,11 @@ const (
 	MaxCodeSizePostAhmedabad = 32768           // Maximum bytecode to permit for a contract post Ahmedabad hard fork (bor / polygon pos) (32KB)
 	MaxInitCodeSize          = 2 * MaxCodeSize // Maximum initcode to permit in a creation transaction and create instructions
 
+	// EIP-7892: Max RLP block size (Osaka)
+	MaxBlockSize             = 10_485_760                        // 10 MiB
+	MaxBlockSizeSafetyMargin = 2_097_152                         // 2 MiB
+	MaxRlpBlockSize          = MaxBlockSize - MaxBlockSizeSafetyMargin // ~8 MiB
+
 	// Precompiled contract gas prices
 
 	TendermintHeaderValidateGas uint64 = 3000 // Gas for validate tendermiint consensus state
@@ -169,6 +175,8 @@ const (
 
 	// EIP-4844: Shard Blob Transactions
 	PointEvaluationGas uint64 = 50000
+	MaxBlobsPerTxn     int    = 6      // EIP-7594: Maximum blobs per transaction
+	BlobBaseCost       uint64 = 1 << 13 // EIP-7918: Blob base fee bounded by execution cost
 
 	// PIP-27: secp256r1 elliptic curve signature verifier gas price
 	P256VerifyGas uint64 = 3450

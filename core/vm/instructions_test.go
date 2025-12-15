@@ -852,3 +852,52 @@ func TestOpMCopy(t *testing.T) {
 		}
 	}
 }
+
+// TestOpCLZ tests the CLZ (Count Leading Zeros) opcode - EIP-7939
+func TestOpCLZ(t *testing.T) {
+	tests := []struct {
+		name     string
+		inputHex string // hexadecimal input for clarity
+		want     uint64 // expected CLZ result
+	}{
+		{"zero", "0x0", 256},
+		{"one", "0x1", 255},
+		{"two", "0x2", 254},
+		{"max-uint256", "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 0},
+		{"high-bit-set", "0x8000000000000000000000000000000000000000000000000000000000000000", 0},
+		{"low-10-bytes-ones", "0xffffffffff", 216}, // 10 hex digits = 40 bits, 256-40=216
+		{"half", "0xffffffffffffffffffffffffffffffff", 128},    // lower 128 bits set
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var (
+				env            = NewEVM(evmtypes.BlockContext{}, evmtypes.TxContext{}, nil, params.TestChainConfig, Config{})
+				stk            = stack.New()
+				evmInterpreter = NewEVMInterpreter(env, env.Config())
+			)
+
+			pc := uint64(0)
+
+			// parse input
+			val := new(uint256.Int)
+			if _, err := fmt.Sscan(tc.inputHex, val); err != nil {
+				if val.SetFromHex(tc.inputHex) != nil {
+					t.Fatalf("failed to parse input %q", tc.inputHex)
+				}
+			}
+
+			stk.Push(val)
+			opCLZ(&pc, evmInterpreter, &ScopeContext{nil, stk, nil})
+
+			if gotLen := stk.Len(); gotLen != 1 {
+				t.Fatalf("stack length = %d; want 1", gotLen)
+			}
+			result := stk.Pop()
+
+			if got := result.Uint64(); got != tc.want {
+				t.Errorf("CLZ(%s) = %d; want %d", tc.inputHex, got, tc.want)
+			}
+		})
+	}
+}
