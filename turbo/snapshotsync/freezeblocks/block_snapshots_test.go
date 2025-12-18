@@ -34,7 +34,7 @@ func createTestSegmentFile(t *testing.T, from, to uint64, name snaptype.Enum, di
 		KeyCount:   1,
 		BucketSize: 10,
 		TmpDir:     dir,
-		IndexFile:  filepath.Join(dir, snaptype.IdxFileName(1, from, to, name.String())),
+		IndexFile:  filepath.Join(dir, snaptype.IdxFileName(version, from, to, name.String())),
 		LeafSize:   8,
 	}, logger)
 	require.NoError(t, err)
@@ -49,7 +49,7 @@ func createTestSegmentFile(t *testing.T, from, to uint64, name snaptype.Enum, di
 			KeyCount:   1,
 			BucketSize: 10,
 			TmpDir:     dir,
-			IndexFile:  filepath.Join(dir, snaptype.IdxFileName(1, from, to, coresnaptype.Indexes.TxnHash2BlockNum.Name)),
+			IndexFile:  filepath.Join(dir, snaptype.IdxFileName(version, from, to, coresnaptype.Indexes.TxnHash2BlockNum.Name)),
 			LeafSize:   8,
 		}, logger)
 		require.NoError(t, err)
@@ -183,7 +183,7 @@ func TestMergeSnapshots(t *testing.T) {
 	dir, require := t.TempDir(), require.New(t)
 	createFile := func(from, to uint64) {
 		for _, snT := range coresnaptype.BlockSnapshotTypes {
-			createTestSegmentFile(t, from, to, snT.Enum(), dir, 1, logger)
+			createTestSegmentFile(t, from, to, snT.Enum(), dir, snaptype.V1_0, logger)
 		}
 	}
 
@@ -272,7 +272,7 @@ func TestRemoveOverlaps(t *testing.T) {
 	dir, require := t.TempDir(), require.New(t)
 	createFile := func(from, to uint64) {
 		for _, snT := range coresnaptype.BlockSnapshotTypes {
-			createTestSegmentFile(t, from, to, snT.Enum(), dir, 1, logger)
+			createTestSegmentFile(t, from, to, snT.Enum(), dir, snaptype.V1_0, logger)
 		}
 	}
 
@@ -346,7 +346,7 @@ func TestOpenAllSnapshot(t *testing.T) {
 		chainSnapshotCfg.ExpectBlocks = math.MaxUint64
 		cfg := ethconfig.BlocksFreezing{Enabled: true}
 		createFile := func(from, to uint64, name snaptype.Type) {
-			createTestSegmentFile(t, from, to, name.Enum(), dir, 1, logger)
+			createTestSegmentFile(t, from, to, name.Enum(), dir, snaptype.V1_0, logger)
 		}
 		s := NewRoSnapshots(cfg, dir, 0, logger)
 		defer s.Close()

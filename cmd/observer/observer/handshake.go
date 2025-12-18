@@ -240,6 +240,7 @@ func makeOurHelloMessage(myPrivateKey *ecdsa.PrivateKey) HelloMessage {
 		{Name: eth.ProtocolName, Version: direct.ETH66},
 		{Name: eth.ProtocolName, Version: direct.ETH67},
 		{Name: eth.ProtocolName, Version: direct.ETH68},
+		{Name: eth.ProtocolName, Version: direct.ETH69},
 	}
 
 	return HelloMessage{

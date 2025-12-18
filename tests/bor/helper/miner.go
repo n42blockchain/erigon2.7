@@ -89,7 +89,7 @@ func InitMiner(ctx context.Context, genesis *types.Genesis, privKey *ecdsa.Priva
 		Dirs:    datadir.New(ddir),
 		P2P: p2p.Config{
 			ListenAddr:      ":30303",
-			ProtocolVersion: []uint{direct.ETH68, direct.ETH67}, // No need to specify direct.ETH66, because 1 sentry is used for both 66 and 67
+			ProtocolVersion: []uint{direct.ETH69, direct.ETH68}, // eth/69 as primary, eth/68 as fallback
 			MaxPeers:        100,
 			MaxPendingPeers: 1000,
 			AllowedPorts:    []uint{30303, 30304, 30305, 30306, 30307, 30308, 30309, 30310},

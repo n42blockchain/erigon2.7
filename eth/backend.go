@@ -874,7 +874,7 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 		//      - for now we just use 1 sentry
 		var sentryClient direct.SentryClient
 		for _, client := range sentries {
-			if client.Protocol() == direct.ETH68 {
+			if client.Protocol() == direct.ETH69 || client.Protocol() == direct.ETH68 {
 				sentryClient = client
 				break
 			}

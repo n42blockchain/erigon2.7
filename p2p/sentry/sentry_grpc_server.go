@@ -439,7 +439,7 @@ func runPeer(
 			}
 			send(eth.ToProto[protocol][msg.Code], peerID, b)
 		case eth.GetNodeDataMsg:
-			if protocol >= direct.ETH67 {
+			if protocol >= direct.ETH67 { // GetNodeData deprecated since eth/67
 				msg.Discard()
 				return p2p.NewPeerError(p2p.PeerErrorMessageObsolete, p2p.DiscSubprotocolError, nil, fmt.Sprintf("unexpected GetNodeDataMsg from %s in eth/%d", peerID, protocol))
 			}
@@ -610,7 +610,9 @@ func NewGrpcServer(ctx context.Context, dialCandidates func() enode.Iterator, re
 		disc = dialCandidates()
 	}
 	protocols := []uint{protocol}
-	if protocol == direct.ETH67 {
+	if protocol == direct.ETH69 {
+		protocols = append(protocols, direct.ETH68)
+	} else if protocol == direct.ETH67 {
 		protocols = append(protocols, direct.ETH66)
 	}
 	for _, p := range protocols {
@@ -995,6 +997,8 @@ func (ss *GrpcServer) HandShake(context.Context, *emptypb.Empty) (*proto_sentry.
 		reply.Protocol = proto_sentry.Protocol_ETH67
 	case direct.ETH68:
 		reply.Protocol = proto_sentry.Protocol_ETH68
+	case direct.ETH69:
+		reply.Protocol = proto_sentry.Protocol_ETH69
 	}
 	return reply, nil
 }

@@ -212,6 +212,7 @@ const (
 	Protocol_ETH66 Protocol = 1
 	Protocol_ETH67 Protocol = 2
 	Protocol_ETH68 Protocol = 3
+	Protocol_ETH69 Protocol = 4
 )
 
 // Enum value maps for Protocol.
@@ -221,12 +222,14 @@ var (
 		1: "ETH66",
 		2: "ETH67",
 		3: "ETH68",
+		4: "ETH69",
 	}
 	Protocol_value = map[string]int32{
 		"ETH65": 0,
 		"ETH66": 1,
 		"ETH67": 2,
 		"ETH68": 3,
+		"ETH69": 4,
 	}
 )
 

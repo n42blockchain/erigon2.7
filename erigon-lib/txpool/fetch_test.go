@@ -91,7 +91,7 @@ func TestSendTxPropagate(t *testing.T) {
 			Times(times)
 
 		m := NewMockSentry(ctx, sentryServer)
-		send := NewSend(ctx, []direct.SentryClient{direct.NewSentryClientDirect(direct.ETH68, m)}, nil, log.New())
+		send := NewSend(ctx, []direct.SentryClient{direct.NewSentryClientDirect(direct.ETH69, m)}, nil, log.New())
 		send.BroadcastPooledTxs(testRlps(2), 100)
 		send.AnnouncePooledTxs([]byte{0, 1}, []uint32{10, 15}, toHashes(1, 42), 100)
 
@@ -121,7 +121,7 @@ func TestSendTxPropagate(t *testing.T) {
 			Times(times)
 
 		m := NewMockSentry(ctx, sentryServer)
-		send := NewSend(ctx, []direct.SentryClient{direct.NewSentryClientDirect(direct.ETH68, m)}, nil, log.New())
+		send := NewSend(ctx, []direct.SentryClient{direct.NewSentryClientDirect(direct.ETH69, m)}, nil, log.New())
 		list := make(erigonlibtypes.Hashes, p2pTxPacketLimit*3)
 		for i := 0; i < len(list); i += 32 {
 			b := []byte(fmt.Sprintf("%x", i))
@@ -156,7 +156,7 @@ func TestSendTxPropagate(t *testing.T) {
 			Times(times)
 
 		m := NewMockSentry(ctx, sentryServer)
-		send := NewSend(ctx, []direct.SentryClient{direct.NewSentryClientDirect(direct.ETH68, m)}, nil, log.New())
+		send := NewSend(ctx, []direct.SentryClient{direct.NewSentryClientDirect(direct.ETH69, m)}, nil, log.New())
 		send.BroadcastPooledTxs(testRlps(2), 100)
 		send.AnnouncePooledTxs([]byte{0, 1}, []uint32{10, 15}, toHashes(1, 42), 100)
 
@@ -186,7 +186,7 @@ func TestSendTxPropagate(t *testing.T) {
 			Times(times)
 
 		m := NewMockSentry(ctx, sentryServer)
-		send := NewSend(ctx, []direct.SentryClient{direct.NewSentryClientDirect(direct.ETH68, m)}, nil, log.New())
+		send := NewSend(ctx, []direct.SentryClient{direct.NewSentryClientDirect(direct.ETH69, m)}, nil, log.New())
 		expectPeers := toPeerIDs(1, 2, 42)
 		send.PropagatePooledTxsToPeersList(expectPeers, []byte{0, 1}, []uint32{10, 15}, toHashes(1, 42))
 

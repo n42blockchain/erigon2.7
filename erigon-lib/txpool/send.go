@@ -166,28 +166,28 @@ func (f *Send) AnnouncePooledTxs(types []byte, sizes []uint32, hashes types2.Has
 						}
 					}
 				}
-			case direct.ETH68:
+		case direct.ETH68, direct.ETH69:
 
-				if j > prevJ {
-					req := &sentry.SendMessageToRandomPeersRequest{
-						Data: &sentry.OutboundMessageData{
-							Id:   sentry.MessageId_NEW_POOLED_TRANSACTION_HASHES_68,
-							Data: jData,
-						},
-						MaxPeers: maxPeers,
-					}
-					peers, err := sentryClient.SendMessageToRandomPeers(f.ctx, req)
-					if err != nil {
-						f.logger.Debug("[txpool.send] AnnouncePooledTxs68", "err", err)
-					}
-					if peers != nil {
-						for k := prevJ; k < j; k++ {
-							hashSentTo[k] += len(peers.Peers)
-						}
+			if j > prevJ {
+				req := &sentry.SendMessageToRandomPeersRequest{
+					Data: &sentry.OutboundMessageData{
+						Id:   sentry.MessageId_NEW_POOLED_TRANSACTION_HASHES_68,
+						Data: jData,
+					},
+					MaxPeers: maxPeers,
+				}
+				peers, err := sentryClient.SendMessageToRandomPeers(f.ctx, req)
+				if err != nil {
+					f.logger.Debug("[txpool.send] AnnouncePooledTxs68", "err", err)
+				}
+				if peers != nil {
+					for k := prevJ; k < j; k++ {
+						hashSentTo[k] += len(peers.Peers)
 					}
 				}
-
 			}
+
+		}
 		}
 		prevI = i
 		prevJ = j
@@ -245,7 +245,7 @@ func (f *Send) PropagatePooledTxsToPeersList(peers []types2.PeerID, types []byte
 							f.logger.Debug("[txpool.send] PropagatePooledTxsToPeersList", "err", err)
 						}
 					}
-				case direct.ETH68:
+				case direct.ETH68, direct.ETH69:
 
 					if j > prevJ {
 						req := &sentry.SendMessageByIdRequest{
