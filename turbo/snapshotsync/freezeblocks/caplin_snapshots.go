@@ -654,11 +654,14 @@ func (s *CaplinSnapshots) FrozenBlobs() uint64 {
 	if s.beaconCfg.DenebForkEpoch == math.MaxUint64 {
 		return 0
 	}
-	minSegFrom := ((s.beaconCfg.SlotsPerEpoch * s.beaconCfg.DenebForkEpoch) / snaptype.Erigon2MergeLimit) * snaptype.Erigon2MergeLimit
+	denebSlot := s.beaconCfg.SlotsPerEpoch * s.beaconCfg.DenebForkEpoch
+	// Support both 500k and legacy 100k alignments for backward compatibility
+	minSegFrom500k := (denebSlot / snaptype.Erigon2MergeLimit) * snaptype.Erigon2MergeLimit
+	minSegFrom100k := (denebSlot / snaptype.Erigon2LegacyMergeLimit) * snaptype.Erigon2LegacyMergeLimit
 	foundMinSeg := false
 	ret := uint64(0)
 	for _, seg := range s.BlobSidecars.segments {
-		if seg.from == minSegFrom {
+		if seg.from == minSegFrom500k || seg.from == minSegFrom100k {
 			foundMinSeg = true
 		}
 		ret = utils.Max64(ret, seg.to)

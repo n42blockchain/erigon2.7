@@ -78,8 +78,19 @@ func SpawnStageHistoryDownload(cfg StageHistoryReconstructionCfg, ctx context.Co
 		cfg.backfilling = false // disable backfilling if not on a supported network
 	}
 
+	// Log download info including EL frozen blocks to help estimate download scope
+	clSnapshotsMax := cfg.sn.SegmentsMax()
+	var elFrozenBlocks uint64
+	if cfg.engine != nil && cfg.engine.SupportInsertion() {
+		elFrozenBlocks = cfg.engine.FrozenBlocks(ctx)
+	}
+
 	// Start the procedure
-	logger.Info("Starting downloading History", "from", currentSlot)
+	logger.Info("Starting downloading History", "from", currentSlot, "clSnapshotsMax", clSnapshotsMax, "elFrozenBlocks", elFrozenBlocks, "backfilling", cfg.backfilling)
+	if !cfg.backfilling && elFrozenBlocks > 0 {
+		logger.Info("Download will stop when reaching EL frozen blocks boundary (backfilling disabled)")
+	}
+
 	// Setup slot and block root
 	cfg.downloader.SetSlotToDownload(currentSlot)
 	cfg.downloader.SetExpectedRoot(blockRoot)
