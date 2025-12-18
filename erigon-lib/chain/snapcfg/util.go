@@ -332,8 +332,13 @@ type Cfg struct {
 }
 
 func (c Cfg) Seedable(info snaptype.FileInfo) bool {
+	fileLen := info.To - info.From
+	// Accept both current merge limit and legacy 100k files for backward compatibility
+	if fileLen == snaptype.Erigon2MergeLimit || fileLen == snaptype.Erigon2OldMergeLimit || fileLen == snaptype.Erigon2LegacyMergeLimit {
+		return true
+	}
 	mergeLimit := c.MergeLimit(info.Type.Enum(), info.From)
-	return info.To-info.From == mergeLimit
+	return fileLen == mergeLimit
 }
 
 func (c Cfg) MergeLimit(t snaptype.Enum, fromBlock uint64) uint64 {
