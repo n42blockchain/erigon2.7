@@ -186,20 +186,23 @@ func SpawnStageHistoryDownload(cfg StageHistoryReconstructionCfg, ctx context.Co
 	go func() {
 		logInterval := time.NewTicker(logIntervalTime)
 		defer logInterval.Stop()
+		noProgressCount := 0
 		for {
 			select {
 			case <-logInterval.C:
 				logTime := logIntervalTime
 
+				// Check if EL is ready
+				elReady := true
 				if cfg.engine != nil && cfg.engine.SupportInsertion() {
 					if ready, err := cfg.engine.Ready(ctx); !ready {
+						elReady = false
 						if err != nil {
 							log.Warn("could not log progress", "err", err)
 						}
-						continue
 					}
-
 				}
+
 				logArgs := []interface{}{}
 				currProgress := cfg.downloader.Progress()
 				blockProgress := float64(prevProgress - currProgress)
@@ -207,14 +210,27 @@ func SpawnStageHistoryDownload(cfg StageHistoryReconstructionCfg, ctx context.Co
 				speed := blockProgress / ratio
 				prevProgress = currProgress
 
-				if speed == 0 {
-					continue
-				}
-
 				// Calculate progress and ETA
 				totalToDownload := startingProgress - targetSlot
 				downloaded := startingProgress - currProgress
 				remaining := currProgress - targetSlot
+
+				// Always show status, even if no progress
+				if speed == 0 {
+					noProgressCount++
+					// Show waiting status every 2 intervals when no progress
+					if noProgressCount%2 == 0 {
+						peers, _ := cfg.downloader.Peers()
+						logger.Info("Waiting for CL history download", 
+							"slot", currProgress,
+							"remaining", remaining,
+							"peers", peers,
+							"elReady", elReady)
+					}
+					continue
+				}
+				noProgressCount = 0
+
 				var etaStr string
 				if speed > 0 && remaining > 0 {
 					etaSecs := float64(remaining) / speed
