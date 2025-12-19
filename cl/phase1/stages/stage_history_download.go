@@ -122,9 +122,19 @@ func SpawnStageHistoryDownload(cfg StageHistoryReconstructionCfg, ctx context.Co
 		}
 		if cfg.engine != nil && cfg.engine.SupportInsertion() && blk.Version() >= clparams.BellatrixVersion {
 			payload := blk.Block.Body.ExecutionPayload
-			hasELBlock, err := cfg.engine.HasBlock(ctx, payload.BlockHash)
-			if err != nil {
-				return false, fmt.Errorf("error retrieving whether execution payload is present: %s", err)
+			frozenBlocks := cfg.engine.FrozenBlocks(ctx)
+
+			// Fast path: if block is in EL frozen range, consider it available
+			// This avoids calling HasBlock which may not work for snapshot-only blocks
+			isInFrozenRange := payload.BlockNumber < frozenBlocks
+			hasELBlock := isInFrozenRange
+			if !isInFrozenRange {
+				// Only call HasBlock for blocks outside frozen range
+				var err error
+				hasELBlock, err = cfg.engine.HasBlock(ctx, payload.BlockHash)
+				if err != nil {
+					return false, fmt.Errorf("error retrieving whether execution payload is present: %s", err)
+				}
 			}
 
 			if !hasELBlock {
