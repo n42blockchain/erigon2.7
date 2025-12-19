@@ -156,6 +156,27 @@ func SpawnStageHistoryDownload(cfg StageHistoryReconstructionCfg, ctx context.Co
 		return (!cfg.backfilling || slot <= destinationSlotForCL) && (slot <= destinationSlotForEL || isInElSnapshots), tx.Commit()
 	})
 	prevProgress := cfg.downloader.Progress()
+	startingProgress := prevProgress
+
+	// Calculate target slot based on EL frozen blocks for progress estimation
+	// This helps show meaningful progress when downloading to EL frozen boundary
+	var targetSlot uint64
+	if cfg.engine != nil && cfg.engine.SupportInsertion() && !cfg.backfilling {
+		frozenBlocks := cfg.engine.FrozenBlocks(ctx)
+		if frozenBlocks > 0 {
+			// Estimate the slot corresponding to EL frozen blocks
+			// After merge: slot ≈ bellatrixSlot + (blockNum - mergeBlockNum)
+			// Simplified: assume ~1 slot per EL block after merge
+			bellatrixSlot := cfg.beaconCfg.BellatrixForkEpoch * cfg.beaconCfg.SlotsPerEpoch
+			mergeBlockNum := uint64(15537393) // Mainnet merge block
+			if frozenBlocks > mergeBlockNum {
+				targetSlot = bellatrixSlot + (frozenBlocks - mergeBlockNum)
+			}
+		}
+	}
+	if targetSlot == 0 {
+		targetSlot = cfg.sn.SegmentsMax()
+	}
 
 	finishCh := make(chan struct{})
 	// Start logging thread
@@ -189,15 +210,36 @@ func SpawnStageHistoryDownload(cfg StageHistoryReconstructionCfg, ctx context.Co
 				if speed == 0 {
 					continue
 				}
+
+				// Calculate progress and ETA
+				totalToDownload := startingProgress - targetSlot
+				downloaded := startingProgress - currProgress
+				remaining := currProgress - targetSlot
+				var etaStr string
+				if speed > 0 && remaining > 0 {
+					etaSecs := float64(remaining) / speed
+					if etaSecs < 60 {
+						etaStr = fmt.Sprintf("%.0fs", etaSecs)
+					} else if etaSecs < 3600 {
+						etaStr = fmt.Sprintf("%.1fm", etaSecs/60)
+					} else {
+						etaStr = fmt.Sprintf("%.1fh", etaSecs/3600)
+					}
+				}
+
 				logArgs = append(logArgs,
+					"progress", fmt.Sprintf("%d/%d", downloaded, totalToDownload),
 					"slot", currProgress,
 					"blockNumber", currEth1Progress.Load(),
 					"blk/sec", fmt.Sprintf("%.1f", speed),
-					"snapshots", cfg.sn.SegmentsMax(),
 				)
-				logMsg := "Node is still syncing... downloading past blocks"
+				if etaStr != "" {
+					logArgs = append(logArgs, "ETA", etaStr)
+				}
+
+				logMsg := "Downloading Execution History"
 				if isBackfilling.Load() {
-					logMsg = "Node has finished syncing... full history is being downloaded for archiving purposes"
+					logMsg = "Backfilling full history for archiving"
 				}
 				logger.Info(logMsg, logArgs...)
 			case <-finishCh:
