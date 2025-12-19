@@ -215,11 +215,36 @@ func NewDecompressor(compressedFilePath string) (*Decompressor, error) {
 	d.data = d.mmapHandle1[:d.size]
 	defer d.EnableReadAhead().DisableReadAhead() //speedup opening on slow drives
 
-	d.wordsCount = binary.BigEndian.Uint64(d.data[:8])
-	d.emptyWordsCount = binary.BigEndian.Uint64(d.data[8:16])
+	// Detect file format version
+	// V1.1 format (Erigon 3.x) has a 32-byte header with magic number
+	// V1.0 format starts directly with wordsCount
+	headerOffset := uint64(0)
+	
+	// Check for V1.1 magic number: first 4 bytes are "SEG\x00" or similar marker
+	// or detect by checking if parsed values are unreasonable
+	wordsCount := binary.BigEndian.Uint64(d.data[:8])
+	emptyWordsCount := binary.BigEndian.Uint64(d.data[8:16])
+	dictSize := binary.BigEndian.Uint64(d.data[16:24])
+	
+	// If dictSize is unreasonably large (> 1TB or > file size), it's likely V1.1 format
+	// V1.1 format has a 32-byte header before the actual data
+	if dictSize > uint64(d.size) || dictSize > 1<<40 || wordsCount > 1<<40 {
+		// Try V1.1 format with 32-byte header offset
+		headerOffset = 32
+		if d.size < int64(headerOffset+24) {
+			return nil, &ErrCompressedFileCorrupted{
+				FileName: fName,
+				Reason:   "file too small for V1.1 format"}
+		}
+		wordsCount = binary.BigEndian.Uint64(d.data[headerOffset : headerOffset+8])
+		emptyWordsCount = binary.BigEndian.Uint64(d.data[headerOffset+8 : headerOffset+16])
+		dictSize = binary.BigEndian.Uint64(d.data[headerOffset+16 : headerOffset+24])
+	}
+	
+	d.wordsCount = wordsCount
+	d.emptyWordsCount = emptyWordsCount
 
-	pos := uint64(24)
-	dictSize := binary.BigEndian.Uint64(d.data[16:pos])
+	pos := headerOffset + 24
 
 	if pos+dictSize > uint64(d.size) {
 		return nil, &ErrCompressedFileCorrupted{
@@ -269,8 +294,8 @@ func NewDecompressor(compressedFilePath string) (*Decompressor, error) {
 		}
 	}
 
-	if assert.Enable && pos != 24 {
-		panic("pos != 24")
+	if assert.Enable && pos != headerOffset+24 {
+		panic(fmt.Sprintf("pos != headerOffset+24: pos=%d, headerOffset=%d", pos, headerOffset))
 	}
 	pos += dictSize // offset patterns
 	// read positions
