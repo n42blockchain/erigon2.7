@@ -65,7 +65,7 @@ var (
 		Enums.Headers,
 		"headers",
 		snaptype.Versions{
-			Current:      snaptype.V1_1,
+			Current:      snaptype.V1_0,
 			MinSupported: snaptype.V1_0,
 		},
 		nil,
@@ -99,7 +99,7 @@ var (
 		Enums.Bodies,
 		"bodies",
 		snaptype.Versions{
-			Current:      snaptype.V1_1,
+			Current:      snaptype.V1_0,
 			MinSupported: snaptype.V1_0,
 		},
 		nil,
@@ -128,7 +128,7 @@ var (
 		Enums.Transactions,
 		"transactions",
 		snaptype.Versions{
-			Current:      snaptype.V1_1,
+			Current:      snaptype.V1_0,
 			MinSupported: snaptype.V1_0,
 		},
 		nil,

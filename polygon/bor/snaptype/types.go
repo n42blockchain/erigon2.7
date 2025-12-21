@@ -73,7 +73,7 @@ var (
 		Enums.BorEvents,
 		"borevents",
 		snaptype.Versions{
-			Current:      snaptype.V1_1,
+			Current:      snaptype.V1_0,
 			MinSupported: snaptype.V1_0,
 		},
 		snaptype.RangeExtractorFunc(
@@ -232,7 +232,7 @@ var (
 		Enums.BorSpans,
 		"borspans",
 		snaptype.Versions{
-			Current:      snaptype.V1_1,
+			Current:      snaptype.V1_0,
 			MinSupported: snaptype.V1_0,
 		},
 		snaptype.RangeExtractorFunc(
@@ -261,7 +261,7 @@ var (
 		Enums.BorCheckpoints,
 		"borcheckpoints",
 		snaptype.Versions{
-			Current:      snaptype.V1_1,
+			Current:      snaptype.V1_0,
 			MinSupported: snaptype.V1_0,
 		},
 		snaptype.RangeExtractorFunc(
@@ -336,7 +336,7 @@ var (
 		Enums.BorMilestones,
 		"bormilestones",
 		snaptype.Versions{
-			Current:      snaptype.V1_1,
+			Current:      snaptype.V1_0,
 			MinSupported: snaptype.V1_0,
 		},
 		snaptype.RangeExtractorFunc(
