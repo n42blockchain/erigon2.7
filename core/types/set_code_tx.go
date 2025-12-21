@@ -108,8 +108,8 @@ func (tx *SetCodeTransaction) AsMessage(s Signer, baseFee *big.Int, rules *chain
 		accessList: tx.AccessList,
 		checkNonce: true,
 	}
-	if !rules.IsPrague {
-		return msg, errors.New("SetCodeTransaction is only supported in Prague")
+	if !rules.IsPrague && !rules.IsOsaka {
+		return msg, errors.New("SetCodeTransaction is only supported in Prague and later")
 	}
 	if baseFee != nil {
 		overflow := msg.gasPrice.SetFromBig(baseFee)

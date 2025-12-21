@@ -423,7 +423,9 @@ func (st *StateTransition) TransitionDb(refunds bool, gasBailout bool) (*evmtype
 	}
 
 	// Check clauses 4-5, subtract intrinsic gas if everything is correct
-	gas, floorGas7623, err := IntrinsicGas(st.data, accessTuples, contractCreation, rules.IsHomestead, rules.IsIstanbul, isEIP3860, rules.IsPrague, uint64(len(auths)))
+	// EIP-7623 floor gas applies to both Prague and Osaka
+	isPragueOrLater := rules.IsPrague || rules.IsOsaka
+	gas, floorGas7623, err := IntrinsicGas(st.data, accessTuples, contractCreation, rules.IsHomestead, rules.IsIstanbul, isEIP3860, isPragueOrLater, uint64(len(auths)))
 	if err != nil {
 		return nil, err
 	}
@@ -473,7 +475,8 @@ func (st *StateTransition) TransitionDb(refunds bool, gasBailout bool) (*evmtype
 		refund := min(gasUsed/refundQuotient, st.state.GetRefund())
 		gasUsedAfterRefund := gasUsed - refund
 		finalGasUsed := gasUsedAfterRefund
-		if rules.IsPrague {
+		// EIP-7623 floor gas applies to both Prague and Osaka
+		if rules.IsPrague || rules.IsOsaka {
 			finalGasUsed = max(floorGas7623, gasUsedAfterRefund)
 		}
 		// Debug: detailed gas calculation logging
@@ -484,7 +487,8 @@ func (st *StateTransition) TransitionDb(refunds bool, gasBailout bool) (*evmtype
 		}
 		st.gasRemaining = st.initialGas - finalGasUsed
 		st.refundGas()
-	} else if rules.IsPrague {
+	} else if rules.IsPrague || rules.IsOsaka {
+		// EIP-7623 floor gas applies to both Prague and Osaka
 		finalGasUsed := max(floorGas7623, st.gasUsed())
 		// Debug: detailed gas calculation logging
 		debugBlock := dbg.DebugBlockExecution()
@@ -511,7 +515,7 @@ func (st *StateTransition) TransitionDb(refunds bool, gasBailout bool) (*evmtype
 		if burntContractAddress != nil {
 			burnAmount := new(uint256.Int).Mul(new(uint256.Int).SetUint64(st.gasUsed()), st.evm.Context.BaseFee)
 			st.state.AddBalance(*burntContractAddress, burnAmount)
-			if rules.IsAura && rules.IsPrague {
+			if rules.IsAura && (rules.IsPrague || rules.IsOsaka) {
 				// https://github.com/gnosischain/specs/blob/master/network-upgrades/pectra.md#eip-4844-pectra
 				st.state.AddBalance(*burntContractAddress, st.evm.BlobFee)
 			}
