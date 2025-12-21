@@ -15,6 +15,7 @@ import (
 	"github.com/erigontech/erigon-lib/common/mem"
 	"github.com/erigontech/erigon/cmd/snapshots/cmp"
 	"github.com/erigontech/erigon/cmd/snapshots/copy"
+	"github.com/erigontech/erigon/cmd/snapshots/downgrade"
 	"github.com/erigontech/erigon/cmd/snapshots/manifest"
 	"github.com/erigontech/erigon/cmd/snapshots/sync"
 	"github.com/erigontech/erigon/cmd/snapshots/torrents"
@@ -36,6 +37,7 @@ func main() {
 	app.Commands = []*cli.Command{
 		&cmp.Command,
 		&copy.Command,
+		&downgrade.Command,
 		&verify.Command,
 		&torrents.Command,
 		&manifest.Command,
