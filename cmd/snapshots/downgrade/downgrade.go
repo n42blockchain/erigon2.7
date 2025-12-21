@@ -12,7 +12,6 @@ import (
 
 	"github.com/erigontech/erigon-lib/downloader/snaptype"
 	"github.com/erigontech/erigon/cmd/snapshots/flags"
-	"github.com/erigontech/erigon/cmd/snapshots/sync"
 	"github.com/erigontech/erigon/cmd/utils"
 	"github.com/erigontech/erigon/turbo/logging"
 )
@@ -304,10 +303,10 @@ func downgrade(cliCtx *cli.Context) error {
 
 		// Convert: strip header if v1.1 content, rename if v1.1 filename
 		if isV11Content {
-			logger.Info("Converting v1.1 to v1.0", "file", name, "rename", needsRename)
+			fmt.Printf("  Converting v1.1 to v1.0: %s (rename=%v)\n", name, needsRename)
 			dstName, err := convertV11ToV10(srcPath, keepOriginal, needsRename)
 			if err != nil {
-				logger.Error("Failed to convert", "file", name, "error", err)
+				fmt.Printf("    Error: Failed to convert %s: %v\n", name, err)
 				continue
 			}
 			
@@ -319,10 +318,10 @@ func downgrade(cliCtx *cli.Context) error {
 				} else {
 					os.Remove(srcIdxPath)
 				}
-				logger.Info("Removed old index (needs regeneration)", "file", filepath.Base(srcIdxPath))
+				fmt.Printf("    Removed old index: %s\n", filepath.Base(srcIdxPath))
 			}
 			
-			logger.Info("Converted", "from", name, "to", dstName)
+			fmt.Printf("    Converted: %s -> %s\n", name, dstName)
 		} else if needsRename {
 			// Only rename, no content conversion needed
 			dstName := getV10FileName(name)
@@ -332,13 +331,13 @@ func downgrade(cliCtx *cli.Context) error {
 				// Copy instead of rename
 				srcFile, err := os.Open(srcPath)
 				if err != nil {
-					logger.Error("Failed to open for copy", "file", name, "error", err)
+					fmt.Printf("    Error: Failed to open %s: %v\n", name, err)
 					continue
 				}
 				dstFile, err := os.Create(dstPath)
 				if err != nil {
 					srcFile.Close()
-					logger.Error("Failed to create destination", "file", dstName, "error", err)
+					fmt.Printf("    Error: Failed to create %s: %v\n", dstName, err)
 					continue
 				}
 				_, err = io.Copy(dstFile, srcFile)
@@ -346,13 +345,13 @@ func downgrade(cliCtx *cli.Context) error {
 				dstFile.Close()
 				if err != nil {
 					os.Remove(dstPath)
-					logger.Error("Failed to copy", "file", name, "error", err)
+					fmt.Printf("    Error: Failed to copy %s: %v\n", name, err)
 					continue
 				}
 				os.Rename(srcPath, srcPath+".v11.bak")
 			} else {
 				if err := os.Rename(srcPath, dstPath); err != nil {
-					logger.Error("Failed to rename", "file", name, "error", err)
+					fmt.Printf("    Error: Failed to rename %s: %v\n", name, err)
 					continue
 				}
 			}
@@ -369,20 +368,19 @@ func downgrade(cliCtx *cli.Context) error {
 				}
 			}
 			
-			logger.Info("Renamed", "from", name, "to", dstName)
+			fmt.Printf("    Renamed: %s -> %s\n", name, dstName)
 		}
 
 		converted++
 	}
 
-	logger.Info("Scan complete",
-		"v1.1_found", converted,
-		"already_v1.0", alreadyV10,
-		"skipped_by_filter", skipped,
-		"dry_run", dryRun)
+	fmt.Printf("\nScan complete:\n")
+	fmt.Printf("  v1.1 files found:    %d\n", converted)
+	fmt.Printf("  Already v1.0:        %d\n", alreadyV10)
+	fmt.Printf("  Skipped by filter:   %d\n", skipped)
 
 	if !dryRun && converted > 0 {
-		logger.Info("Conversion complete. Index files may need to be regenerated on next startup.")
+		fmt.Println("\nConversion complete. Index files may need to be regenerated on next startup.")
 	}
 
 	return nil
