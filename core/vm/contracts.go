@@ -1306,6 +1306,9 @@ type p256Verify struct {
 
 // RequiredGas returns the gas required to execute the precompiled contract
 func (c *p256Verify) RequiredGas(input []byte) uint64 {
+	if c.eip7951 {
+		return params.P256VerifyGasEIP7951
+	}
 	return params.P256VerifyGas
 }
 
