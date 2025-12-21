@@ -17,8 +17,11 @@
 package core
 
 import (
+	"fmt"
+
 	"github.com/erigontech/erigon-lib/chain"
 	libcommon "github.com/erigontech/erigon-lib/common"
+	"github.com/erigontech/erigon-lib/common/dbg"
 
 	"github.com/erigontech/erigon-lib/crypto"
 	"github.com/erigontech/erigon/consensus"
@@ -69,6 +72,25 @@ func applyTransaction(config *chain.Config, engine consensus.EngineReader, gp *G
 	*usedGas += result.UsedGas
 	if usedBlobGas != nil {
 		*usedBlobGas += tx.GetBlobGas()
+	}
+
+	// Debug: detailed execution logging for specific block
+	debugBlock := dbg.DebugBlockExecution()
+	if debugBlock > 0 && header.Number.Uint64() == debugBlock {
+		fmt.Printf("[DEBUG TX] Block=%d TxIdx=%d TxHash=%s\n",
+			header.Number.Uint64(), ibs.TxIndex(), tx.Hash().Hex())
+		fmt.Printf("  Type=%d, From=%s, To=%v, Value=%s\n",
+			tx.Type(), msg.From().Hex(), msg.To(), msg.Value().String())
+		fmt.Printf("  GasLimit=%d, GasUsed=%d, Failed=%v, Err=%v\n",
+			msg.Gas(), result.UsedGas, result.Failed(), result.Err)
+		fmt.Printf("  Refund=%d, ReturnDataLen=%d\n",
+			ibs.GetRefund(), len(result.ReturnData))
+		logs := ibs.GetLogs(tx.Hash())
+		fmt.Printf("  LogsCount=%d\n", len(logs))
+		for i, lg := range logs {
+			fmt.Printf("    Log[%d]: Addr=%s, Topics=%d, DataLen=%d\n",
+				i, lg.Address.Hex(), len(lg.Topics), len(lg.Data))
+		}
 	}
 
 	// Set the receipt logs and create the bloom filter.

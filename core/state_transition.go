@@ -28,6 +28,7 @@ import (
 	"github.com/erigontech/erigon-lib/log/v3"
 
 	libcommon "github.com/erigontech/erigon-lib/common"
+	"github.com/erigontech/erigon-lib/common/dbg"
 	"github.com/erigontech/erigon-lib/common/fixedgas"
 	"github.com/erigontech/erigon-lib/txpool/txpoolcfg"
 	types2 "github.com/erigontech/erigon-lib/types"
@@ -470,14 +471,28 @@ func (st *StateTransition) TransitionDb(refunds bool, gasBailout bool) (*evmtype
 		}
 		gasUsed := st.gasUsed()
 		refund := min(gasUsed/refundQuotient, st.state.GetRefund())
-		gasUsed = gasUsed - refund
+		gasUsedAfterRefund := gasUsed - refund
+		finalGasUsed := gasUsedAfterRefund
 		if rules.IsPrague {
-			gasUsed = max(floorGas7623, gasUsed)
+			finalGasUsed = max(floorGas7623, gasUsedAfterRefund)
 		}
-		st.gasRemaining = st.initialGas - gasUsed
+		// Debug: detailed gas calculation logging
+		debugBlock := dbg.DebugBlockExecution()
+		if debugBlock > 0 && st.evm.Context.BlockNumber == debugBlock {
+			fmt.Printf("[DEBUG GAS] TxFrom=%s InitialGas=%d GasUsedBeforeRefund=%d Refund=%d GasUsedAfterRefund=%d FloorGas7623=%d FinalGasUsed=%d IsPrague=%v IsOsaka=%v\n",
+				msg.From().Hex(), st.initialGas, gasUsed, refund, gasUsedAfterRefund, floorGas7623, finalGasUsed, rules.IsPrague, rules.IsOsaka)
+		}
+		st.gasRemaining = st.initialGas - finalGasUsed
 		st.refundGas()
 	} else if rules.IsPrague {
-		st.gasRemaining = st.initialGas - max(floorGas7623, st.gasUsed())
+		finalGasUsed := max(floorGas7623, st.gasUsed())
+		// Debug: detailed gas calculation logging
+		debugBlock := dbg.DebugBlockExecution()
+		if debugBlock > 0 && st.evm.Context.BlockNumber == debugBlock {
+			fmt.Printf("[DEBUG GAS no-refund] TxFrom=%s InitialGas=%d GasUsed=%d FloorGas7623=%d FinalGasUsed=%d IsPrague=%v IsOsaka=%v\n",
+				msg.From().Hex(), st.initialGas, st.gasUsed(), floorGas7623, finalGasUsed, rules.IsPrague, rules.IsOsaka)
+		}
+		st.gasRemaining = st.initialGas - finalGasUsed
 	}
 
 	effectiveTip := st.gasPrice

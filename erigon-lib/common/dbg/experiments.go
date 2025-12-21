@@ -329,6 +329,26 @@ func LogHashMismatchReason() bool {
 	return logHashMismatchReason
 }
 
+var (
+	debugBlockExecution     uint64
+	debugBlockExecutionOnce sync.Once
+)
+
+// DebugBlockExecution returns the block number to debug (0 means disabled)
+// Set DEBUG_BLOCK_EXECUTION=<block_number> to enable detailed execution logging for a specific block
+func DebugBlockExecution() uint64 {
+	debugBlockExecutionOnce.Do(func() {
+		v, _ := os.LookupEnv("DEBUG_BLOCK_EXECUTION")
+		if v != "" {
+			if n, err := strconv.ParseUint(v, 10, 64); err == nil {
+				debugBlockExecution = n
+				log.Info("[Experiment]", "DEBUG_BLOCK_EXECUTION", debugBlockExecution)
+			}
+		}
+	})
+	return debugBlockExecution
+}
+
 type saveHeapOptions struct {
 	memStats *runtime.MemStats
 	logger   *log.Logger

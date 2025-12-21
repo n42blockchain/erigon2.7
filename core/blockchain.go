@@ -146,6 +146,28 @@ func ExecuteBlockEphemerally(
 			logReceipts(receipts, includedTxs, chainConfig, header, logger)
 		}
 
+		// Debug: Print detailed receipt information for mismatch analysis
+		rules := chainConfig.Rules(header.Number.Uint64(), header.Time)
+		fmt.Printf("\n========== RECEIPT HASH MISMATCH DEBUG ==========\n")
+		fmt.Printf("Block: %d, Time: %d, Hash: %s\n", block.NumberU64(), header.Time, block.Hash().Hex())
+		fmt.Printf("Rules: IsPrague=%v, IsOsaka=%v, IsCancun=%v\n", rules.IsPrague, rules.IsOsaka, rules.IsCancun)
+		fmt.Printf("Computed ReceiptHash: %s\n", receiptSha.Hex())
+		fmt.Printf("Expected ReceiptHash: %s\n", block.ReceiptHash().Hex())
+		fmt.Printf("Total Receipts: %d, Total Txs: %d\n", len(receipts), len(includedTxs))
+		fmt.Printf("\n--- Per-Transaction Receipt Details ---\n")
+		for i, receipt := range receipts {
+			tx := includedTxs[i]
+			fmt.Printf("Tx[%d] Hash: %s\n", i, tx.Hash().Hex())
+			fmt.Printf("  Type: %d, Status: %d, GasUsed: %d, CumulativeGas: %d\n",
+				receipt.Type, receipt.Status, receipt.GasUsed, receipt.CumulativeGasUsed)
+			fmt.Printf("  LogsCount: %d, Bloom(first8): %x\n", len(receipt.Logs), receipt.Bloom[:8])
+			for j, lg := range receipt.Logs {
+				fmt.Printf("    Log[%d]: Addr=%s, Topics=%d, DataLen=%d\n",
+					j, lg.Address.Hex(), len(lg.Topics), len(lg.Data))
+			}
+		}
+		fmt.Printf("========== END DEBUG ==========\n\n")
+
 		return nil, fmt.Errorf("mismatched receipt headers for block %d (%s != %s)", block.NumberU64(), receiptSha.Hex(), block.ReceiptHash().Hex())
 	}
 
