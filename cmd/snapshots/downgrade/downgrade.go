@@ -208,8 +208,6 @@ func convertV11ToV10(srcPath string, keepOriginal bool, renameFile bool) (string
 }
 
 func downgrade(cliCtx *cli.Context) error {
-	logger := sync.Logger(cliCtx.Context)
-
 	var snapshotsDir string
 
 	if cliCtx.Args().Len() > 0 {
@@ -230,7 +228,7 @@ func downgrade(cliCtx *cli.Context) error {
 		snapTypes[val] = true
 	}
 
-	logger.Info("Scanning for v1.1 format snapshot files", "dir", snapshotsDir, "dryRun", dryRun)
+	fmt.Printf("Scanning for v1.1 format snapshot files in: %s (dry-run: %v)\n", snapshotsDir, dryRun)
 
 	entries, err := os.ReadDir(snapshotsDir)
 	if err != nil {
@@ -259,7 +257,6 @@ func downgrade(cliCtx *cli.Context) error {
 		// Parse file info to check type filter
 		fileInfo, _, ok := snaptype.ParseFileName(snapshotsDir, name)
 		if !ok {
-			logger.Debug("Skipping unparseable file", "name", name)
 			continue
 		}
 
@@ -279,7 +276,7 @@ func downgrade(cliCtx *cli.Context) error {
 		// Check if file content is v1.1 format (has 32-byte header)
 		isV11Content, err := isV11Format(srcPath)
 		if err != nil {
-			logger.Warn("Failed to check file format", "file", name, "error", err)
+			fmt.Printf("  Warning: Failed to check file format %s: %v\n", name, err)
 			continue
 		}
 
@@ -299,11 +296,8 @@ func downgrade(cliCtx *cli.Context) error {
 			if needsRename {
 				dstName = getV10FileName(name)
 			}
-			logger.Info("Would convert", 
-				"from", name, 
-				"to", dstName,
-				"v1.1_content", isV11Content,
-				"size", fmt.Sprintf("%.2f MB", float64(size)/1024/1024))
+			fmt.Printf("  [DRY-RUN] Would convert: %s -> %s (v1.1_content=%v, size=%.2f MB)\n",
+				name, dstName, isV11Content, float64(size)/1024/1024)
 			converted++
 			continue
 		}
