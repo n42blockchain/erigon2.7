@@ -114,30 +114,50 @@ func isV11Format(filePath string) (bool, error) {
 	return false, nil
 }
 
+// getV10FileName converts a v1.1 filename to v1.0 filename
+// e.g., v1.1-000000-000500-headers.seg -> v1-000000-000500-headers.seg
+func getV10FileName(name string) string {
+	if strings.HasPrefix(name, "v1.1-") {
+		return "v1-" + name[5:]
+	}
+	return name
+}
+
 // convertV11ToV10 converts a v1.1 file to v1.0 format by stripping the 32-byte header
-func convertV11ToV10(srcPath string, keepOriginal bool) error {
+// and optionally renaming the file from v1.1-xxx to v1-xxx
+func convertV11ToV10(srcPath string, keepOriginal bool, renameFile bool) (string, error) {
+	srcDir := filepath.Dir(srcPath)
+	srcName := filepath.Base(srcPath)
+	
+	// Determine destination filename
+	dstName := srcName
+	if renameFile {
+		dstName = getV10FileName(srcName)
+	}
+	dstPath := filepath.Join(srcDir, dstName)
+	
 	// Open source file
 	srcFile, err := os.Open(srcPath)
 	if err != nil {
-		return fmt.Errorf("failed to open source: %w", err)
+		return "", fmt.Errorf("failed to open source: %w", err)
 	}
 	defer srcFile.Close()
 
 	stat, err := srcFile.Stat()
 	if err != nil {
-		return fmt.Errorf("failed to stat source: %w", err)
+		return "", fmt.Errorf("failed to stat source: %w", err)
 	}
 
 	// Skip the 32-byte header
 	if _, err := srcFile.Seek(v11HeaderSize, io.SeekStart); err != nil {
-		return fmt.Errorf("failed to seek: %w", err)
+		return "", fmt.Errorf("failed to seek: %w", err)
 	}
 
 	// Create temporary output file
-	tmpPath := srcPath + ".v10.tmp"
+	tmpPath := dstPath + ".v10.tmp"
 	dstFile, err := os.Create(tmpPath)
 	if err != nil {
-		return fmt.Errorf("failed to create temp file: %w", err)
+		return "", fmt.Errorf("failed to create temp file: %w", err)
 	}
 	defer func() {
 		dstFile.Close()
@@ -149,16 +169,16 @@ func convertV11ToV10(srcPath string, keepOriginal bool) error {
 	// Copy the rest of the file
 	written, err := io.Copy(dstFile, srcFile)
 	if err != nil {
-		return fmt.Errorf("failed to copy data: %w", err)
+		return "", fmt.Errorf("failed to copy data: %w", err)
 	}
 
 	expectedSize := stat.Size() - v11HeaderSize
 	if written != expectedSize {
-		return fmt.Errorf("size mismatch: expected %d, got %d", expectedSize, written)
+		return "", fmt.Errorf("size mismatch: expected %d, got %d", expectedSize, written)
 	}
 
 	if err := dstFile.Sync(); err != nil {
-		return fmt.Errorf("failed to sync: %w", err)
+		return "", fmt.Errorf("failed to sync: %w", err)
 	}
 	dstFile.Close()
 	srcFile.Close()
@@ -169,22 +189,22 @@ func convertV11ToV10(srcPath string, keepOriginal bool) error {
 		bakPath := srcPath + ".v11.bak"
 		if err := os.Rename(srcPath, bakPath); err != nil {
 			os.Remove(tmpPath)
-			return fmt.Errorf("failed to backup original: %w", err)
+			return "", fmt.Errorf("failed to backup original: %w", err)
 		}
 	} else {
 		// Remove original
 		if err := os.Remove(srcPath); err != nil {
 			os.Remove(tmpPath)
-			return fmt.Errorf("failed to remove original: %w", err)
+			return "", fmt.Errorf("failed to remove original: %w", err)
 		}
 	}
 
-	// Move temp to original path (keep same filename)
-	if err := os.Rename(tmpPath, srcPath); err != nil {
-		return fmt.Errorf("failed to rename temp file: %w", err)
+	// Move temp to destination path
+	if err := os.Rename(tmpPath, dstPath); err != nil {
+		return "", fmt.Errorf("failed to rename temp file: %w", err)
 	}
 
-	return nil
+	return dstName, nil
 }
 
 func downgrade(cliCtx *cli.Context) error {
@@ -210,7 +230,7 @@ func downgrade(cliCtx *cli.Context) error {
 		snapTypes[val] = true
 	}
 
-	logger.Info("Scanning for v1.1 format snapshot files (by content detection)", "dir", snapshotsDir, "dryRun", dryRun)
+	logger.Info("Scanning for v1.1 format snapshot files", "dir", snapshotsDir, "dryRun", dryRun)
 
 	entries, err := os.ReadDir(snapshotsDir)
 	if err != nil {
@@ -253,14 +273,18 @@ func downgrade(cliCtx *cli.Context) error {
 
 		srcPath := filepath.Join(snapshotsDir, name)
 
-		// Check if file content is v1.1 format
-		isV11, err := isV11Format(srcPath)
+		// Check if filename has v1.1 prefix (needs renaming)
+		needsRename := strings.HasPrefix(name, "v1.1-")
+		
+		// Check if file content is v1.1 format (has 32-byte header)
+		isV11Content, err := isV11Format(srcPath)
 		if err != nil {
 			logger.Warn("Failed to check file format", "file", name, "error", err)
 			continue
 		}
 
-		if !isV11 {
+		// Skip if neither filename nor content indicates v1.1
+		if !needsRename && !isV11Content {
 			alreadyV10++
 			continue
 		}
@@ -271,27 +295,87 @@ func downgrade(cliCtx *cli.Context) error {
 			if info != nil {
 				size = info.Size()
 			}
-			logger.Info("Would convert (v1.1 format detected)", "file", name, "size", fmt.Sprintf("%.2f MB", float64(size)/1024/1024))
+			dstName := name
+			if needsRename {
+				dstName = getV10FileName(name)
+			}
+			logger.Info("Would convert", 
+				"from", name, 
+				"to", dstName,
+				"v1.1_content", isV11Content,
+				"size", fmt.Sprintf("%.2f MB", float64(size)/1024/1024))
 			converted++
 			continue
 		}
 
-		logger.Info("Converting v1.1 to v1.0", "file", name)
-
-		if err := convertV11ToV10(srcPath, keepOriginal); err != nil {
-			logger.Error("Failed to convert", "file", name, "error", err)
-			continue
-		}
-
-		// Also handle associated .idx files (they reference the old format, need regeneration)
-		idxPath := strings.TrimSuffix(srcPath, ".seg") + ".idx"
-		if _, err := os.Stat(idxPath); err == nil {
-			if keepOriginal {
-				os.Rename(idxPath, idxPath+".v11.bak")
-			} else {
-				os.Remove(idxPath)
+		// Convert: strip header if v1.1 content, rename if v1.1 filename
+		if isV11Content {
+			logger.Info("Converting v1.1 to v1.0", "file", name, "rename", needsRename)
+			dstName, err := convertV11ToV10(srcPath, keepOriginal, needsRename)
+			if err != nil {
+				logger.Error("Failed to convert", "file", name, "error", err)
+				continue
 			}
-			logger.Info("Removed old index (needs regeneration)", "file", filepath.Base(idxPath))
+			
+			// Also handle associated .idx files
+			srcIdxPath := strings.TrimSuffix(srcPath, ".seg") + ".idx"
+			if _, err := os.Stat(srcIdxPath); err == nil {
+				if keepOriginal {
+					os.Rename(srcIdxPath, srcIdxPath+".v11.bak")
+				} else {
+					os.Remove(srcIdxPath)
+				}
+				logger.Info("Removed old index (needs regeneration)", "file", filepath.Base(srcIdxPath))
+			}
+			
+			logger.Info("Converted", "from", name, "to", dstName)
+		} else if needsRename {
+			// Only rename, no content conversion needed
+			dstName := getV10FileName(name)
+			dstPath := filepath.Join(snapshotsDir, dstName)
+			
+			if keepOriginal {
+				// Copy instead of rename
+				srcFile, err := os.Open(srcPath)
+				if err != nil {
+					logger.Error("Failed to open for copy", "file", name, "error", err)
+					continue
+				}
+				dstFile, err := os.Create(dstPath)
+				if err != nil {
+					srcFile.Close()
+					logger.Error("Failed to create destination", "file", dstName, "error", err)
+					continue
+				}
+				_, err = io.Copy(dstFile, srcFile)
+				srcFile.Close()
+				dstFile.Close()
+				if err != nil {
+					os.Remove(dstPath)
+					logger.Error("Failed to copy", "file", name, "error", err)
+					continue
+				}
+				os.Rename(srcPath, srcPath+".v11.bak")
+			} else {
+				if err := os.Rename(srcPath, dstPath); err != nil {
+					logger.Error("Failed to rename", "file", name, "error", err)
+					continue
+				}
+			}
+			
+			// Also rename associated .idx files
+			srcIdxPath := strings.TrimSuffix(srcPath, ".seg") + ".idx"
+			if _, err := os.Stat(srcIdxPath); err == nil {
+				dstIdxName := getV10FileName(strings.TrimSuffix(name, ".seg") + ".idx")
+				dstIdxPath := filepath.Join(snapshotsDir, dstIdxName)
+				if keepOriginal {
+					os.Rename(srcIdxPath, srcIdxPath+".v11.bak")
+				} else {
+					os.Rename(srcIdxPath, dstIdxPath)
+				}
+			}
+			
+			logger.Info("Renamed", "from", name, "to", dstName)
 		}
 
 		converted++
@@ -304,7 +388,7 @@ func downgrade(cliCtx *cli.Context) error {
 		"dry_run", dryRun)
 
 	if !dryRun && converted > 0 {
-		logger.Info("Index files (.idx) were removed and need to be regenerated on next startup")
+		logger.Info("Conversion complete. Index files may need to be regenerated on next startup.")
 	}
 
 	return nil
