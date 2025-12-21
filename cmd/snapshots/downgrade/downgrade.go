@@ -48,7 +48,9 @@ var Command = cli.Command{
 	},
 	Description: `Converts v1.1 format snapshot files (Erigon 3.x) to v1.0 format (Erigon 2.x).
 The v1.1 format has a 32-byte header that is not present in v1.0 format.
-This command strips the header from v1.1 files and renames them to v1.0.
+This command detects v1.1 files by content (not filename) and strips the header.
+
+Note: Erigon 3.x v1.1 files may use "v1-" filename prefix but have different internal format.
 
 Example:
   snapshots downgrade /path/to/snapshots
@@ -60,7 +62,10 @@ const (
 	v11HeaderSize = 32
 )
 
-// isV11Format detects if a file is in v1.1 format by checking the header
+// isV11Format detects if a file is in v1.1 format by checking the header content.
+// V1.1 format (Erigon 3.x) has a 32-byte header before the actual data.
+// V1.0 format starts directly with wordsCount, emptyWordsCount, dictSize.
+// We detect v1.1 by checking if the values at offset 0 are unreasonable for v1.0.
 func isV11Format(filePath string) (bool, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
@@ -73,24 +78,36 @@ func isV11Format(filePath string) (bool, error) {
 		return false, err
 	}
 
-	if stat.Size() < 32 {
+	if stat.Size() < 64 { // Need at least 32 (header) + 24 (v1.0 fields) + some data
 		return false, nil // File too small
 	}
 
-	header := make([]byte, 32)
+	header := make([]byte, 64)
 	if _, err := io.ReadFull(f, header); err != nil {
 		return false, err
 	}
 
-	// V1.0 format starts with wordsCount (8 bytes), emptyWordsCount (8 bytes), dictSize (8 bytes)
-	// V1.1 format has a 32-byte header, then these fields
-
-	// Read as V1.0 format
+	// Try parsing as V1.0 format (starts with wordsCount, emptyWordsCount, dictSize)
 	wordsCount := binary.BigEndian.Uint64(header[:8])
+	emptyWordsCount := binary.BigEndian.Uint64(header[8:16])
 	dictSize := binary.BigEndian.Uint64(header[16:24])
 
-	// If dictSize is unreasonably large (> file size), it's likely V1.1 format
+	// If these values are unreasonable for V1.0, it's likely V1.1 format
+	// V1.1 format: first 32 bytes are header, then wordsCount at offset 32
 	if dictSize > uint64(stat.Size()) || dictSize > 1<<40 || wordsCount > 1<<40 {
+		// Verify by checking if values at offset 32 make sense
+		wordsCountV11 := binary.BigEndian.Uint64(header[32:40])
+		emptyWordsCountV11 := binary.BigEndian.Uint64(header[40:48])
+		dictSizeV11 := binary.BigEndian.Uint64(header[48:56])
+
+		// Check if V1.1 values are reasonable
+		if dictSizeV11 <= uint64(stat.Size()) && wordsCountV11 < 1<<40 && emptyWordsCountV11 <= wordsCountV11 {
+			return true, nil
+		}
+	}
+
+	// Additional check: if emptyWordsCount > wordsCount, it's definitely wrong for V1.0
+	if emptyWordsCount > wordsCount && wordsCount > 0 {
 		return true, nil
 	}
 
@@ -98,7 +115,7 @@ func isV11Format(filePath string) (bool, error) {
 }
 
 // convertV11ToV10 converts a v1.1 file to v1.0 format by stripping the 32-byte header
-func convertV11ToV10(srcPath, dstPath string, keepOriginal bool) error {
+func convertV11ToV10(srcPath string, keepOriginal bool) error {
 	// Open source file
 	srcFile, err := os.Open(srcPath)
 	if err != nil {
@@ -117,10 +134,10 @@ func convertV11ToV10(srcPath, dstPath string, keepOriginal bool) error {
 	}
 
 	// Create temporary output file
-	tmpPath := dstPath + ".tmp"
+	tmpPath := srcPath + ".v10.tmp"
 	dstFile, err := os.Create(tmpPath)
 	if err != nil {
-		return fmt.Errorf("failed to create destination: %w", err)
+		return fmt.Errorf("failed to create temp file: %w", err)
 	}
 	defer func() {
 		dstFile.Close()
@@ -144,6 +161,7 @@ func convertV11ToV10(srcPath, dstPath string, keepOriginal bool) error {
 		return fmt.Errorf("failed to sync: %w", err)
 	}
 	dstFile.Close()
+	srcFile.Close()
 
 	// Handle original file
 	if keepOriginal {
@@ -161,22 +179,12 @@ func convertV11ToV10(srcPath, dstPath string, keepOriginal bool) error {
 		}
 	}
 
-	// Move temp to final destination
-	if err := os.Rename(tmpPath, dstPath); err != nil {
+	// Move temp to original path (keep same filename)
+	if err := os.Rename(tmpPath, srcPath); err != nil {
 		return fmt.Errorf("failed to rename temp file: %w", err)
 	}
 
 	return nil
-}
-
-// getV10FileName converts a v1.1 filename to v1.0 filename
-// e.g., v1.1-000000-000500-headers.seg -> v1-000000-000500-headers.seg
-func getV10FileName(name string) string {
-	// Replace v1.1- prefix with v1-
-	if strings.HasPrefix(name, "v1.1-") {
-		return "v1-" + name[5:]
-	}
-	return name
 }
 
 func downgrade(cliCtx *cli.Context) error {
@@ -202,14 +210,14 @@ func downgrade(cliCtx *cli.Context) error {
 		snapTypes[val] = true
 	}
 
-	logger.Info("Scanning for v1.1 snapshot files", "dir", snapshotsDir, "dryRun", dryRun)
+	logger.Info("Scanning for v1.1 format snapshot files (by content detection)", "dir", snapshotsDir, "dryRun", dryRun)
 
 	entries, err := os.ReadDir(snapshotsDir)
 	if err != nil {
 		return fmt.Errorf("failed to read directory: %w", err)
 	}
 
-	var converted, skipped int
+	var converted, skipped, alreadyV10 int
 
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -218,15 +226,20 @@ func downgrade(cliCtx *cli.Context) error {
 
 		name := entry.Name()
 
-		// Check if it's a v1.1 segment file
-		if !strings.HasPrefix(name, "v1.1-") || !strings.HasSuffix(name, ".seg") {
+		// Check if it's a segment file (any version prefix: v1-, v1.1-, etc.)
+		if !strings.HasSuffix(name, ".seg") {
+			continue
+		}
+
+		// Must start with version prefix
+		if !strings.HasPrefix(name, "v") {
 			continue
 		}
 
 		// Parse file info to check type filter
 		fileInfo, _, ok := snaptype.ParseFileName(snapshotsDir, name)
 		if !ok {
-			logger.Warn("Failed to parse filename", "name", name)
+			logger.Debug("Skipping unparseable file", "name", name)
 			continue
 		}
 
@@ -239,10 +252,8 @@ func downgrade(cliCtx *cli.Context) error {
 		}
 
 		srcPath := filepath.Join(snapshotsDir, name)
-		dstName := getV10FileName(name)
-		dstPath := filepath.Join(snapshotsDir, dstName)
 
-		// Verify it's actually v1.1 format
+		// Check if file content is v1.1 format
 		isV11, err := isV11Format(srcPath)
 		if err != nil {
 			logger.Warn("Failed to check file format", "file", name, "error", err)
@@ -250,52 +261,51 @@ func downgrade(cliCtx *cli.Context) error {
 		}
 
 		if !isV11 {
-			logger.Debug("File is already v1.0 format, skipping", "file", name)
-			skipped++
+			alreadyV10++
 			continue
 		}
 
 		if dryRun {
-			logger.Info("Would convert", "from", name, "to", dstName)
+			info, _ := entry.Info()
+			size := int64(0)
+			if info != nil {
+				size = info.Size()
+			}
+			logger.Info("Would convert (v1.1 format detected)", "file", name, "size", fmt.Sprintf("%.2f MB", float64(size)/1024/1024))
 			converted++
 			continue
 		}
 
-		logger.Info("Converting", "from", name, "to", dstName)
+		logger.Info("Converting v1.1 to v1.0", "file", name)
 
-		if err := convertV11ToV10(srcPath, dstPath, keepOriginal); err != nil {
+		if err := convertV11ToV10(srcPath, keepOriginal); err != nil {
 			logger.Error("Failed to convert", "file", name, "error", err)
 			continue
 		}
 
-		// Also handle associated files (.idx, .torrent)
-		for _, ext := range []string{".idx", ".torrent"} {
-			srcAssoc := strings.TrimSuffix(srcPath, ".seg") + ext
-			if _, err := os.Stat(srcAssoc); err == nil {
-				if keepOriginal {
-					// Backup associated files
-					os.Rename(srcAssoc, srcAssoc+".v11.bak")
-				} else {
-					// Remove old associated files, they need regeneration
-					os.Remove(srcAssoc)
-				}
-				// Note: idx files may need regeneration, torrent files definitely need regeneration
-				logger.Info("Note: Please regenerate index/torrent for", "file", dstName)
+		// Also handle associated .idx files (they reference the old format, need regeneration)
+		idxPath := strings.TrimSuffix(srcPath, ".seg") + ".idx"
+		if _, err := os.Stat(idxPath); err == nil {
+			if keepOriginal {
+				os.Rename(idxPath, idxPath+".v11.bak")
+			} else {
+				os.Remove(idxPath)
 			}
+			logger.Info("Removed old index (needs regeneration)", "file", filepath.Base(idxPath))
 		}
 
 		converted++
 	}
 
-	if dryRun {
-		logger.Info("Dry run complete", "wouldConvert", converted, "skipped", skipped)
-	} else {
-		logger.Info("Conversion complete", "converted", converted, "skipped", skipped)
-		if converted > 0 {
-			logger.Info("Note: Index files (.idx) may need to be regenerated")
-		}
+	logger.Info("Scan complete",
+		"v1.1_found", converted,
+		"already_v1.0", alreadyV10,
+		"skipped_by_filter", skipped,
+		"dry_run", dryRun)
+
+	if !dryRun && converted > 0 {
+		logger.Info("Index files (.idx) were removed and need to be regenerated on next startup")
 	}
 
 	return nil
 }
-
