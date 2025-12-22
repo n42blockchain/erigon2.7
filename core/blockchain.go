@@ -170,6 +170,7 @@ func ExecuteBlockEphemerally(
 		fmt.Printf("Computed ReceiptHash: %s\n", receiptSha.Hex())
 		fmt.Printf("Expected ReceiptHash: %s\n", block.ReceiptHash().Hex())
 		fmt.Printf("Total Receipts: %d, Total Txs: %d\n", len(receipts), len(includedTxs))
+		fmt.Printf("**GAS CHECK**: usedGas=%d, header.GasUsed=%d, diff=%d\n", *usedGas, header.GasUsed, int64(*usedGas)-int64(header.GasUsed))
 		fmt.Printf("\n--- Per-Transaction Receipt Details ---\n")
 		for i, receipt := range receipts {
 			tx := includedTxs[i]
