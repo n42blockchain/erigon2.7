@@ -290,7 +290,7 @@ func (st *StateTransition) preCheck(gasBailout bool) error {
 			return fmt.Errorf("%w: Cancun is active but ExcessBlobGas is nil", ErrInternalFailure)
 		}
 		maxFeePerBlobGas := st.msg.MaxFeePerBlobGas()
-		if !st.evm.Config().NoBaseFee && blobGasPrice.Cmp(maxFeePerBlobGas) > 0 {
+		if !st.evm.Config().NoBaseFee && !dbg.SkipBlobGasValidation() && blobGasPrice.Cmp(maxFeePerBlobGas) > 0 {
 			if dbg.DebugBlockExecution() == st.evm.Context.BlockNumber {
 				fmt.Printf("[DEBUG BLOB] Block=%d TxFrom=%s\n", st.evm.Context.BlockNumber, st.msg.From().Hex())
 				fmt.Printf("  BlobGasPrice=%v, MaxFeePerBlobGas=%v\n", blobGasPrice, maxFeePerBlobGas)

@@ -148,15 +148,22 @@ func TestMainnetBlobSchedule(t *testing.T) {
 
 	b := MainnetChainConfig.BlobSchedule
 	isPrague := false
-	assert.Equal(t, uint64(3), b.TargetBlobsPerBlock(isPrague))
-	assert.Equal(t, uint64(6), b.MaxBlobsPerBlock(isPrague))
-	assert.Equal(t, uint64(3338477), b.BaseFeeUpdateFraction(isPrague))
+	isOsaka := false
+	assert.Equal(t, uint64(3), b.TargetBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(6), b.MaxBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(3338477), b.BaseFeeUpdateFraction(isPrague, isOsaka))
 
 	// EIP-7691: Blob throughput increase
 	isPrague = true
-	assert.Equal(t, uint64(6), b.TargetBlobsPerBlock(isPrague))
-	assert.Equal(t, uint64(9), b.MaxBlobsPerBlock(isPrague))
-	assert.Equal(t, uint64(5007716), b.BaseFeeUpdateFraction(isPrague))
+	assert.Equal(t, uint64(6), b.TargetBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(9), b.MaxBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(5007716), b.BaseFeeUpdateFraction(isPrague, isOsaka))
+
+	// Fusaka/Osaka: PeerDAS blob throughput increase
+	isOsaka = true
+	assert.Equal(t, uint64(8), b.TargetBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(15), b.MaxBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(8346624), b.BaseFeeUpdateFraction(isPrague, isOsaka))
 }
 
 func TestGnosisBlobSchedule(t *testing.T) {
@@ -164,13 +171,14 @@ func TestGnosisBlobSchedule(t *testing.T) {
 
 	// Cancun values
 	isPrague := false
-	assert.Equal(t, uint64(1), b.TargetBlobsPerBlock(isPrague))
-	assert.Equal(t, uint64(2), b.MaxBlobsPerBlock(isPrague))
-	assert.Equal(t, uint64(1112826), b.BaseFeeUpdateFraction(isPrague))
+	isOsaka := false
+	assert.Equal(t, uint64(1), b.TargetBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(2), b.MaxBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(1112826), b.BaseFeeUpdateFraction(isPrague, isOsaka))
 
 	// should remain the same in Pectra for Gnosis
 	isPrague = true
-	assert.Equal(t, uint64(1), b.TargetBlobsPerBlock(isPrague))
-	assert.Equal(t, uint64(2), b.MaxBlobsPerBlock(isPrague))
-	assert.Equal(t, uint64(1112826), b.BaseFeeUpdateFraction(isPrague))
+	assert.Equal(t, uint64(1), b.TargetBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(2), b.MaxBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(1112826), b.BaseFeeUpdateFraction(isPrague, isOsaka))
 }

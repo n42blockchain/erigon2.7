@@ -31,6 +31,11 @@
       "target": 6,
       "max": 9,
       "baseFeeUpdateFraction": 5007716
+    },
+    "osaka": {
+      "target": 8,
+      "max": 15,
+      "baseFeeUpdateFraction": 8346624
     }
   },
   "depositContractAddress": "0x00000000219ab540356cBB839Cbe05303d7705Fa",
