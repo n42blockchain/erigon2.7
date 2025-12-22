@@ -18,6 +18,7 @@
 package core
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -180,6 +181,10 @@ func ExecuteBlockEphemerally(
 				fmt.Printf("    Log[%d]: Addr=%s, Topics=%d, DataLen=%d\n",
 					j, lg.Address.Hex(), len(lg.Topics), len(lg.Data))
 			}
+			// Calculate individual receipt hash for debugging
+			var buf bytes.Buffer
+			receipts[i:i+1].EncodeIndex(0, &buf)
+			fmt.Printf("  ReceiptRLP(first32): %x\n", buf.Bytes()[:min(32, buf.Len())])
 		}
 		fmt.Printf("========== END DEBUG ==========\n\n")
 
