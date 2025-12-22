@@ -116,6 +116,8 @@ func ExecuteBlockEphemerally(
 	gp := new(GasPool)
 	gp.AddGas(block.GasLimit()).AddBlobGas(chainConfig.GetMaxBlobGasPerBlock(block.Time()))
 
+	// Initialize block execution (EIP-4788 beacon root storage, EIP-2935 block hashes)
+	// Note: System calls are "free" (isFree=true) and do NOT consume gas
 	if err := InitializeBlockExecution(engine, chainReader, block.Header(), chainConfig, ibs, logger); err != nil {
 		return nil, err
 	}
@@ -156,26 +158,6 @@ func ExecuteBlockEphemerally(
 		}
 	}
 
-	// Execute FinalizeBlockExecution first to get system call gas (for Prague+)
-	// In Prague and later, system calls (EIP-7002, EIP-7251) consume gas that should be counted towards GasUsed
-	var syscallGasUsed uint64
-	if !vmConfig.ReadOnly {
-		txs := block.Transactions()
-		var err error
-		syscallGasUsed, _, _, _, _, err = FinalizeBlockExecutionWithSyscallGas(engine, stateReader, block.Header(), txs, block.Uncles(), stateWriter, chainConfig, ibs, receipts, block.Withdrawals(), chainReader, false, logger)
-		if err != nil {
-			return nil, err
-		}
-		// Add system call gas to usedGas for Prague and later
-		if syscallGasUsed > 0 {
-			*usedGas += syscallGasUsed
-			if dbg.DebugBlockExecution() == header.Number.Uint64() {
-				fmt.Printf("[DEBUG SYSCALL GAS] Block=%d SyscallGasUsed=%d TotalUsedGas=%d\n",
-					header.Number.Uint64(), syscallGasUsed, *usedGas)
-			}
-		}
-	}
-
 	receiptSha := types.DeriveSha(receipts)
 	if !vmConfig.StatelessExec && chainConfig.IsByzantium(header.Number.Uint64()) && !vmConfig.NoReceipts && receiptSha != block.ReceiptHash() {
 		if dbg.LogHashMismatchReason() {
@@ -190,8 +172,8 @@ func ExecuteBlockEphemerally(
 		fmt.Printf("Computed ReceiptHash: %s\n", receiptSha.Hex())
 		fmt.Printf("Expected ReceiptHash: %s\n", block.ReceiptHash().Hex())
 		fmt.Printf("Total Receipts: %d, Total Txs: %d\n", len(receipts), len(includedTxs))
-		fmt.Printf("**GAS CHECK**: usedGas=%d (txGas=%d + syscallGas=%d), header.GasUsed=%d, diff=%d\n",
-			*usedGas, *usedGas-syscallGasUsed, syscallGasUsed, header.GasUsed, int64(*usedGas)-int64(header.GasUsed))
+		fmt.Printf("**GAS CHECK**: usedGas=%d, header.GasUsed=%d, diff=%d\n",
+			*usedGas, header.GasUsed, int64(*usedGas)-int64(header.GasUsed))
 		fmt.Printf("\n--- Per-Transaction Receipt Details ---\n")
 		for i, receipt := range receipts {
 			tx := includedTxs[i]
@@ -228,6 +210,17 @@ func ExecuteBlockEphemerally(
 			return nil, fmt.Errorf("bloom computed by execution: %x, in header: %x", bloom, header.Bloom)
 		}
 	}
+
+	// FinalizeBlockExecution after all validation checks pass (like Erigon 3.3)
+	// This processes withdrawals and EIP-7002/7251 requests for Prague+
+	if !vmConfig.ReadOnly {
+		txs := block.Transactions()
+		_, _, _, _, err := FinalizeBlockExecution(engine, stateReader, block.Header(), txs, block.Uncles(), stateWriter, chainConfig, ibs, receipts, block.Withdrawals(), chainReader, false, logger)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	blockLogs := ibs.Logs()
 	execRs := &EphemeralExecResult{
 		TxRoot:      types.DeriveSha(includedTxs),
@@ -301,12 +294,6 @@ func rlpHash(x interface{}) (h libcommon.Hash) {
 }
 
 func SysCallContract(contract libcommon.Address, data []byte, chainConfig *chain.Config, ibs *state.IntraBlockState, header *types.Header, engine consensus.EngineReader, constCall bool) (result []byte, err error) {
-	result, _, err = SysCallContractWithGas(contract, data, chainConfig, ibs, header, engine, constCall)
-	return
-}
-
-// SysCallContractWithGas is like SysCallContract but also returns gas used.
-func SysCallContractWithGas(contract libcommon.Address, data []byte, chainConfig *chain.Config, ibs *state.IntraBlockState, header *types.Header, engine consensus.EngineReader, constCall bool) (result []byte, gasUsed uint64, err error) {
 	msg := types.NewMessage(
 		state.SystemAddress,
 		&contract,
@@ -315,7 +302,7 @@ func SysCallContractWithGas(contract libcommon.Address, data []byte, chainConfig
 		u256.Num0,
 		nil, nil,
 		data, nil, false,
-		true, // isFree
+		true, // isFree - system calls don't consume block gas
 		nil,  // maxFeePerBlobGas
 	)
 	vmConfig := vm.Config{NoReceipts: true, RestoreState: constCall}
@@ -333,7 +320,7 @@ func SysCallContractWithGas(contract libcommon.Address, data []byte, chainConfig
 	blockContext := NewEVMBlockContext(header, GetHashFn(header, nil), engine, author, chainConfig)
 	evm := vm.NewEVM(blockContext, txContext, ibs, chainConfig, vmConfig)
 
-	ret, leftOverGas, err := evm.Call(
+	ret, _, err := evm.Call(
 		vm.AccountRef(msg.From()),
 		*msg.To(),
 		msg.Data(),
@@ -342,10 +329,9 @@ func SysCallContractWithGas(contract libcommon.Address, data []byte, chainConfig
 		false,
 	)
 	if isBor && err != nil {
-		return nil, 0, nil
+		return nil, nil
 	}
-	gasUsed = msg.Gas() - leftOverGas
-	return ret, gasUsed, err
+	return ret, err
 }
 
 // SysCreate is a special (system) contract creation methods for genesis constructors.
@@ -387,49 +373,27 @@ func FinalizeBlockExecution(
 	isMining bool,
 	logger log.Logger,
 ) (newBlock *types.Block, newTxs types.Transactions, newReceipt types.Receipts, retRequests types.FlatRequests, err error) {
-	_, newBlock, newTxs, newReceipt, retRequests, err = FinalizeBlockExecutionWithSyscallGas(
-		engine, stateReader, header, txs, uncles, stateWriter, cc, ibs, receipts, withdrawals, chainReader, isMining, logger,
-	)
-	return
-}
-
-// FinalizeBlockExecutionWithSyscallGas is like FinalizeBlockExecution but also returns gas used by system calls.
-// In Prague and later, system calls (EIP-7002 withdrawal requests, EIP-7251 consolidation requests) consume gas
-// that should be counted towards the block's GasUsed.
-func FinalizeBlockExecutionWithSyscallGas(
-	engine consensus.Engine, stateReader state.StateReader,
-	header *types.Header, txs types.Transactions, uncles []*types.Header,
-	stateWriter state.WriterWithChangeSets, cc *chain.Config,
-	ibs *state.IntraBlockState, receipts types.Receipts,
-	withdrawals []*types.Withdrawal, chainReader consensus.ChainReader,
-	isMining bool,
-	logger log.Logger,
-) (syscallGasUsed uint64, newBlock *types.Block, newTxs types.Transactions, newReceipt types.Receipts, retRequests types.FlatRequests, err error) {
-	var totalSyscallGas uint64
 	syscall := func(contract libcommon.Address, data []byte) ([]byte, error) {
-		result, gasUsed, err := SysCallContractWithGas(contract, data, cc, ibs, header, engine, false /* constCall */)
-		if err == nil && (cc.IsPrague(header.Time) || cc.IsOsaka(header.Time)) {
-			totalSyscallGas += gasUsed
-		}
-		return result, err
+		return SysCallContract(contract, data, cc, ibs, header, engine, false /* constCall */)
 	}
+
 	if isMining {
 		newBlock, newTxs, newReceipt, retRequests, err = engine.FinalizeAndAssemble(cc, header, ibs, txs, uncles, receipts, withdrawals, chainReader, syscall, nil, logger)
 	} else {
 		newTxs, newReceipt, retRequests, err = engine.Finalize(cc, header, ibs, txs, uncles, receipts, withdrawals, chainReader, syscall, logger)
 	}
 	if err != nil {
-		return 0, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	if err := ibs.CommitBlock(cc.Rules(header.Number.Uint64(), header.Time), stateWriter); err != nil {
-		return 0, nil, nil, nil, nil, fmt.Errorf("committing block %d failed: %w", header.Number.Uint64(), err)
+		return nil, nil, nil, nil, fmt.Errorf("committing block %d failed: %w", header.Number.Uint64(), err)
 	}
 
 	if err := stateWriter.WriteChangeSets(); err != nil {
-		return 0, nil, nil, nil, nil, fmt.Errorf("writing changesets for block %d failed: %w", header.Number.Uint64(), err)
+		return nil, nil, nil, nil, fmt.Errorf("writing changesets for block %d failed: %w", header.Number.Uint64(), err)
 	}
-	return totalSyscallGas, newBlock, newTxs, newReceipt, retRequests, nil
+	return newBlock, newTxs, newReceipt, retRequests, nil
 }
 
 func InitializeBlockExecution(engine consensus.Engine, chain consensus.ChainHeaderReader, header *types.Header,
