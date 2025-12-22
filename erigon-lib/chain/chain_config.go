@@ -111,7 +111,7 @@ func (b *BlobSchedule) TargetBlobsPerBlock(isPrague, isOsaka bool) uint64 {
 		if b != nil && b.Osaka != nil && b.Osaka.Target != nil {
 			return *b.Osaka.Target
 		}
-		return 8 // Fusaka: PeerDAS target
+		return 10 // Fusaka/Osaka: EIP-7691 target (10 blobs)
 	}
 	if isPrague {
 		if b != nil && b.Prague != nil && b.Prague.Target != nil {
@@ -149,7 +149,7 @@ func (b *BlobSchedule) BaseFeeUpdateFraction(isPrague, isOsaka bool) uint64 {
 		if b != nil && b.Osaka != nil && b.Osaka.BaseFeeUpdateFraction != nil {
 			return *b.Osaka.BaseFeeUpdateFraction
 		}
-		return 8346624 // Fusaka: adjusted for new target/max ratio
+		return 8346618 // Fusaka/Osaka: EIP-7691 baseFeeUpdateFraction
 	}
 	if isPrague {
 		if b != nil && b.Prague != nil && b.Prague.BaseFeeUpdateFraction != nil {

@@ -161,9 +161,9 @@ func TestMainnetBlobSchedule(t *testing.T) {
 
 	// Fusaka/Osaka: PeerDAS blob throughput increase
 	isOsaka = true
-	assert.Equal(t, uint64(8), b.TargetBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(10), b.TargetBlobsPerBlock(isPrague, isOsaka))
 	assert.Equal(t, uint64(15), b.MaxBlobsPerBlock(isPrague, isOsaka))
-	assert.Equal(t, uint64(8346624), b.BaseFeeUpdateFraction(isPrague, isOsaka))
+	assert.Equal(t, uint64(8346618), b.BaseFeeUpdateFraction(isPrague, isOsaka))
 }
 
 func TestGnosisBlobSchedule(t *testing.T) {
