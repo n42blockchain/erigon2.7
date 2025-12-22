@@ -291,6 +291,11 @@ func (st *StateTransition) preCheck(gasBailout bool) error {
 		}
 		maxFeePerBlobGas := st.msg.MaxFeePerBlobGas()
 		if !st.evm.Config().NoBaseFee && blobGasPrice.Cmp(maxFeePerBlobGas) > 0 {
+			if dbg.DebugBlockExecution() == st.evm.Context.BlockNumber {
+				fmt.Printf("[DEBUG BLOB] Block=%d TxFrom=%s\n", st.evm.Context.BlockNumber, st.msg.From().Hex())
+				fmt.Printf("  BlobGasPrice=%v, MaxFeePerBlobGas=%v\n", blobGasPrice, maxFeePerBlobGas)
+				fmt.Printf("  BlobGas=%d, IsOsaka=%v, IsPrague=%v\n", st.msg.BlobGas(), st.evm.ChainRules().IsOsaka, st.evm.ChainRules().IsPrague)
+			}
 			return fmt.Errorf("%w: address %v, maxFeePerBlobGas: %v < blobGasPrice: %v",
 				ErrMaxFeePerBlobGas, st.msg.From().Hex(), st.msg.MaxFeePerBlobGas(), blobGasPrice)
 		}

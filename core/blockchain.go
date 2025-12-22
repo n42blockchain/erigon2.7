@@ -95,6 +95,21 @@ func ExecuteBlockEphemerally(
 	ibs := state.New(stateReader)
 	header := block.Header()
 
+	// Debug: Print header blob gas info
+	if dbg.DebugBlockExecution() == header.Number.Uint64() {
+		excessBlobGas := uint64(0)
+		blobGasUsed := uint64(0)
+		if header.ExcessBlobGas != nil {
+			excessBlobGas = *header.ExcessBlobGas
+		}
+		if header.BlobGasUsed != nil {
+			blobGasUsed = *header.BlobGasUsed
+		}
+		fmt.Printf("[DEBUG BLOCK] Block=%d Time=%d ExcessBlobGas=%d BlobGasUsed=%d\n",
+			header.Number.Uint64(), header.Time, excessBlobGas, blobGasUsed)
+		fmt.Printf("  BaseFee=%s, Hash=%s\n", header.BaseFee.String(), block.Hash().Hex())
+	}
+
 	usedGas := new(uint64)
 	usedBlobGas := new(uint64)
 	gp := new(GasPool)
