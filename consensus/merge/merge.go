@@ -161,7 +161,7 @@ func (s *Merge) Finalize(config *chain.Config, header *types.Header, state *stat
 	}
 
 	var rs types.FlatRequests
-	if config.IsPrague(header.Time) {
+	if config.IsPrague(header.Time) || config.IsOsaka(header.Time) {
 		rs = make(types.FlatRequests, 0)
 		allLogs := make(types.Logs, 0)
 		for _, rec := range receipts {
@@ -205,7 +205,7 @@ func (s *Merge) FinalizeAndAssemble(config *chain.Config, header *types.Header, 
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	if config.IsPrague(header.Time) {
+	if config.IsPrague(header.Time) || config.IsOsaka(header.Time) {
 		header.RequestsHash = outRequests.Hash()
 	}
 	return types.NewBlockForAsembling(header, outTxs, uncles, outReceipts, withdrawals), outTxs, outReceipts, outRequests, nil
@@ -289,11 +289,11 @@ func (s *Merge) verifyHeader(chain consensus.ChainHeaderReader, header, parent *
 	}
 
 	// Verify existence / non-existence of requestsHash
-	prague := chain.Config().IsPrague(header.Time)
-	if prague && header.RequestsHash == nil {
+	pragueOrOsaka := chain.Config().IsPrague(header.Time) || chain.Config().IsOsaka(header.Time)
+	if pragueOrOsaka && header.RequestsHash == nil {
 		return errors.New("missing requestsHash")
 	}
-	if !prague && header.RequestsHash != nil {
+	if !pragueOrOsaka && header.RequestsHash != nil {
 		return consensus.ErrUnexpectedRequests
 	}
 
@@ -339,7 +339,7 @@ func (s *Merge) Initialize(config *chain.Config, chain consensus.ChainHeaderRead
 			return syscall(addr, data, state, header, false /* constCall */)
 		})
 	}
-	if chain.Config().IsPrague(header.Time) {
+	if chain.Config().IsPrague(header.Time) || chain.Config().IsOsaka(header.Time) {
 		misc.StoreBlockHashesEip2935(header, state, config, chain)
 	}
 }

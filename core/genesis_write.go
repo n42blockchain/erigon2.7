@@ -549,7 +549,7 @@ func GenesisToBlock(g *types.Genesis, tmpDir string, logger log.Logger) (*types.
 		}
 	}
 
-	if g.Config != nil && g.Config.IsPrague(g.Timestamp) {
+	if g.Config != nil && (g.Config.IsPrague(g.Timestamp) || g.Config.IsOsaka(g.Timestamp)) {
 		if g.RequestsHash != nil {
 			head.RequestsHash = g.RequestsHash
 		} else {
