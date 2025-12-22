@@ -180,6 +180,8 @@ const (
 
 	// PIP-27: secp256r1 elliptic curve signature verifier gas price
 	P256VerifyGas uint64 = 3450
+	// EIP-7951: Updated p256Verify gas cost for Osaka
+	P256VerifyGasEIP7951 uint64 = 6900
 
 	// EIP-2935: Historical block hashes in state
 	BlockHashHistoryServeWindow uint64 = 8191

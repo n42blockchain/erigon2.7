@@ -95,11 +95,28 @@ func ExecuteBlockEphemerally(
 	ibs := state.New(stateReader)
 	header := block.Header()
 
+	// Debug: Print header blob gas info
+	if dbg.DebugBlockExecution() == header.Number.Uint64() {
+		excessBlobGas := uint64(0)
+		blobGasUsed := uint64(0)
+		if header.ExcessBlobGas != nil {
+			excessBlobGas = *header.ExcessBlobGas
+		}
+		if header.BlobGasUsed != nil {
+			blobGasUsed = *header.BlobGasUsed
+		}
+		fmt.Printf("[DEBUG BLOCK] Block=%d Time=%d ExcessBlobGas=%d BlobGasUsed=%d\n",
+			header.Number.Uint64(), header.Time, excessBlobGas, blobGasUsed)
+		fmt.Printf("  BaseFee=%s, Hash=%s\n", header.BaseFee.String(), block.Hash().Hex())
+	}
+
 	usedGas := new(uint64)
 	usedBlobGas := new(uint64)
 	gp := new(GasPool)
 	gp.AddGas(block.GasLimit()).AddBlobGas(chainConfig.GetMaxBlobGasPerBlock(block.Time()))
 
+// Initialize block execution (EIP-4788 beacon root storage, EIP-2935 block hashes)
+	// Note: System calls are "free" (isFree=true) and do NOT consume gas
 	if err := InitializeBlockExecution(engine, chainReader, block.Header(), chainConfig, ibs, stateWriter, logger); err != nil {
 		return nil, err
 	}
@@ -164,6 +181,8 @@ func ExecuteBlockEphemerally(
 		}
 	}
 
+// FinalizeBlockExecution after all validation checks pass (like Erigon 3.3)
+	// This processes withdrawals and EIP-7002/7251 requests for Prague+
 	var newBlock *types.Block
 	if !vmConfig.ReadOnly {
 		txs := block.Transactions()
@@ -174,6 +193,7 @@ func ExecuteBlockEphemerally(
 			return nil, err
 		}
 	}
+
 	blockLogs := ibs.Logs()
 	var newRoot libcommon.Hash
 	if newBlock != nil {
@@ -260,7 +280,7 @@ func SysCallContract(contract libcommon.Address, data []byte, chainConfig *chain
 		u256.Num0,
 		nil, nil,
 		data, nil, false,
-		true, // isFree
+		true, // isFree - system calls don't consume block gas
 		nil,  // maxFeePerBlobGas
 	)
 	vmConfig := vm.Config{NoReceipts: true, RestoreState: constCall}
@@ -334,6 +354,7 @@ func FinalizeBlockExecution(
 	syscall := func(contract libcommon.Address, data []byte) ([]byte, error) {
 		return SysCallContract(contract, data, cc, ibs, header, engine, false /* constCall */)
 	}
+
 	if isMining {
 		newBlock, newTxs, newReceipt, retRequests, err = engine.FinalizeAndAssemble(cc, header, ibs, txs, uncles, receipts, withdrawals, chainReader, syscall, nil, logger)
 	} else {

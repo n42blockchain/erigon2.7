@@ -27,6 +27,7 @@ import (
 
 	"github.com/erigontech/erigon-lib/chain"
 	libcommon "github.com/erigontech/erigon-lib/common"
+	"github.com/erigontech/erigon-lib/common/dbg"
 
 	"github.com/erigontech/erigon/consensus"
 	"github.com/erigontech/erigon/consensus/merge"
@@ -66,6 +67,11 @@ func NewEVMBlockContext(header *types.Header, blockHashFunc func(n uint64) libco
 		blobBaseFee, err = misc.GetBlobGasPrice(config, *header.ExcessBlobGas, header.Time)
 		if err != nil {
 			panic(err)
+		}
+		if dbg.DebugBlockExecution() == header.Number.Uint64() {
+			fmt.Printf("[DEBUG EVM] Block=%d ExcessBlobGas=%d BlobBaseFee=%v Time=%d\n",
+				header.Number.Uint64(), *header.ExcessBlobGas, blobBaseFee, header.Time)
+			fmt.Printf("  IsOsaka=%v IsPrague=%v\n", config.IsOsaka(header.Time), config.IsPrague(header.Time))
 		}
 	}
 

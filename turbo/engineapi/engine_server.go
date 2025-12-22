@@ -118,7 +118,7 @@ func (s *EngineServer) checkWithdrawalsPresence(time uint64, withdrawals types.W
 }
 
 func (s *EngineServer) checkRequestsPresence(time uint64, executionRequests []hexutility.Bytes) error {
-	if !s.config.IsPrague(time) {
+	if !s.config.IsPrague(time) && !s.config.IsOsaka(time) {
 		if executionRequests != nil {
 			return &rpc.InvalidParamsError{Message: "requests before Prague"}
 		}

@@ -286,7 +286,7 @@ func filterBadTransactions(transactions []types.Transaction, config chain.Config
 		// Make sure the sender is an EOA (EIP-3607)
 		if !account.IsEmptyCodeHash() {
 			isEoaCodeAllowed := false
-			if config.IsPrague(header.Time) {
+			if config.IsPrague(header.Time) || config.IsOsaka(header.Time) {
 				code, err := stateReader.ReadAccountCode(sender, account.Incarnation, account.CodeHash)
 				if err != nil {
 					return nil, err

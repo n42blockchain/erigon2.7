@@ -822,7 +822,8 @@ func (sdb *IntraBlockState) Prepare(rules *chain.Rules, sender, coinbase libcomm
 			al.AddAddress(coinbase)
 		}
 	}
-	if rules.IsPrague {
+	// EIP-7702: warm authorities and delegated designation (Prague and later)
+	if rules.IsPrague || rules.IsOsaka {
 		for _, addr := range authorities {
 			sdb.AddAddressToAccessList(addr)
 		}

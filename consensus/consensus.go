@@ -80,6 +80,9 @@ type ChainReader interface {
 
 type SystemCall func(contract libcommon.Address, data []byte) ([]byte, error)
 
+// SystemCallWithGas is like SystemCall but also returns gas used by the call.
+type SystemCallWithGas func(contract libcommon.Address, data []byte) ([]byte, uint64, error)
+
 // Use more options to call contract
 type SysCallCustom func(contract libcommon.Address, data []byte, ibs *state.IntraBlockState, header *types.Header, constCall bool) ([]byte, error)
 type Call func(contract libcommon.Address, data []byte) ([]byte, error)

@@ -103,9 +103,16 @@ type BlobConfig struct {
 type BlobSchedule struct {
 	Cancun *BlobConfig `json:"cancun,omitempty"`
 	Prague *BlobConfig `json:"prague,omitempty"`
+	Osaka  *BlobConfig `json:"osaka,omitempty"` // Fusaka: PeerDAS increases blob throughput
 }
 
-func (b *BlobSchedule) TargetBlobsPerBlock(isPrague bool) uint64 {
+func (b *BlobSchedule) TargetBlobsPerBlock(isPrague, isOsaka bool) uint64 {
+	if isOsaka {
+		if b != nil && b.Osaka != nil && b.Osaka.Target != nil {
+			return *b.Osaka.Target
+		}
+		return 10 // Fusaka/Osaka: EIP-7691 target (10 blobs)
+	}
 	if isPrague {
 		if b != nil && b.Prague != nil && b.Prague.Target != nil {
 			return *b.Prague.Target
@@ -118,7 +125,13 @@ func (b *BlobSchedule) TargetBlobsPerBlock(isPrague bool) uint64 {
 	return 3 // EIP-4844
 }
 
-func (b *BlobSchedule) MaxBlobsPerBlock(isPrague bool) uint64 {
+func (b *BlobSchedule) MaxBlobsPerBlock(isPrague, isOsaka bool) uint64 {
+	if isOsaka {
+		if b != nil && b.Osaka != nil && b.Osaka.Max != nil {
+			return *b.Osaka.Max
+		}
+		return 15 // Fusaka: PeerDAS max (1,966,080 / 131,072 = 15)
+	}
 	if isPrague {
 		if b != nil && b.Prague != nil && b.Prague.Max != nil {
 			return *b.Prague.Max
@@ -131,7 +144,13 @@ func (b *BlobSchedule) MaxBlobsPerBlock(isPrague bool) uint64 {
 	return 6 // EIP-4844
 }
 
-func (b *BlobSchedule) BaseFeeUpdateFraction(isPrague bool) uint64 {
+func (b *BlobSchedule) BaseFeeUpdateFraction(isPrague, isOsaka bool) uint64 {
+	if isOsaka {
+		if b != nil && b.Osaka != nil && b.Osaka.BaseFeeUpdateFraction != nil {
+			return *b.Osaka.BaseFeeUpdateFraction
+		}
+		return 8346618 // Fusaka/Osaka: EIP-7691 baseFeeUpdateFraction
+	}
 	if isPrague {
 		if b != nil && b.Prague != nil && b.Prague.BaseFeeUpdateFraction != nil {
 			return *b.Prague.BaseFeeUpdateFraction
@@ -320,7 +339,7 @@ func (c *Config) GetMaxBlobsPerBlock(time uint64) uint64 {
 	if c != nil {
 		b = c.BlobSchedule
 	}
-	return b.MaxBlobsPerBlock(c.IsPrague(time))
+	return b.MaxBlobsPerBlock(c.IsPrague(time), c.IsOsaka(time))
 }
 
 func (c *Config) GetTargetBlobGasPerBlock(t uint64) uint64 {
@@ -328,7 +347,7 @@ func (c *Config) GetTargetBlobGasPerBlock(t uint64) uint64 {
 	if c != nil {
 		b = c.BlobSchedule
 	}
-	return b.TargetBlobsPerBlock(c.IsPrague(t)) * fixedgas.BlobGasPerBlob
+	return b.TargetBlobsPerBlock(c.IsPrague(t), c.IsOsaka(t)) * fixedgas.BlobGasPerBlob
 }
 
 func (c *Config) GetTargetBlobsPerBlock(time uint64) uint64 {
@@ -336,7 +355,7 @@ func (c *Config) GetTargetBlobsPerBlock(time uint64) uint64 {
 	if c != nil {
 		b = c.BlobSchedule
 	}
-	return b.TargetBlobsPerBlock(c.IsPrague(time))
+	return b.TargetBlobsPerBlock(c.IsPrague(time), c.IsOsaka(time))
 }
 
 // GetMaxRlpBlockSize returns the maximum RLP-encoded block size.
@@ -353,7 +372,7 @@ func (c *Config) GetBlobGasPriceUpdateFraction(t uint64) uint64 {
 	if c != nil {
 		b = c.BlobSchedule
 	}
-	return b.BaseFeeUpdateFraction(c.IsPrague(t))
+	return b.BaseFeeUpdateFraction(c.IsPrague(t), c.IsOsaka(t))
 }
 
 func (c *Config) SecondsPerSlot() uint64 {

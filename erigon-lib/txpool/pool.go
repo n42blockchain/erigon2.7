@@ -234,6 +234,8 @@ type TxPool struct {
 	isPostCancun            atomic.Bool
 	pragueTime              *uint64
 	isPostPrague            atomic.Bool
+	osakaTime               *uint64
+	isPostOsaka             atomic.Bool
 	blobSchedule            *chain.BlobSchedule
 	feeCalculator           FeeCalculator
 	logger                  log.Logger
@@ -245,7 +247,7 @@ type FeeCalculator interface {
 }
 
 func New(newTxs chan types.Announcements, coreDB kv.RoDB, cfg txpoolcfg.Config, cache kvcache.Cache,
-	chainID uint256.Int, shanghaiTime, agraBlock, cancunTime, pragueTime *big.Int, blobSchedule *chain.BlobSchedule,
+	chainID uint256.Int, shanghaiTime, agraBlock, cancunTime, pragueTime, osakaTime *big.Int, blobSchedule *chain.BlobSchedule,
 	feeCalculator FeeCalculator, logger log.Logger,
 ) (*TxPool, error) {
 	localsHistory, err := simplelru.NewLRU[string, struct{}](10_000, nil)
@@ -326,6 +328,13 @@ func New(newTxs chan types.Announcements, coreDB kv.RoDB, cfg txpoolcfg.Config, 
 		}
 		pragueTimeU64 := pragueTime.Uint64()
 		res.pragueTime = &pragueTimeU64
+	}
+	if osakaTime != nil {
+		if !osakaTime.IsUint64() {
+			return nil, errors.New("osakaTime overflow")
+		}
+		osakaTimeU64 := osakaTime.Uint64()
+		res.osakaTime = &osakaTimeU64
 	}
 
 	return res, nil
@@ -1095,8 +1104,12 @@ func (p *TxPool) isPrague() bool {
 	return isTimeBasedForkActivated(&p.isPostPrague, p.pragueTime)
 }
 
+func (p *TxPool) isOsaka() bool {
+	return isTimeBasedForkActivated(&p.isPostOsaka, p.osakaTime)
+}
+
 func (p *TxPool) GetMaxBlobsPerBlock() uint64 {
-	return p.blobSchedule.MaxBlobsPerBlock(p.isPrague())
+	return p.blobSchedule.MaxBlobsPerBlock(p.isPrague(), p.isOsaka())
 }
 
 // Check that the serialized txn should not exceed a certain max size

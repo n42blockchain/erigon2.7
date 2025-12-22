@@ -349,6 +349,25 @@ func DebugBlockExecution() uint64 {
 	return debugBlockExecution
 }
 
+var (
+	skipBlobGasValidation     bool
+	skipBlobGasValidationOnce sync.Once
+)
+
+// SkipBlobGasValidation returns whether to skip blob gas price validation
+// Set SKIP_BLOB_GAS_VALIDATION=true to skip validation (useful for syncing historical data from snapshots)
+// WARNING: Only use this when syncing already-validated historical blocks from trusted snapshots
+func SkipBlobGasValidation() bool {
+	skipBlobGasValidationOnce.Do(func() {
+		v, _ := os.LookupEnv("SKIP_BLOB_GAS_VALIDATION")
+		if v == "true" {
+			skipBlobGasValidation = true
+			log.Info("[Experiment]", "SKIP_BLOB_GAS_VALIDATION", skipBlobGasValidation)
+		}
+	})
+	return skipBlobGasValidation
+}
+
 type saveHeapOptions struct {
 	memStats *runtime.MemStats
 	logger   *log.Logger
