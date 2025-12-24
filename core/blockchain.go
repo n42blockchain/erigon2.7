@@ -126,7 +126,10 @@ func ExecuteBlockEphemerally(
 	includedTxs := make(types.Transactions, 0, block.Transactions().Len())
 	receipts := make(types.Receipts, 0, block.Transactions().Len())
 	noop := state.NewNoopWriter()
+	// Track gas for debugging
+	var gasBeforeTx uint64
 	for i, tx := range block.Transactions() {
+		gasBeforeTx = *usedGas
 		ibs.SetTxContext(tx.Hash(), block.Hash(), i)
 		writeTrace := false
 		if vmConfig.Debug && vmConfig.Tracer == nil {
@@ -154,6 +157,16 @@ func ExecuteBlockEphemerally(
 			includedTxs = append(includedTxs, tx)
 			if !vmConfig.NoReceipts {
 				receipts = append(receipts, receipt)
+			}
+			// Debug: Print gas used for each tx (for first 10 and last 10 txs, or all if total < 30)
+			if debugBlock > 0 && debugBlock == header.Number.Uint64() {
+				txGasUsed := *usedGas - gasBeforeTx
+				if i < 10 || i >= len(block.Transactions())-10 || len(block.Transactions()) < 30 {
+					fmt.Printf("[TX %d] Type=%d GasUsed=%d CumulativeGas=%d\n",
+						i, tx.Type(), txGasUsed, *usedGas)
+				} else if i == 10 {
+					fmt.Printf("[TX ...] (skipping middle transactions)\n")
+				}
 			}
 		}
 	}

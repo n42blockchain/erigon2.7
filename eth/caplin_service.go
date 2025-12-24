@@ -1,4 +1,4 @@
-检查一下// Copyright 2024 The Erigon Authors
+// Copyright 2024 The Erigon Authors
 // This file is part of the Erigon library.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
