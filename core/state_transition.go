@@ -411,9 +411,13 @@ func (st *StateTransition) TransitionDb(refunds bool, gasBailout bool) (*evmtype
 			}
 
 			// 6. Add PER_EMPTY_ACCOUNT_COST - PER_AUTH_BASE_COST gas to the global refund counter if authority exists in the trie.
-			if st.state.Exist(authority) {
+			authorityExists := st.state.Exist(authority)
+			if authorityExists {
 				st.state.AddRefund(fixedgas.PerEmptyAccountCost - fixedgas.PerAuthBaseCost)
 			}
+			// Debug: Print EIP-7702 authority info
+			fmt.Printf("[EIP-7702] Auth[%d] Authority=%s Exists=%v RefundAdded=%d\n",
+				i, authority.Hex(), authorityExists, fixedgas.PerEmptyAccountCost-fixedgas.PerAuthBaseCost)
 
 			// 7. set authority code
 			if auth.Address == (libcommon.Address{}) {
@@ -433,6 +437,11 @@ func (st *StateTransition) TransitionDb(refunds bool, gasBailout bool) (*evmtype
 	gas, floorGas7623, err := IntrinsicGas(st.data, accessTuples, contractCreation, rules.IsHomestead, rules.IsIstanbul, isEIP3860, isPragueOrLater, uint64(len(auths)))
 	if err != nil {
 		return nil, err
+	}
+	// Debug: Print intrinsic gas for Type 4 transactions
+	if len(auths) > 0 {
+		fmt.Printf("[EIP-7702] TxFrom=%s IntrinsicGas=%d FloorGas7623=%d AuthCount=%d DataLen=%d\n",
+			msg.From().Hex(), gas, floorGas7623, len(auths), len(st.data))
 	}
 	if st.gasRemaining < gas || st.gasRemaining < floorGas7623 {
 		return nil, fmt.Errorf("%w: have %d, want %d", ErrIntrinsicGas, st.gasRemaining, max(gas, floorGas7623))
@@ -477,12 +486,18 @@ func (st *StateTransition) TransitionDb(refunds bool, gasBailout bool) (*evmtype
 			refundQuotient = params.RefundQuotientEIP3529
 		}
 		gasUsed := st.gasUsed()
-		refund := min(gasUsed/refundQuotient, st.state.GetRefund())
+		totalRefund := st.state.GetRefund()
+		refund := min(gasUsed/refundQuotient, totalRefund)
 		gasUsedAfterRefund := gasUsed - refund
 		finalGasUsed := gasUsedAfterRefund
 		// EIP-7623 floor gas applies to both Prague and Osaka
 		if rules.IsPrague || rules.IsOsaka {
 			finalGasUsed = max(floorGas7623, gasUsedAfterRefund)
+		}
+		// Debug: Print for Type 4 transactions (EIP-7702)
+		if len(auths) > 0 {
+			fmt.Printf("[EIP-7702 REFUND] TxFrom=%s GasUsed=%d TotalRefund=%d AppliedRefund=%d GasAfterRefund=%d FloorGas=%d FinalGas=%d\n",
+				msg.From().Hex(), gasUsed, totalRefund, refund, gasUsedAfterRefund, floorGas7623, finalGasUsed)
 		}
 		// Debug: detailed gas calculation logging
 		debugBlock := dbg.DebugBlockExecution()

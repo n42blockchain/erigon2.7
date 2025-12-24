@@ -194,6 +194,15 @@ func ExecuteBlockEphemerally(
 			}
 		}
 
+		// Print Type 4 (EIP-7702) transactions with full details
+		fmt.Printf("\n--- Type 4 (EIP-7702 SetCode) TXs ---\n")
+		for i, tx := range includedTxs {
+			if tx.Type() == 4 {
+				fmt.Printf("[TX %d] Hash=%s GasUsed=%d DataLen=%d GasLimit=%d\n",
+					i, tx.Hash().Hex(), txGasInfos[i].gasUsed, len(tx.GetData()), tx.GetGas())
+			}
+		}
+
 		// Print first 10 and last 10 transactions
 		fmt.Printf("\n--- First 10 TXs ---\n")
 		for i := 0; i < min(10, len(txGasInfos)); i++ {
