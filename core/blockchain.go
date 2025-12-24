@@ -126,7 +126,12 @@ func ExecuteBlockEphemerally(
 	includedTxs := make(types.Transactions, 0, block.Transactions().Len())
 	receipts := make(types.Receipts, 0, block.Transactions().Len())
 	noop := state.NewNoopWriter()
-	// Track gas for debugging
+	// Track gas for debugging - store per-tx gas info
+	type txGasInfo struct {
+		txType  uint8
+		gasUsed uint64
+	}
+	txGasInfos := make([]txGasInfo, 0, block.Transactions().Len())
 	var gasBeforeTx uint64
 	for i, tx := range block.Transactions() {
 		gasBeforeTx = *usedGas
@@ -158,16 +163,11 @@ func ExecuteBlockEphemerally(
 			if !vmConfig.NoReceipts {
 				receipts = append(receipts, receipt)
 			}
-			// Debug: Print gas used for each tx (for first 10 and last 10 txs, or all if total < 30)
-			if debugBlock > 0 && debugBlock == header.Number.Uint64() {
-				txGasUsed := *usedGas - gasBeforeTx
-				if i < 10 || i >= len(block.Transactions())-10 || len(block.Transactions()) < 30 {
-					fmt.Printf("[TX %d] Type=%d GasUsed=%d CumulativeGas=%d\n",
-						i, tx.Type(), txGasUsed, *usedGas)
-				} else if i == 10 {
-					fmt.Printf("[TX ...] (skipping middle transactions)\n")
-				}
-			}
+			// Store gas info for later debugging
+			txGasInfos = append(txGasInfos, txGasInfo{
+				txType:  tx.Type(),
+				gasUsed: *usedGas - gasBeforeTx,
+			})
 		}
 	}
 
@@ -179,13 +179,37 @@ func ExecuteBlockEphemerally(
 		fmt.Printf("GasUsed: execution=%d, header=%d, diff=%d\n", *usedGas, header.GasUsed, int64(*usedGas)-int64(header.GasUsed))
 		fmt.Printf("TxCount=%d, ReceiptCount=%d\n", len(block.Transactions()), len(receipts))
 		fmt.Printf("IsPrague=%v, IsOsaka=%v, Time=%d\n", chainConfig.IsPrague(header.Time), chainConfig.IsOsaka(header.Time), header.Time)
-		// Print last few receipts for comparison
-		for i := max(0, len(receipts)-5); i < len(receipts); i++ {
-			r := receipts[i]
-			fmt.Printf("Receipt[%d]: Status=%d, CumulativeGas=%d, GasUsed=%d, LogsCount=%d\n",
-				i, r.Status, r.CumulativeGasUsed, r.GasUsed, len(r.Logs))
+
+		// Print all transactions with their gas usage (grouped by type)
+		fmt.Printf("\n--- TX Gas Usage by Type ---\n")
+		typeGas := make(map[uint8]uint64)
+		typeCount := make(map[uint8]int)
+		for _, info := range txGasInfos {
+			typeGas[info.txType] += info.gasUsed
+			typeCount[info.txType]++
 		}
-		fmt.Printf("========== END DEBUG ==========\n\n")
+		for t := uint8(0); t <= 4; t++ {
+			if typeCount[t] > 0 {
+				fmt.Printf("Type %d: count=%d, totalGas=%d\n", t, typeCount[t], typeGas[t])
+			}
+		}
+
+		// Print first 10 and last 10 transactions
+		fmt.Printf("\n--- First 10 TXs ---\n")
+		for i := 0; i < min(10, len(txGasInfos)); i++ {
+			info := txGasInfos[i]
+			fmt.Printf("[TX %d] Type=%d GasUsed=%d\n", i, info.txType, info.gasUsed)
+		}
+		if len(txGasInfos) > 20 {
+			fmt.Printf("... (skipping %d middle TXs) ...\n", len(txGasInfos)-20)
+		}
+		fmt.Printf("\n--- Last 10 TXs ---\n")
+		for i := max(10, len(txGasInfos)-10); i < len(txGasInfos); i++ {
+			info := txGasInfos[i]
+			fmt.Printf("[TX %d] Type=%d GasUsed=%d\n", i, info.txType, info.gasUsed)
+		}
+
+		fmt.Printf("\n========== END DEBUG ==========\n\n")
 		if dbg.LogHashMismatchReason() {
 			logReceipts(receipts, includedTxs, chainConfig, header, logger)
 		}
