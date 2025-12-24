@@ -96,7 +96,8 @@ func ExecuteBlockEphemerally(
 	header := block.Header()
 
 	// Debug: Print header blob gas info
-	if dbg.DebugBlockExecution() == header.Number.Uint64() {
+	debugBlock := dbg.DebugBlockExecution()
+	if debugBlock > 0 && debugBlock == header.Number.Uint64() {
 		excessBlobGas := uint64(0)
 		blobGasUsed := uint64(0)
 		if header.ExcessBlobGas != nil {
@@ -105,9 +106,11 @@ func ExecuteBlockEphemerally(
 		if header.BlobGasUsed != nil {
 			blobGasUsed = *header.BlobGasUsed
 		}
+		fmt.Printf("\n========== DEBUG BLOCK %d ==========\n", header.Number.Uint64())
 		fmt.Printf("[DEBUG BLOCK] Block=%d Time=%d ExcessBlobGas=%d BlobGasUsed=%d\n",
 			header.Number.Uint64(), header.Time, excessBlobGas, blobGasUsed)
 		fmt.Printf("  BaseFee=%s, Hash=%s\n", header.BaseFee.String(), block.Hash().Hex())
+		fmt.Printf("  GasLimit=%d, TxCount=%d\n", block.GasLimit(), len(block.Transactions()))
 	}
 
 	usedGas := new(uint64)
@@ -157,6 +160,19 @@ func ExecuteBlockEphemerally(
 
 	receiptSha := types.DeriveSha(receipts)
 	if !vmConfig.StatelessExec && chainConfig.IsByzantium(header.Number.Uint64()) && !vmConfig.NoReceipts && receiptSha != block.ReceiptHash() {
+		// Always print debug info when receipt mismatch occurs
+		fmt.Printf("\n========== RECEIPT MISMATCH BLOCK %d ==========\n", block.NumberU64())
+		fmt.Printf("Expected: %s, Got: %s\n", block.ReceiptHash().Hex(), receiptSha.Hex())
+		fmt.Printf("GasUsed: execution=%d, header=%d, diff=%d\n", *usedGas, header.GasUsed, int64(*usedGas)-int64(header.GasUsed))
+		fmt.Printf("TxCount=%d, ReceiptCount=%d\n", len(block.Transactions()), len(receipts))
+		fmt.Printf("IsPrague=%v, IsOsaka=%v, Time=%d\n", chainConfig.IsPrague(header.Time), chainConfig.IsOsaka(header.Time), header.Time)
+		// Print last few receipts for comparison
+		for i := max(0, len(receipts)-5); i < len(receipts); i++ {
+			r := receipts[i]
+			fmt.Printf("Receipt[%d]: Status=%d, CumulativeGas=%d, GasUsed=%d, LogsCount=%d\n",
+				i, r.Status, r.CumulativeGasUsed, r.GasUsed, len(r.Logs))
+		}
+		fmt.Printf("========== END DEBUG ==========\n\n")
 		if dbg.LogHashMismatchReason() {
 			logReceipts(receipts, includedTxs, chainConfig, header, logger)
 		}
@@ -164,6 +180,9 @@ func ExecuteBlockEphemerally(
 	}
 
 	if !vmConfig.StatelessExec && *usedGas != header.GasUsed {
+		fmt.Printf("\n========== GAS MISMATCH BLOCK %d ==========\n", block.NumberU64())
+		fmt.Printf("GasUsed: execution=%d, header=%d, diff=%d\n", *usedGas, header.GasUsed, int64(*usedGas)-int64(header.GasUsed))
+		fmt.Printf("========== END DEBUG ==========\n\n")
 		return nil, fmt.Errorf("gas used by execution: %d, in header: %d", *usedGas, header.GasUsed)
 	}
 
