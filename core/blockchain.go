@@ -179,26 +179,14 @@ func ExecuteBlockEphemerally(
 		}
 	}
 
-	// FinalizeBlockExecution after all validation checks pass (like Erigon 3.3)
-	// This processes withdrawals and EIP-7002/7251 requests for Prague+
-	var newBlock *types.Block
 	if !vmConfig.ReadOnly {
 		txs := block.Transactions()
-		// Use isMining=true to match Erigon 3.3 behavior
-		var err error
-		newBlock, _, _, _, err = FinalizeBlockExecution(engine, stateReader, block.Header(), txs, block.Uncles(), stateWriter, chainConfig, ibs, receipts, block.Withdrawals(), chainReader, true, logger)
-		if err != nil {
+		if _, _, _, _, err := FinalizeBlockExecution(engine, stateReader, block.Header(), txs, block.Uncles(), stateWriter, chainConfig, ibs, receipts, block.Withdrawals(), chainReader, false, logger); err != nil {
 			return nil, err
 		}
 	}
-
 	blockLogs := ibs.Logs()
-	var newRoot libcommon.Hash
-	if newBlock != nil {
-		newRoot = newBlock.Root()
-	}
 	execRs := &EphemeralExecResult{
-		StateRoot:   newRoot,
 		TxRoot:      types.DeriveSha(includedTxs),
 		ReceiptRoot: receiptSha,
 		Bloom:       bloom,
