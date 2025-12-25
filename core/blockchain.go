@@ -166,6 +166,47 @@ func ExecuteBlockEphemerally(
 
 	receiptSha := types.DeriveSha(receipts)
 	if !vmConfig.StatelessExec && chainConfig.IsByzantium(header.Number.Uint64()) && !vmConfig.NoReceipts && receiptSha != block.ReceiptHash() {
+		// DEBUG: Print detailed mismatch info
+		fmt.Printf("\n========== RECEIPT MISMATCH BLOCK %d ==========\n", block.NumberU64())
+		fmt.Printf("Expected: %s, Got: %s\n", block.ReceiptHash().Hex(), receiptSha.Hex())
+		fmt.Printf("GasUsed: execution=%d, header=%d, diff=%d\n", *usedGas, header.GasUsed, int64(*usedGas)-int64(header.GasUsed))
+		fmt.Printf("TxCount=%d, ReceiptCount=%d\n", len(block.Transactions()), len(receipts))
+		fmt.Printf("IsPrague=%v, IsOsaka=%v, BlockTime=%d\n",
+			chainConfig.IsPrague(header.Time), chainConfig.IsOsaka(header.Time), header.Time)
+
+		// Print all Type 4 transactions
+		fmt.Printf("--- Type 4 (EIP-7702) Transactions ---\n")
+		type4Count := 0
+		for i, tx := range block.Transactions() {
+			if tx.Type() == 4 {
+				type4Count++
+				txFrom, _ := tx.GetSender()
+				fmt.Printf("[TX %d] Type=4 Hash=%s From=%s To=%v GasLimit=%d\n",
+					i, tx.Hash().Hex(), txFrom.Hex(), tx.GetTo(), tx.GetGas())
+				if i < len(receipts) {
+					fmt.Printf("        GasUsed=%d Status=%d\n", receipts[i].GasUsed, receipts[i].Status)
+				}
+			}
+		}
+		if type4Count == 0 {
+			fmt.Printf("  (no Type 4 transactions in this block)\n")
+		}
+
+		// Print gas summary by tx type
+		fmt.Printf("--- Gas by TX Type ---\n")
+		gasPerType := make(map[uint8]uint64)
+		countPerType := make(map[uint8]int)
+		for i, tx := range block.Transactions() {
+			if i < len(receipts) {
+				gasPerType[tx.Type()] += receipts[i].GasUsed
+				countPerType[tx.Type()]++
+			}
+		}
+		for typ, gas := range gasPerType {
+			fmt.Printf("Type %d: count=%d, totalGas=%d\n", typ, countPerType[typ], gas)
+		}
+		fmt.Printf("========== END DEBUG ==========\n\n")
+
 		if dbg.LogHashMismatchReason() {
 			logReceipts(receipts, includedTxs, chainConfig, header, logger)
 		}
@@ -173,6 +214,9 @@ func ExecuteBlockEphemerally(
 	}
 
 	if !vmConfig.StatelessExec && *usedGas != header.GasUsed {
+		fmt.Printf("\n========== GAS MISMATCH BLOCK %d ==========\n", block.NumberU64())
+		fmt.Printf("GasUsed: execution=%d, header=%d, diff=%d\n", *usedGas, header.GasUsed, int64(*usedGas)-int64(header.GasUsed))
+		fmt.Printf("========== END DEBUG ==========\n\n")
 		return nil, fmt.Errorf("gas used by execution: %d, in header: %d", *usedGas, header.GasUsed)
 	}
 
