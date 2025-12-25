@@ -363,22 +363,28 @@ func (st *StateTransition) TransitionDb(refunds bool, gasBailout bool) (*evmtype
 		if contractCreation {
 			return nil, errors.New("contract creation not allowed with type4 txs")
 		}
+
+		fmt.Printf("[TYPE4 AUTH] Processing %d authorizations\n", len(auths))
+
 		var b [32]byte
 		data := bytes.NewBuffer(nil)
-		for _, auth := range auths {
+		for i, auth := range auths {
 			data.Reset()
 
 			// 1. chainId check
 			if !auth.ChainID.IsZero() && rules.ChainID.String() != auth.ChainID.String() {
+				fmt.Printf("[TYPE4 AUTH %d] SKIP: chainId mismatch (auth=%s, rules=%s)\n", i, auth.ChainID.String(), rules.ChainID.String())
 				continue
 			}
 
 			// 2. authority recover
 			authorityPtr, err := auth.RecoverSigner(data, b[:])
 			if err != nil {
+				fmt.Printf("[TYPE4 AUTH %d] SKIP: recover failed (%v)\n", i, err)
 				continue
 			}
 			authority := *authorityPtr
+			fmt.Printf("[TYPE4 AUTH %d] Authority=%s DelegateAddr=%s AuthNonce=%d\n", i, authority.Hex(), auth.Address.Hex(), auth.Nonce)
 
 			// 3. add authority account to accesses_addresses
 			verifiedAuthorities = append(verifiedAuthorities, authority)
@@ -389,8 +395,10 @@ func (st *StateTransition) TransitionDb(refunds bool, gasBailout bool) (*evmtype
 			if codeHash != emptyCodeHash && codeHash != (libcommon.Hash{}) {
 				// check for delegation
 				if _, ok := st.state.GetDelegatedDesignation(authority); ok {
+					fmt.Printf("[TYPE4 AUTH %d] Has delegation designation\n", i)
 					// noop: has delegated designation
 				} else {
+					fmt.Printf("[TYPE4 AUTH %d] SKIP: code not empty and not delegated\n", i)
 					continue
 				}
 			}
@@ -398,12 +406,18 @@ func (st *StateTransition) TransitionDb(refunds bool, gasBailout bool) (*evmtype
 			// 5. nonce check
 			authorityNonce := st.state.GetNonce(authority)
 			if authorityNonce != auth.Nonce {
+				fmt.Printf("[TYPE4 AUTH %d] SKIP: nonce mismatch (state=%d, auth=%d)\n", i, authorityNonce, auth.Nonce)
 				continue
 			}
 
 			// 6. Add PER_EMPTY_ACCOUNT_COST - PER_AUTH_BASE_COST gas to the global refund counter if authority exists in the trie.
-			if st.state.Exist(authority) {
-				st.state.AddRefund(fixedgas.PerEmptyAccountCost - fixedgas.PerAuthBaseCost)
+			exists := st.state.Exist(authority)
+			if exists {
+				refundAmt := uint64(fixedgas.PerEmptyAccountCost - fixedgas.PerAuthBaseCost)
+				st.state.AddRefund(refundAmt)
+				fmt.Printf("[TYPE4 AUTH %d] EXISTS: added refund %d\n", i, refundAmt)
+			} else {
+				fmt.Printf("[TYPE4 AUTH %d] NOT EXISTS: no refund\n", i)
 			}
 
 			// 7. set authority code
@@ -415,6 +429,7 @@ func (st *StateTransition) TransitionDb(refunds bool, gasBailout bool) (*evmtype
 
 			// 8. increase the nonce of authority
 			st.state.SetNonce(authority, authorityNonce+1)
+			fmt.Printf("[TYPE4 AUTH %d] SUCCESS: nonce %d -> %d\n", i, authorityNonce, authorityNonce+1)
 		}
 	}
 
@@ -425,6 +440,17 @@ func (st *StateTransition) TransitionDb(refunds bool, gasBailout bool) (*evmtype
 	if err != nil {
 		return nil, err
 	}
+
+	// DEBUG: Print detailed gas info for Type 4 transactions
+	if len(auths) > 0 {
+		fmt.Printf("[TYPE4 TX] From=%s To=%v\n", msg.From().Hex(), msg.To())
+		fmt.Printf("  IntrinsicGas=%d FloorGas7623=%d DataLen=%d AuthCount=%d\n",
+			gas, floorGas7623, len(st.data), len(auths))
+		fmt.Printf("  AccessListLen=%d StorageKeys=%d\n",
+			len(accessTuples), accessTuples.StorageKeys())
+		fmt.Printf("  VerifiedAuthorities=%d (of %d total)\n", len(verifiedAuthorities), len(auths))
+	}
+
 	if st.gasRemaining < gas || st.gasRemaining < floorGas7623 {
 		return nil, fmt.Errorf("%w: have %d, want %d", ErrIntrinsicGas, st.gasRemaining, max(gas, floorGas7623))
 	}
@@ -476,6 +502,14 @@ func (st *StateTransition) TransitionDb(refunds bool, gasBailout bool) (*evmtype
 		if rules.IsPrague || rules.IsOsaka {
 			finalGasUsed = max(floorGas7623, gasUsedAfterRefund)
 		}
+
+		// DEBUG: Print refund details for Type 4 transactions
+		if len(auths) > 0 {
+			fmt.Printf("[TYPE4 REFUND] InitialGas=%d GasUsedBeforeRefund=%d\n", st.initialGas, gasUsed)
+			fmt.Printf("  TotalRefund=%d AppliedRefund=%d GasUsedAfterRefund=%d\n", totalRefund, refund, gasUsedAfterRefund)
+			fmt.Printf("  FloorGas7623=%d FinalGasUsed=%d GasRemaining=%d\n", floorGas7623, finalGasUsed, st.initialGas-finalGasUsed)
+		}
+
 		st.gasRemaining = st.initialGas - finalGasUsed
 		st.refundGas()
 	} else if rules.IsPrague || rules.IsOsaka {
