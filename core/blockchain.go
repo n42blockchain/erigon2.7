@@ -146,6 +146,24 @@ func ExecuteBlockEphemerally(
 		if dbg.LogHashMismatchReason() {
 			logReceipts(receipts, includedTxs, chainConfig, header, logger)
 		}
+		// Always log summary for debugging receipt mismatch
+		logger.Warn("[DEBUG] Receipt mismatch details",
+			"block", block.NumberU64(),
+			"txCount", len(receipts),
+			"totalGasUsed", *usedGas,
+			"headerGasUsed", header.GasUsed,
+			"computedReceiptHash", receiptSha.Hex(),
+			"expectedReceiptHash", block.ReceiptHash().Hex())
+		// Log gas used per transaction
+		for i, receipt := range receipts {
+			logger.Warn("[DEBUG] TX receipt",
+				"txIndex", i,
+				"txHash", includedTxs[i].Hash().Hex(),
+				"gasUsed", receipt.GasUsed,
+				"cumulativeGas", receipt.CumulativeGasUsed,
+				"status", receipt.Status,
+				"logsCount", len(receipt.Logs))
+		}
 		return nil, fmt.Errorf("mismatched receipt headers for block %d (%s != %s)", block.NumberU64(), receiptSha.Hex(), block.ReceiptHash().Hex())
 	}
 
