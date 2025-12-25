@@ -6,7 +6,6 @@ import (
 
 	"github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon-lib/config3"
-	"github.com/erigontech/erigon-lib/crypto"
 	"github.com/erigontech/erigon-lib/kv"
 	"github.com/erigontech/erigon/core/types/accounts"
 )
@@ -43,14 +42,6 @@ func (hr *HistoryReaderV3) ReadAccountData(address common.Address) (*accounts.Ac
 	var a accounts.Account
 	if err := accounts.DeserialiseV3(&a, enc); err != nil {
 		return nil, fmt.Errorf("ReadAccountData(%x): %w", address, err)
-	}
-	// EIP-7702: If CodeHash is empty, try to recover it from CodeDomain
-	// Erigon 3 stores code separately and may not include CodeHash in account encoding
-	if a.IsEmptyCodeHash() {
-		code, _, err := hr.ttx.DomainGetAsOf(kv.CodeDomain, address.Bytes(), nil, hr.txNum)
-		if err == nil && len(code) > 0 {
-			a.CodeHash = crypto.Keccak256Hash(code)
-		}
 	}
 	if hr.trace {
 		fmt.Printf("ReadAccountData [%x] => [nonce: %d, balance: %d, codeHash: %x]\n", address, a.Nonce, &a.Balance, a.CodeHash)
