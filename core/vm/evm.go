@@ -18,6 +18,7 @@ package vm
 
 import (
 	"fmt"
+	"strings"
 	"sync/atomic"
 
 	"github.com/holiman/uint256"
@@ -197,10 +198,11 @@ func (evm *EVM) call(typ OpCode, caller ContractRef, addr libcommon.Address, inp
 
 	// EIP-7702: For top-level calls (depth == 0) in Prague, charge gas for delegation resolution
 	if depth == 0 && evm.chainRules.IsPrague && !isPrecompile {
-		// Debug: check what GetCode returns for specific address
-		if addr.Hex() == "0x6844b635347871b7f8d5cd3c5fb03f24c9cf4275" {
+		// Debug: check what GetCode returns for TX 34's target address
+		addrLower := strings.ToLower(addr.Hex())
+		if addrLower == "0x6844b635347871b7f8d5cd3c5fb03f24c9cf4275" {
 			addrCode := evm.intraBlockState.GetCode(addr)
-			fmt.Printf("[DEBUG] addr=%s codeLen=%d code=%x\n", addr.Hex(), len(addrCode), addrCode)
+			fmt.Printf("[DEBUG TX34] addr=%s codeLen=%d code=%x\n", addr.Hex(), len(addrCode), addrCode)
 		}
 		if dd, ok := evm.intraBlockState.GetDelegatedDesignation(addr); ok {
 			var ddCost uint64
