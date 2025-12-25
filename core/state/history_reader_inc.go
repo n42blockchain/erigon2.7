@@ -124,6 +124,15 @@ func (hr *HistoryReaderInc) ReadAccountData(address common.Address) (*accounts.A
 	if err = accounts.DeserialiseV3(&a, enc); err != nil {
 		return nil, err
 	}
+	// EIP-7702: If CodeHash is empty in V3 format, try to recover from PlainContractCode
+	if a.IsEmptyCodeHash() {
+		storagePrefix := dbutils.PlainGenerateStoragePrefix(addr, a.Incarnation)
+		if codeHash, err1 := hr.chainTx.GetOne(kv.PlainContractCode, storagePrefix); err1 == nil {
+			if len(codeHash) > 0 {
+				a.CodeHash.SetBytes(codeHash)
+			}
+		}
+	}
 	if hr.trace {
 		fmt.Printf("ReadAccountData [%x] => [nonce: %d, balance: %d, codeHash: %x], noState=%t, txNum: %d\n", address, a.Nonce, &a.Balance, a.CodeHash, noState, hr.txNum)
 	}
