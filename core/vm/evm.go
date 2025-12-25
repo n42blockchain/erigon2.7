@@ -37,10 +37,8 @@ var emptyCodeHash = crypto.Keccak256Hash(nil)
 func (evm *EVM) precompile(addr libcommon.Address) (PrecompiledContract, bool) {
 	var precompiles map[libcommon.Address]PrecompiledContract
 	switch {
-	// TEMPORARY: Force Prague precompiles to debug gas mismatch
-	// TODO: Investigate why Osaka precompiles cause gas difference
 	case evm.chainRules.IsOsaka:
-		precompiles = PrecompiledContractsPrague // Changed from PrecompiledContractsOsaka
+		precompiles = PrecompiledContractsOsaka
 	case evm.chainRules.IsPrague:
 		precompiles = PrecompiledContractsPrague
 	case evm.chainRules.IsNapoli:
