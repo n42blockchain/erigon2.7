@@ -370,27 +370,20 @@ func (st *StateTransition) TransitionDb(refunds bool, gasBailout bool) (*evmtype
 		}
 		var b [32]byte
 		data := bytes.NewBuffer(nil)
-		fmt.Printf("[EIP-7702 DEBUG] Processing %d authorizations\n", len(auths))
-		for i, auth := range auths {
+		for _, auth := range auths {
 			data.Reset()
-			fmt.Printf("[EIP-7702 DEBUG] Auth[%d] ChainID=%s Address=%s Nonce=%d\n",
-				i, auth.ChainID.String(), auth.Address.Hex(), auth.Nonce)
 
 			// 1. chainId check
 			if !auth.ChainID.IsZero() && rules.ChainID.String() != auth.ChainID.String() {
-				fmt.Printf("[EIP-7702 DEBUG] Auth[%d] SKIP: chainID mismatch (auth=%s, rules=%s)\n",
-					i, auth.ChainID.String(), rules.ChainID.String())
 				continue
 			}
 
 			// 2. authority recover
 			authorityPtr, err := auth.RecoverSigner(data, b[:])
 			if err != nil {
-				fmt.Printf("[EIP-7702 DEBUG] Auth[%d] SKIP: RecoverSigner failed: %v\n", i, err)
 				continue
 			}
 			authority := *authorityPtr
-			fmt.Printf("[EIP-7702 DEBUG] Auth[%d] Recovered authority=%s\n", i, authority.Hex())
 
 			// 3. add authority account to accesses_addresses
 			verifiedAuthorities = append(verifiedAuthorities, authority)
@@ -398,38 +391,25 @@ func (st *StateTransition) TransitionDb(refunds bool, gasBailout bool) (*evmtype
 
 			// 4. authority code should be empty or already delegated
 			codeHash := st.state.GetCodeHash(authority)
-			fmt.Printf("[EIP-7702 DEBUG] Auth[%d] CodeHash=%s emptyCodeHash=%s\n",
-				i, codeHash.Hex(), emptyCodeHash.Hex())
 			if codeHash != emptyCodeHash && codeHash != (libcommon.Hash{}) {
 				// check for delegation
 				if _, ok := st.state.GetDelegatedDesignation(authority); ok {
-					fmt.Printf("[EIP-7702 DEBUG] Auth[%d] Has delegated designation, continuing\n", i)
+					// noop: has delegated designation
 				} else {
-					fmt.Printf("[EIP-7702 DEBUG] Auth[%d] SKIP: code not empty and not delegated\n", i)
 					continue
 				}
 			}
 
 			// 5. nonce check
 			authorityNonce := st.state.GetNonce(authority)
-			fmt.Printf("[EIP-7702 DEBUG] Auth[%d] AuthorityNonce=%d AuthNonce=%d\n",
-				i, authorityNonce, auth.Nonce)
 			if authorityNonce != auth.Nonce {
-				fmt.Printf("[EIP-7702 DEBUG] Auth[%d] SKIP: nonce mismatch\n", i)
 				continue
 			}
 
 			// 6. Add PER_EMPTY_ACCOUNT_COST - PER_AUTH_BASE_COST gas to the global refund counter if authority exists in the trie.
-			authorityExists := st.state.Exist(authority)
-			fmt.Printf("[EIP-7702 DEBUG] Auth[%d] Exists=%v\n", i, authorityExists)
-			if authorityExists {
+			if st.state.Exist(authority) {
 				st.state.AddRefund(fixedgas.PerEmptyAccountCost - fixedgas.PerAuthBaseCost)
-				fmt.Printf("[EIP-7702 DEBUG] Auth[%d] Added refund %d\n",
-					i, fixedgas.PerEmptyAccountCost-fixedgas.PerAuthBaseCost)
 			}
-			// Debug: Print EIP-7702 authority info
-			fmt.Printf("[EIP-7702] Auth[%d] Authority=%s Exists=%v RefundAdded=%d\n",
-				i, authority.Hex(), authorityExists, fixedgas.PerEmptyAccountCost-fixedgas.PerAuthBaseCost)
 
 			// 7. set authority code
 			if auth.Address == (libcommon.Address{}) {
@@ -449,11 +429,6 @@ func (st *StateTransition) TransitionDb(refunds bool, gasBailout bool) (*evmtype
 	gas, floorGas7623, err := IntrinsicGas(st.data, accessTuples, contractCreation, rules.IsHomestead, rules.IsIstanbul, isEIP3860, isPragueOrLater, uint64(len(auths)))
 	if err != nil {
 		return nil, err
-	}
-	// Debug: Print intrinsic gas for Type 4 transactions
-	if len(auths) > 0 {
-		fmt.Printf("[EIP-7702] TxFrom=%s IntrinsicGas=%d FloorGas7623=%d AuthCount=%d DataLen=%d\n",
-			msg.From().Hex(), gas, floorGas7623, len(auths), len(st.data))
 	}
 	if st.gasRemaining < gas || st.gasRemaining < floorGas7623 {
 		return nil, fmt.Errorf("%w: have %d, want %d", ErrIntrinsicGas, st.gasRemaining, max(gas, floorGas7623))

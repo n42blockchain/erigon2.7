@@ -95,24 +95,6 @@ func ExecuteBlockEphemerally(
 	ibs := state.New(stateReader)
 	header := block.Header()
 
-	// Debug: Print header blob gas info
-	debugBlock := dbg.DebugBlockExecution()
-	if debugBlock > 0 && debugBlock == header.Number.Uint64() {
-		excessBlobGas := uint64(0)
-		blobGasUsed := uint64(0)
-		if header.ExcessBlobGas != nil {
-			excessBlobGas = *header.ExcessBlobGas
-		}
-		if header.BlobGasUsed != nil {
-			blobGasUsed = *header.BlobGasUsed
-		}
-		fmt.Printf("\n========== DEBUG BLOCK %d ==========\n", header.Number.Uint64())
-		fmt.Printf("[DEBUG BLOCK] Block=%d Time=%d ExcessBlobGas=%d BlobGasUsed=%d\n",
-			header.Number.Uint64(), header.Time, excessBlobGas, blobGasUsed)
-		fmt.Printf("  BaseFee=%s, Hash=%s\n", header.BaseFee.String(), block.Hash().Hex())
-		fmt.Printf("  GasLimit=%d, TxCount=%d\n", block.GasLimit(), len(block.Transactions()))
-	}
-
 	usedGas := new(uint64)
 	usedBlobGas := new(uint64)
 	gp := new(GasPool)
@@ -126,40 +108,7 @@ func ExecuteBlockEphemerally(
 	includedTxs := make(types.Transactions, 0, block.Transactions().Len())
 	receipts := make(types.Receipts, 0, block.Transactions().Len())
 	noop := state.NewNoopWriter()
-	// Track gas for debugging - store per-tx gas info
-	type txGasInfo struct {
-		txType  uint8
-		gasUsed uint64
-	}
-	txGasInfos := make([]txGasInfo, 0, block.Transactions().Len())
-
-	// Debug: Track nonce changes for EIP-7702 authority addresses
-	authorityToTrack := libcommon.HexToAddress("0x4DE23f3f0Fb3318287378AdbdE030cf61714b2f3")
-	// Prague fork time is 1746612311 (from chain config)
-	pragueTime := uint64(1746612311)
-	isPragueBlock := header.Time >= pragueTime
-	isPreviousBlockPrague := header.Time >= pragueTime && block.NumberU64() > 0
-	if isPragueBlock {
-		fmt.Printf("[NONCE TRACK] Block %d (Time=%d, PragueTime=%d): Initial nonce of %s = %d\n",
-			block.NumberU64(), header.Time, pragueTime, authorityToTrack.Hex(), ibs.GetNonce(authorityToTrack))
-		// Check if this is one of the first Prague blocks
-		if header.Time < pragueTime+3600 { // First hour of Prague
-			fmt.Printf("[DEBUG] This is an early Prague block\n")
-		}
-	}
-
-	var gasBeforeTx uint64
 	for i, tx := range block.Transactions() {
-		gasBeforeTx = *usedGas
-
-		// Debug: Check if this tx is from the authority we're tracking
-		sender, _ := tx.Sender(*types.LatestSignerForChainID(chainConfig.ChainID))
-		nonceBefore := ibs.GetNonce(authorityToTrack)
-		if chainConfig.IsPrague(header.Time) && sender == authorityToTrack {
-			fmt.Printf("[NONCE TRACK] TX %d: from=%s (AUTHORITY!) nonce=%d, auth_nonce_before=%d\n",
-				i, sender.Hex(), tx.GetNonce(), nonceBefore)
-		}
-
 		ibs.SetTxContext(tx.Hash(), block.Hash(), i)
 		writeTrace := false
 		if vmConfig.Debug && vmConfig.Tracer == nil {
@@ -178,14 +127,6 @@ func ExecuteBlockEphemerally(
 
 			vmConfig.Tracer = nil
 		}
-
-		// Debug: Check nonce after tx
-		nonceAfter := ibs.GetNonce(authorityToTrack)
-		if chainConfig.IsPrague(header.Time) && nonceAfter != nonceBefore {
-			fmt.Printf("[NONCE TRACK] TX %d: authority nonce changed %d -> %d (tx from %s)\n",
-				i, nonceBefore, nonceAfter, sender.Hex())
-		}
-
 		if err != nil {
 			if !vmConfig.StatelessExec {
 				return nil, fmt.Errorf("could not apply tx %d from block %d [%v]: %w", i, block.NumberU64(), tx.Hash().Hex(), err)
@@ -196,62 +137,11 @@ func ExecuteBlockEphemerally(
 			if !vmConfig.NoReceipts {
 				receipts = append(receipts, receipt)
 			}
-			// Store gas info for later debugging
-			txGasInfos = append(txGasInfos, txGasInfo{
-				txType:  tx.Type(),
-				gasUsed: *usedGas - gasBeforeTx,
-			})
 		}
 	}
 
 	receiptSha := types.DeriveSha(receipts)
 	if !vmConfig.StatelessExec && chainConfig.IsByzantium(header.Number.Uint64()) && !vmConfig.NoReceipts && receiptSha != block.ReceiptHash() {
-		// Always print debug info when receipt mismatch occurs
-		fmt.Printf("\n========== RECEIPT MISMATCH BLOCK %d ==========\n", block.NumberU64())
-		fmt.Printf("Expected: %s, Got: %s\n", block.ReceiptHash().Hex(), receiptSha.Hex())
-		fmt.Printf("GasUsed: execution=%d, header=%d, diff=%d\n", *usedGas, header.GasUsed, int64(*usedGas)-int64(header.GasUsed))
-		fmt.Printf("TxCount=%d, ReceiptCount=%d\n", len(block.Transactions()), len(receipts))
-		fmt.Printf("IsPrague=%v, IsOsaka=%v, Time=%d\n", chainConfig.IsPrague(header.Time), chainConfig.IsOsaka(header.Time), header.Time)
-
-		// Print all transactions with their gas usage (grouped by type)
-		fmt.Printf("\n--- TX Gas Usage by Type ---\n")
-		typeGas := make(map[uint8]uint64)
-		typeCount := make(map[uint8]int)
-		for _, info := range txGasInfos {
-			typeGas[info.txType] += info.gasUsed
-			typeCount[info.txType]++
-		}
-		for t := uint8(0); t <= 4; t++ {
-			if typeCount[t] > 0 {
-				fmt.Printf("Type %d: count=%d, totalGas=%d\n", t, typeCount[t], typeGas[t])
-			}
-		}
-
-		// Print Type 4 (EIP-7702) transactions with full details
-		fmt.Printf("\n--- Type 4 (EIP-7702 SetCode) TXs ---\n")
-		for i, tx := range includedTxs {
-			if tx.Type() == 4 {
-				fmt.Printf("[TX %d] Hash=%s GasUsed=%d DataLen=%d GasLimit=%d\n",
-					i, tx.Hash().Hex(), txGasInfos[i].gasUsed, len(tx.GetData()), tx.GetGas())
-			}
-		}
-
-		// Print first 10 and last 10 transactions
-		fmt.Printf("\n--- First 10 TXs ---\n")
-		for i := 0; i < min(10, len(txGasInfos)); i++ {
-			info := txGasInfos[i]
-			fmt.Printf("[TX %d] Type=%d GasUsed=%d\n", i, info.txType, info.gasUsed)
-		}
-		if len(txGasInfos) > 20 {
-			fmt.Printf("... (skipping %d middle TXs) ...\n", len(txGasInfos)-20)
-		}
-		fmt.Printf("\n--- Last 10 TXs ---\n")
-		for i := max(10, len(txGasInfos)-10); i < len(txGasInfos); i++ {
-			info := txGasInfos[i]
-			fmt.Printf("[TX %d] Type=%d GasUsed=%d\n", i, info.txType, info.gasUsed)
-		}
-
-		fmt.Printf("\n========== END DEBUG ==========\n\n")
 		if dbg.LogHashMismatchReason() {
 			logReceipts(receipts, includedTxs, chainConfig, header, logger)
 		}
@@ -259,9 +149,6 @@ func ExecuteBlockEphemerally(
 	}
 
 	if !vmConfig.StatelessExec && *usedGas != header.GasUsed {
-		fmt.Printf("\n========== GAS MISMATCH BLOCK %d ==========\n", block.NumberU64())
-		fmt.Printf("GasUsed: execution=%d, header=%d, diff=%d\n", *usedGas, header.GasUsed, int64(*usedGas)-int64(header.GasUsed))
-		fmt.Printf("========== END DEBUG ==========\n\n")
 		return nil, fmt.Errorf("gas used by execution: %d, in header: %d", *usedGas, header.GasUsed)
 	}
 
