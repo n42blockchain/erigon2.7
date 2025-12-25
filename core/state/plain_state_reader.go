@@ -3,7 +3,6 @@ package state
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 
 	"github.com/erigontech/erigon-lib/kv/dbutils"
 
@@ -40,13 +39,18 @@ func (r *PlainStateReader) ReadAccountData(address libcommon.Address) (*accounts
 	if err = a.DecodeForStorage(enc); err != nil {
 		return nil, err
 	}
-	// Debug: check PlainContractCode for TX 34's address
-	targetAddr := libcommon.HexToAddress("0x6844b635347871b7f8d5cd3c5fb03f24c9cf4275")
-	if address == targetAddr {
+	// EIP-7702: Check PlainContractCode even when Incarnation=0, as delegation accounts
+	// are EOAs with code but Incarnation=0. The account data may not contain CodeHash
+	// (Erigon 3 format), so we need to read it from PlainContractCode table.
+	if a.IsEmptyCodeHash() {
 		storagePrefix := dbutils.PlainGenerateStoragePrefix(address[:], a.Incarnation)
-		codeHash, _ := r.db.GetOne(kv.PlainContractCode, storagePrefix)
-		fmt.Printf("[DEBUG PlainStateReader] addr=%s inc=%d codeHash(from account)=%x codeHash(from PlainContractCode)=%x\n",
-			address.Hex(), a.Incarnation, a.CodeHash, codeHash)
+		if codeHash, err1 := r.db.GetOne(kv.PlainContractCode, storagePrefix); err1 == nil {
+			if len(codeHash) > 0 {
+				a.CodeHash = libcommon.BytesToHash(codeHash)
+			}
+		} else {
+			return nil, err1
+		}
 	}
 	return &a, nil
 }
