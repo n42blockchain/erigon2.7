@@ -6,6 +6,7 @@ import (
 
 	"github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon-lib/kv"
+	"github.com/erigontech/erigon-lib/kv/dbutils"
 	libstate "github.com/erigontech/erigon-lib/state"
 
 	"github.com/erigontech/erigon/core/types/accounts"
@@ -94,6 +95,19 @@ func (hr *HistoryReaderInc) ReadAccountData(address common.Address) (*accounts.A
 		var a accounts.Account
 		if err = a.DecodeForStorage(enc); err != nil {
 			return nil, err
+		}
+		// EIP-7702: Check PlainContractCode even when Incarnation=0, as delegation accounts
+		// are EOAs with code but Incarnation=0. The account data may not contain CodeHash
+		// (Erigon 3 format), so we need to read it from PlainContractCode table.
+		if a.IsEmptyCodeHash() {
+			storagePrefix := dbutils.PlainGenerateStoragePrefix(addr, a.Incarnation)
+			if codeHash, err1 := hr.chainTx.GetOne(kv.PlainContractCode, storagePrefix); err1 == nil {
+				if len(codeHash) > 0 {
+					a.CodeHash.SetBytes(codeHash)
+				}
+			} else {
+				return nil, err1
+			}
 		}
 		if hr.trace {
 			fmt.Printf("ReadAccountData [%x] => [nonce: %d, balance: %d, codeHash: %x], noState=%t, stateTxNum=%d, txNum: %d\n", address, a.Nonce, &a.Balance, a.CodeHash, noState, stateTxNum, hr.txNum)
