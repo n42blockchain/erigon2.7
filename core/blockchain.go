@@ -132,9 +132,26 @@ func ExecuteBlockEphemerally(
 		gasUsed uint64
 	}
 	txGasInfos := make([]txGasInfo, 0, block.Transactions().Len())
+
+	// Debug: Track nonce changes for EIP-7702 authority addresses
+	authorityToTrack := libcommon.HexToAddress("0x4DE23f3f0Fb3318287378AdbdE030cf61714b2f3")
+	if chainConfig.IsPrague(header.Time) {
+		fmt.Printf("[NONCE TRACK] Block %d: Initial nonce of %s = %d\n",
+			block.NumberU64(), authorityToTrack.Hex(), ibs.GetNonce(authorityToTrack))
+	}
+
 	var gasBeforeTx uint64
 	for i, tx := range block.Transactions() {
 		gasBeforeTx = *usedGas
+
+		// Debug: Check if this tx is from the authority we're tracking
+		sender, _ := tx.Sender(*types.LatestSignerForChainID(chainConfig.ChainID))
+		nonceBefore := ibs.GetNonce(authorityToTrack)
+		if chainConfig.IsPrague(header.Time) && sender == authorityToTrack {
+			fmt.Printf("[NONCE TRACK] TX %d: from=%s (AUTHORITY!) nonce=%d, auth_nonce_before=%d\n",
+				i, sender.Hex(), tx.GetNonce(), nonceBefore)
+		}
+
 		ibs.SetTxContext(tx.Hash(), block.Hash(), i)
 		writeTrace := false
 		if vmConfig.Debug && vmConfig.Tracer == nil {
@@ -153,6 +170,14 @@ func ExecuteBlockEphemerally(
 
 			vmConfig.Tracer = nil
 		}
+
+		// Debug: Check nonce after tx
+		nonceAfter := ibs.GetNonce(authorityToTrack)
+		if chainConfig.IsPrague(header.Time) && nonceAfter != nonceBefore {
+			fmt.Printf("[NONCE TRACK] TX %d: authority nonce changed %d -> %d (tx from %s)\n",
+				i, nonceBefore, nonceAfter, sender.Hex())
+		}
+
 		if err != nil {
 			if !vmConfig.StatelessExec {
 				return nil, fmt.Errorf("could not apply tx %d from block %d [%v]: %w", i, block.NumberU64(), tx.Hash().Hex(), err)
