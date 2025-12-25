@@ -20,6 +20,7 @@ package core
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"slices"
 	"time"
 
@@ -169,17 +170,41 @@ func ExecuteBlockEphemerally(
 		// DEBUG: Print detailed mismatch info
 		fmt.Printf("\n========== RECEIPT MISMATCH BLOCK %d ==========\n", block.NumberU64())
 		fmt.Printf("Expected: %s, Got: %s\n", block.ReceiptHash().Hex(), receiptSha.Hex())
-		fmt.Printf("GasUsed: execution=%d, header=%d, diff=%d\n", *usedGas, header.GasUsed, int64(*usedGas)-int64(header.GasUsed))
+		gasDiff := int64(*usedGas) - int64(header.GasUsed)
+		fmt.Printf("GasUsed: execution=%d, header=%d, diff=%d\n", *usedGas, header.GasUsed, gasDiff)
 		fmt.Printf("TxCount=%d, ReceiptCount=%d\n", len(block.Transactions()), len(receipts))
 		fmt.Printf("IsPrague=%v, IsOsaka=%v, BlockTime=%d\n",
 			chainConfig.IsPrague(header.Time), chainConfig.IsOsaka(header.Time), header.Time)
 
-		// Print all transactions with their gas
-		fmt.Printf("--- All Transactions Gas Usage ---\n")
-		fmt.Printf("Format: [TX index] Type=X GasUsed=Y Hash=Z\n")
+		// Save all transaction gas info to file for comparison with Etherscan
+		filename := fmt.Sprintf("block_%d_gas_debug.csv", block.NumberU64())
+		file, fileErr := os.Create(filename)
+		if fileErr == nil {
+			defer file.Close()
+			// Write CSV header
+			file.WriteString("TxIndex,Type,GasUsed,CumulativeGas,Hash,From,To,Status\n")
+			for i, tx := range block.Transactions() {
+				if i < len(receipts) {
+					txFrom, _ := tx.GetSender()
+					toAddr := ""
+					if tx.GetTo() != nil {
+						toAddr = tx.GetTo().Hex()
+					}
+					file.WriteString(fmt.Sprintf("%d,%d,%d,%d,%s,%s,%s,%d\n",
+						i, tx.Type(), receipts[i].GasUsed, receipts[i].CumulativeGasUsed,
+						tx.Hash().Hex(), txFrom.Hex(), toAddr, receipts[i].Status))
+				}
+			}
+			fmt.Printf(">>> Gas debug info saved to: %s\n", filename)
+		} else {
+			fmt.Printf(">>> Failed to save gas debug file: %v\n", fileErr)
+		}
+
+		// Print all transactions with their gas (also to console)
+		fmt.Printf("--- All Transactions Gas Usage (TxIndex, Type, GasUsed, Hash) ---\n")
 		for i, tx := range block.Transactions() {
 			if i < len(receipts) {
-				fmt.Printf("[TX %d] Type=%d GasUsed=%d Hash=%s\n",
+				fmt.Printf("[TX %3d] Type=%d GasUsed=%10d Hash=%s\n",
 					i, tx.Type(), receipts[i].GasUsed, tx.Hash().Hex())
 			}
 		}
