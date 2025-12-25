@@ -38,6 +38,18 @@ func (r *CachedReader2) ReadAccountData(address common.Address) (*accounts.Accou
 	if err = a.DecodeForStorage(enc); err != nil {
 		return nil, err
 	}
+	// EIP-7702: Check PlainContractCode even when Incarnation=0, as delegation accounts
+	// are EOAs with code but Incarnation=0.
+	if a.IsEmptyCodeHash() {
+		prefix := dbutils.PlainGenerateStoragePrefix(address[:], a.Incarnation)
+		codeHashFromPlainContractCode, err1 := r.db.GetOne(kv.PlainContractCode, prefix)
+		if err1 != nil {
+			return nil, err1
+		}
+		if len(codeHashFromPlainContractCode) > 0 {
+			a.CodeHash.SetBytes(codeHashFromPlainContractCode)
+		}
+	}
 	return &a, nil
 }
 
