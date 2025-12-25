@@ -18,6 +18,7 @@ package vm
 
 import (
 	"errors"
+	"fmt"
 
 	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon-lib/common/math"
@@ -264,11 +265,14 @@ func makeCallVariantGasCallEIP7702(oldCalculator gasFunc) gasFunc {
 		dd, ok := evm.intraBlockState.GetDelegatedDesignation(addr)
 		if ok {
 			var ddCost uint64
-			if evm.intraBlockState.AddAddressToAccessList(dd) {
+			isCold := evm.intraBlockState.AddAddressToAccessList(dd)
+			if isCold {
 				ddCost = params.ColdAccountAccessCostEIP2929
 			} else {
 				ddCost = params.WarmStorageReadCostEIP2929
 			}
+			// DEBUG: Log delegation detection
+			fmt.Printf("[DEBUG EIP7702] CALL to %x detected delegation to %x, ddCost=%d (cold=%v)\n", addr, dd, ddCost, isCold)
 
 			if !contract.UseGas(ddCost) {
 				return 0, ErrOutOfGas
