@@ -880,6 +880,19 @@ func (r *StateReaderV3) ReadAccountData(address common.Address) (*accounts.Accou
 	if err := a.DecodeForStorage(enc); err != nil {
 		return nil, err
 	}
+	// EIP-7702: Check PlainContractCode even when Incarnation=0, as delegation accounts
+	// are EOAs with code but Incarnation=0. The account data may not contain CodeHash
+	// (Erigon 3 format), so we need to read it from PlainContractCode table.
+	if a.IsEmptyCodeHash() {
+		storagePrefix := dbutils.PlainGenerateStoragePrefix(addr, a.Incarnation)
+		if codeHash, err1 := r.tx.GetOne(kv.PlainContractCode, storagePrefix); err1 == nil {
+			if len(codeHash) > 0 {
+				a.CodeHash = common.BytesToHash(codeHash)
+			}
+		} else {
+			return nil, err1
+		}
+	}
 	if r.trace {
 		fmt.Printf("ReadAccountData [%x] => [nonce: %d, balance: %d, codeHash: %x], txNum: %d\n", address, a.Nonce, &a.Balance, a.CodeHash, r.txNum)
 	}

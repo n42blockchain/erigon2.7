@@ -3,6 +3,7 @@ package state
 import (
 	"bytes"
 	"encoding/binary"
+
 	"github.com/erigontech/erigon-lib/kv/dbutils"
 
 	"github.com/VictoriaMetrics/fastcache"
@@ -46,16 +47,18 @@ func (dbr *DbStateReader) SetCodeSizeCache(codeSizeCache *fastcache.Cache) {
 func (dbr *DbStateReader) ReadAccountData(address libcommon.Address) (*accounts.Account, error) {
 	var enc []byte
 	var ok bool
+	var addrHash libcommon.Hash
 	if dbr.accountCache != nil {
 		enc, ok = dbr.accountCache.HasGet(nil, address[:])
 	}
 	if !ok {
 		var err error
-		if addrHash, err1 := libcommon.HashData(address[:]); err1 == nil {
-			enc, err = dbr.db.GetOne(kv.HashedAccounts, addrHash[:])
-		} else {
+		var err1 error
+		addrHash, err1 = libcommon.HashData(address[:])
+		if err1 != nil {
 			return nil, err1
 		}
+		enc, err = dbr.db.GetOne(kv.HashedAccounts, addrHash[:])
 		if err != nil {
 			return nil, err
 		}
@@ -69,6 +72,26 @@ func (dbr *DbStateReader) ReadAccountData(address libcommon.Address) (*accounts.
 	acc := &accounts.Account{}
 	if err := acc.DecodeForStorage(enc); err != nil {
 		return nil, err
+	}
+	// EIP-7702: Check ContractCode even when Incarnation=0, as delegation accounts
+	// are EOAs with code but Incarnation=0. The account data may not contain CodeHash
+	// (Erigon 3 format), so we need to read it from ContractCode table.
+	if acc.IsEmptyCodeHash() {
+		if addrHash == (libcommon.Hash{}) {
+			var err1 error
+			addrHash, err1 = libcommon.HashData(address[:])
+			if err1 != nil {
+				return nil, err1
+			}
+		}
+		storagePrefix := dbutils.GenerateStoragePrefix(addrHash[:], acc.Incarnation)
+		if codeHash, err1 := dbr.db.GetOne(kv.ContractCode, storagePrefix); err1 == nil {
+			if len(codeHash) > 0 {
+				acc.CodeHash = libcommon.BytesToHash(codeHash)
+			}
+		} else {
+			return nil, err1
+		}
 	}
 	return acc, nil
 }

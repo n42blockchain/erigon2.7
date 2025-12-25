@@ -27,7 +27,6 @@ import (
 	cmath "github.com/erigontech/erigon-lib/common/math"
 
 	libcommon "github.com/erigontech/erigon-lib/common"
-	"github.com/erigontech/erigon-lib/common/dbg"
 	"github.com/erigontech/erigon-lib/common/fixedgas"
 	"github.com/erigontech/erigon-lib/txpool/txpoolcfg"
 	types2 "github.com/erigontech/erigon-lib/types"
@@ -240,11 +239,6 @@ func CheckEip1559TxGasFeeCap(from libcommon.Address, gasFeeCap, tip, baseFee *ui
 
 // DESCRIBED: docs/programmers_guide/guide.md#nonce
 func (st *StateTransition) preCheck(gasBailout bool) error {
-	// EIP-7594: Check blob count limit for Osaka
-	if st.evm.ChainRules().IsOsaka && len(st.msg.BlobHashes()) > params.MaxBlobsPerTxn {
-		return fmt.Errorf("%w: address %v, blobs: %d", ErrTooManyBlobs, st.msg.From().Hex(), len(st.msg.BlobHashes()))
-	}
-
 	// Make sure this transaction's nonce is correct.
 	if st.msg.CheckNonce() {
 		stNonce := st.state.GetNonce(st.msg.From())
@@ -289,15 +283,10 @@ func (st *StateTransition) preCheck(gasBailout bool) error {
 			return fmt.Errorf("%w: Cancun is active but ExcessBlobGas is nil", ErrInternalFailure)
 		}
 		maxFeePerBlobGas := st.msg.MaxFeePerBlobGas()
-		if !st.evm.Config().NoBaseFee && !dbg.SkipBlobGasValidation() && blobGasPrice.Cmp(maxFeePerBlobGas) > 0 {
+		if !st.evm.Config().NoBaseFee && blobGasPrice.Cmp(maxFeePerBlobGas) > 0 {
 			return fmt.Errorf("%w: address %v, maxFeePerBlobGas: %v < blobGasPrice: %v",
 				ErrMaxFeePerBlobGas, st.msg.From().Hex(), st.msg.MaxFeePerBlobGas(), blobGasPrice)
 		}
-	}
-
-	// EIP-7825: Transaction Gas Limit Cap
-	if st.evm.ChainRules().IsOsaka && st.msg.Gas() > params.MaxTxnGasLimit {
-		return fmt.Errorf("%w: address %v, gas limit %d", ErrGasLimitTooHigh, st.msg.From().Hex(), st.msg.Gas())
 	}
 
 	return st.buyGas(gasBailout)
@@ -422,9 +411,7 @@ func (st *StateTransition) TransitionDb(refunds bool, gasBailout bool) (*evmtype
 	}
 
 	// Check clauses 4-5, subtract intrinsic gas if everything is correct
-	// EIP-7623 floor gas applies to both Prague and Osaka
-	isPragueOrLater := rules.IsPrague || rules.IsOsaka
-	gas, floorGas7623, err := IntrinsicGas(st.data, accessTuples, contractCreation, rules.IsHomestead, rules.IsIstanbul, isEIP3860, isPragueOrLater, uint64(len(auths)))
+	gas, floorGas7623, err := IntrinsicGas(st.data, accessTuples, contractCreation, rules.IsHomestead, rules.IsIstanbul, isEIP3860, rules.IsPrague, uint64(len(auths)))
 	if err != nil {
 		return nil, err
 	}
@@ -472,21 +459,15 @@ func (st *StateTransition) TransitionDb(refunds bool, gasBailout bool) (*evmtype
 			refundQuotient = params.RefundQuotientEIP3529
 		}
 		gasUsed := st.gasUsed()
-		totalRefund := st.state.GetRefund()
-		refund := min(gasUsed/refundQuotient, totalRefund)
-		gasUsedAfterRefund := gasUsed - refund
-		finalGasUsed := gasUsedAfterRefund
-		// EIP-7623 floor gas applies to both Prague and Osaka
-		if rules.IsPrague || rules.IsOsaka {
-			finalGasUsed = max(floorGas7623, gasUsedAfterRefund)
+		refund := min(gasUsed/refundQuotient, st.state.GetRefund())
+		gasUsed = gasUsed - refund
+		if rules.IsPrague {
+			gasUsed = max(floorGas7623, gasUsed)
 		}
-
-		st.gasRemaining = st.initialGas - finalGasUsed
+		st.gasRemaining = st.initialGas - gasUsed
 		st.refundGas()
-	} else if rules.IsPrague || rules.IsOsaka {
-		// EIP-7623 floor gas applies to both Prague and Osaka
-		finalGasUsed := max(floorGas7623, st.gasUsed())
-		st.gasRemaining = st.initialGas - finalGasUsed
+	} else if rules.IsPrague {
+		st.gasRemaining = st.initialGas - max(floorGas7623, st.gasUsed())
 	}
 
 	effectiveTip := st.gasPrice
@@ -505,7 +486,7 @@ func (st *StateTransition) TransitionDb(refunds bool, gasBailout bool) (*evmtype
 		if burntContractAddress != nil {
 			burnAmount := new(uint256.Int).Mul(new(uint256.Int).SetUint64(st.gasUsed()), st.evm.Context.BaseFee)
 			st.state.AddBalance(*burntContractAddress, burnAmount)
-			if rules.IsAura && (rules.IsPrague || rules.IsOsaka) {
+			if rules.IsAura && rules.IsPrague {
 				// https://github.com/gnosischain/specs/blob/master/network-upgrades/pectra.md#eip-4844-pectra
 				st.state.AddBalance(*burntContractAddress, st.evm.BlobFee)
 			}
