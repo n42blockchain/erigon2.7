@@ -135,9 +135,17 @@ func ExecuteBlockEphemerally(
 
 	// Debug: Track nonce changes for EIP-7702 authority addresses
 	authorityToTrack := libcommon.HexToAddress("0x4DE23f3f0Fb3318287378AdbdE030cf61714b2f3")
-	if chainConfig.IsPrague(header.Time) {
-		fmt.Printf("[NONCE TRACK] Block %d: Initial nonce of %s = %d\n",
-			block.NumberU64(), authorityToTrack.Hex(), ibs.GetNonce(authorityToTrack))
+	// Prague fork time is 1746612311 (from chain config)
+	pragueTime := uint64(1746612311)
+	isPragueBlock := header.Time >= pragueTime
+	isPreviousBlockPrague := header.Time >= pragueTime && block.NumberU64() > 0
+	if isPragueBlock {
+		fmt.Printf("[NONCE TRACK] Block %d (Time=%d, PragueTime=%d): Initial nonce of %s = %d\n",
+			block.NumberU64(), header.Time, pragueTime, authorityToTrack.Hex(), ibs.GetNonce(authorityToTrack))
+		// Check if this is one of the first Prague blocks
+		if header.Time < pragueTime+3600 { // First hour of Prague
+			fmt.Printf("[DEBUG] This is an early Prague block\n")
+		}
 	}
 
 	var gasBeforeTx uint64
