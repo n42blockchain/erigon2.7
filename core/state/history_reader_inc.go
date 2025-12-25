@@ -124,6 +124,19 @@ func (hr *HistoryReaderInc) ReadAccountData(address common.Address) (*accounts.A
 	if err = accounts.DeserialiseV3(&a, enc); err != nil {
 		return nil, err
 	}
+	// EIP-7702: Check PlainContractCode even when Incarnation=0, as delegation accounts
+	// are EOAs with code but Incarnation=0. The account data from V3 history may not contain CodeHash,
+	// so we need to read it from PlainContractCode table.
+	if a.IsEmptyCodeHash() {
+		storagePrefix := dbutils.PlainGenerateStoragePrefix(addr, a.Incarnation)
+		if codeHash, err1 := hr.chainTx.GetOne(kv.PlainContractCode, storagePrefix); err1 == nil {
+			if len(codeHash) > 0 {
+				a.CodeHash.SetBytes(codeHash)
+			}
+		} else {
+			return nil, err1
+		}
+	}
 	if hr.trace {
 		fmt.Printf("ReadAccountData [%x] => [nonce: %d, balance: %d, codeHash: %x], noState=%t, txNum: %d\n", address, a.Nonce, &a.Balance, a.CodeHash, noState, hr.txNum)
 	}
