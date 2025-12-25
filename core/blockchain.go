@@ -174,22 +174,14 @@ func ExecuteBlockEphemerally(
 		fmt.Printf("IsPrague=%v, IsOsaka=%v, BlockTime=%d\n",
 			chainConfig.IsPrague(header.Time), chainConfig.IsOsaka(header.Time), header.Time)
 
-		// Print all Type 4 transactions
-		fmt.Printf("--- Type 4 (EIP-7702) Transactions ---\n")
-		type4Count := 0
+		// Print all transactions with their gas
+		fmt.Printf("--- All Transactions Gas Usage ---\n")
+		fmt.Printf("Format: [TX index] Type=X GasUsed=Y Hash=Z\n")
 		for i, tx := range block.Transactions() {
-			if tx.Type() == 4 {
-				type4Count++
-				txFrom, _ := tx.GetSender()
-				fmt.Printf("[TX %d] Type=4 Hash=%s From=%s To=%v GasLimit=%d\n",
-					i, tx.Hash().Hex(), txFrom.Hex(), tx.GetTo(), tx.GetGas())
-				if i < len(receipts) {
-					fmt.Printf("        GasUsed=%d Status=%d\n", receipts[i].GasUsed, receipts[i].Status)
-				}
+			if i < len(receipts) {
+				fmt.Printf("[TX %d] Type=%d GasUsed=%d Hash=%s\n",
+					i, tx.Type(), receipts[i].GasUsed, tx.Hash().Hex())
 			}
-		}
-		if type4Count == 0 {
-			fmt.Printf("  (no Type 4 transactions in this block)\n")
 		}
 
 		// Print gas summary by tx type

@@ -443,11 +443,28 @@ func (st *StateTransition) TransitionDb(refunds bool, gasBailout bool) (*evmtype
 
 	// DEBUG: Print detailed gas info for Type 4 transactions
 	if len(auths) > 0 {
+		// Count non-zero bytes
+		dataNonZeroLen := uint64(0)
+		for _, byt := range st.data {
+			if byt != 0 {
+				dataNonZeroLen++
+			}
+		}
+		dataZeroLen := uint64(len(st.data)) - dataNonZeroLen
+		// Calculate expected intrinsic gas breakdown
+		baseTxGas := uint64(21000)
+		authCost := uint64(25000) * uint64(len(auths))
+		nonZeroDataCost := dataNonZeroLen * 16
+		zeroDataCost := dataZeroLen * 4
+		expectedIntrinsic := baseTxGas + authCost + nonZeroDataCost + zeroDataCost
+
 		fmt.Printf("[TYPE4 TX] From=%s To=%v\n", msg.From().Hex(), msg.To())
-		fmt.Printf("  IntrinsicGas=%d FloorGas7623=%d DataLen=%d AuthCount=%d\n",
-			gas, floorGas7623, len(st.data), len(auths))
-		fmt.Printf("  AccessListLen=%d StorageKeys=%d\n",
-			len(accessTuples), accessTuples.StorageKeys())
+		fmt.Printf("  DataLen=%d NonZeroBytes=%d ZeroBytes=%d\n", len(st.data), dataNonZeroLen, dataZeroLen)
+		fmt.Printf("  GasBreakdown: TxGas=%d + AuthCost=%d + NonZeroData=%d + ZeroData=%d = %d\n",
+			baseTxGas, authCost, nonZeroDataCost, zeroDataCost, expectedIntrinsic)
+		fmt.Printf("  ActualIntrinsicGas=%d (diff=%d)\n", gas, int64(gas)-int64(expectedIntrinsic))
+		fmt.Printf("  FloorGas7623=%d AccessListLen=%d StorageKeys=%d\n",
+			floorGas7623, len(accessTuples), accessTuples.StorageKeys())
 		fmt.Printf("  VerifiedAuthorities=%d (of %d total)\n", len(verifiedAuthorities), len(auths))
 	}
 
