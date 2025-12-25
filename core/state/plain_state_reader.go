@@ -39,19 +39,11 @@ func (r *PlainStateReader) ReadAccountData(address libcommon.Address) (*accounts
 	if err = a.DecodeForStorage(enc); err != nil {
 		return nil, err
 	}
-	// EIP-7702: Check PlainContractCode even when Incarnation=0, as delegation accounts
-	// are EOAs with code but Incarnation=0. The account data may not contain CodeHash
-	// (Erigon 3 format), so we need to read it from PlainContractCode table.
-	if a.IsEmptyCodeHash() {
-		storagePrefix := dbutils.PlainGenerateStoragePrefix(address[:], a.Incarnation)
-		if codeHash, err1 := r.db.GetOne(kv.PlainContractCode, storagePrefix); err1 == nil {
-			if len(codeHash) > 0 {
-				a.CodeHash = libcommon.BytesToHash(codeHash)
-			}
-		} else {
-			return nil, err1
-		}
-	}
+	// Note: DO NOT read CodeHash from PlainContractCode for Incarnation=0 accounts.
+	// PlainContractCode contains "latest state" data from snapshots, not historical state.
+	// Reading it would cause incorrect delegation detection for addresses that gained
+	// delegation code AFTER the currently executing block.
+	// EIP-7702 delegations are correctly handled via SetCode during type=4 tx execution.
 	return &a, nil
 }
 

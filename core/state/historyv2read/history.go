@@ -1,10 +1,7 @@
 package historyv2read
 
 import (
-	"encoding/binary"
-
 	libcommon "github.com/erigontech/erigon-lib/common"
-	"github.com/erigontech/erigon-lib/common/length"
 	"github.com/erigontech/erigon-lib/kv"
 	"github.com/erigontech/erigon-lib/kv/temporal/historyv2"
 	"github.com/erigontech/erigon/core/types/accounts"
@@ -23,25 +20,9 @@ func RestoreCodeHash(tx kv.Getter, key, v []byte, force *libcommon.Hash) ([]byte
 		acc.EncodeForStorage(v)
 		return v, nil
 	}
-	// EIP-7702: Check PlainContractCode even when Incarnation=0, as delegation accounts
-	// are EOAs with code but Incarnation=0
-	if acc.IsEmptyCodeHash() {
-		var codeHash []byte
-		var err error
-		prefix := make([]byte, length.Addr+length.BlockNum)
-		copy(prefix, key)
-		binary.BigEndian.PutUint64(prefix[length.Addr:], acc.Incarnation)
-
-		codeHash, err = tx.GetOne(kv.PlainContractCode, prefix)
-		if err != nil {
-			return nil, err
-		}
-		if len(codeHash) > 0 {
-			acc.CodeHash.SetBytes(codeHash)
-			v = make([]byte, acc.EncodingLengthForStorage())
-			acc.EncodeForStorage(v)
-		}
-	}
+	// Note: DO NOT read CodeHash from PlainContractCode for Incarnation=0 accounts.
+	// PlainContractCode contains "latest state" data, not historical state.
+	// EIP-7702 delegations are correctly handled via SetCode during type=4 tx execution.
 	return v, nil
 }
 

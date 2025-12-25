@@ -6,7 +6,6 @@ import (
 
 	"github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon-lib/config3"
-	"github.com/erigontech/erigon-lib/crypto"
 	"github.com/erigontech/erigon-lib/kv"
 	"github.com/erigontech/erigon/core/types/accounts"
 )
@@ -44,16 +43,9 @@ func (hr *HistoryReaderV3) ReadAccountData(address common.Address) (*accounts.Ac
 	if err := accounts.DeserialiseV3(&a, enc); err != nil {
 		return nil, fmt.Errorf("ReadAccountData(%x): %w", address, err)
 	}
-	// EIP-7702: Check CodeDomain even when Incarnation=0, as delegation accounts
-	// are EOAs with code but Incarnation=0. The account data from V3 history may not contain CodeHash,
-	// so we need to read it from CodeDomain and compute the hash.
-	if a.IsEmptyCodeHash() {
-		if code, ok, err1 := hr.ttx.DomainGetAsOf(kv.CodeDomain, address.Bytes(), nil, hr.txNum); err1 == nil && ok && len(code) > 0 {
-			a.CodeHash = crypto.Keccak256Hash(code)
-		} else if err1 != nil {
-			return nil, err1
-		}
-	}
+	// Note: DO NOT read CodeHash from CodeDomain for Incarnation=0 accounts.
+	// This could read stale data. EIP-7702 delegations are correctly handled
+	// via SetCode during type=4 tx execution.
 	if hr.trace {
 		fmt.Printf("ReadAccountData [%x] => [nonce: %d, balance: %d, codeHash: %x]\n", address, a.Nonce, &a.Balance, a.CodeHash)
 	}
