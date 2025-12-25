@@ -23,7 +23,9 @@ func RestoreCodeHash(tx kv.Getter, key, v []byte, force *libcommon.Hash) ([]byte
 		acc.EncodeForStorage(v)
 		return v, nil
 	}
-	if acc.Incarnation > 0 && acc.IsEmptyCodeHash() {
+	// EIP-7702: Check PlainContractCode even when Incarnation=0, as delegation accounts
+	// are EOAs with code but Incarnation=0
+	if acc.IsEmptyCodeHash() {
 		var codeHash []byte
 		var err error
 		prefix := make([]byte, length.Addr+length.BlockNum)

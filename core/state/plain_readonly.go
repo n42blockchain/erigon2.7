@@ -203,7 +203,9 @@ func (s *PlainState) ReadAccountData(address libcommon.Address) (*accounts.Accou
 				fmt.Printf("ReadAccountData [%x] systemContract was created after %d, at %d\n", address, s.blockNr, records[0].BlockNumber)
 			}
 		}
-		if a.Incarnation > 0 && a.IsEmptyCodeHash() {
+		// EIP-7702: Check PlainContractCode even when Incarnation=0, as delegation accounts
+		// are EOAs with code but Incarnation=0
+		if a.IsEmptyCodeHash() {
 			if codeHash, err1 := s.tx.GetOne(kv.PlainContractCode, dbutils.PlainGenerateStoragePrefix(address[:], a.Incarnation)); err1 == nil {
 				if len(codeHash) > 0 {
 					a.CodeHash = libcommon.BytesToHash(codeHash)

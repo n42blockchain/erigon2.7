@@ -20,7 +20,6 @@ package core
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"slices"
 	"time"
 
@@ -101,11 +100,6 @@ func ExecuteBlockEphemerally(
 	gp := new(GasPool)
 	gp.AddGas(block.GasLimit()).AddBlobGas(chainConfig.GetMaxBlobGasPerBlock(block.Time()))
 
-	// DEBUG: Track nonce changes for specific accounts
-	trackAddr := libcommon.HexToAddress("0x4DE23f3f0Fb3318287378AdbdE030cf61714b2f3")
-	initialNonce := ibs.GetNonce(trackAddr)
-	fmt.Printf("[BLOCK %d] START: %s nonce=%d\n", block.NumberU64(), trackAddr.Hex(), initialNonce)
-
 	if err := InitializeBlockExecution(engine, chainReader, block.Header(), chainConfig, ibs, logger); err != nil {
 		return nil, err
 	}
@@ -114,7 +108,6 @@ func ExecuteBlockEphemerally(
 	includedTxs := make(types.Transactions, 0, block.Transactions().Len())
 	receipts := make(types.Receipts, 0, block.Transactions().Len())
 	noop := state.NewNoopWriter()
-	prevNonce := initialNonce
 	for i, tx := range block.Transactions() {
 		ibs.SetTxContext(tx.Hash(), block.Hash(), i)
 		writeTrace := false
@@ -135,16 +128,6 @@ func ExecuteBlockEphemerally(
 			vmConfig.Tracer = nil
 		}
 
-		// DEBUG: Check if trackAddr nonce changed after this tx
-		currentNonce := ibs.GetNonce(trackAddr)
-		if currentNonce != prevNonce {
-			txFrom, _ := tx.GetSender()
-			fmt.Printf("[BLOCK %d TX %d] %s nonce: %d -> %d, TxType=%d, TxFrom=%s, TxTo=%v\n",
-				block.NumberU64(), i, trackAddr.Hex(), prevNonce, currentNonce,
-				tx.Type(), txFrom.Hex(), tx.GetTo())
-			prevNonce = currentNonce
-		}
-
 		if err != nil {
 			if !vmConfig.StatelessExec {
 				return nil, fmt.Errorf("could not apply tx %d from block %d [%v]: %w", i, block.NumberU64(), tx.Hash().Hex(), err)
@@ -158,72 +141,8 @@ func ExecuteBlockEphemerally(
 		}
 	}
 
-	// DEBUG: Track nonce changes after all transactions
-	finalNonce := ibs.GetNonce(trackAddr)
-	if finalNonce != initialNonce {
-		fmt.Printf("[BLOCK %d] END: %s nonce changed: %d -> %d (delta=%d)\n",
-			block.NumberU64(), trackAddr.Hex(), initialNonce, finalNonce, finalNonce-initialNonce)
-	}
-
 	receiptSha := types.DeriveSha(receipts)
 	if !vmConfig.StatelessExec && chainConfig.IsByzantium(header.Number.Uint64()) && !vmConfig.NoReceipts && receiptSha != block.ReceiptHash() {
-		// DEBUG: Print detailed mismatch info
-		fmt.Printf("\n========== RECEIPT MISMATCH BLOCK %d ==========\n", block.NumberU64())
-		fmt.Printf("Expected: %s, Got: %s\n", block.ReceiptHash().Hex(), receiptSha.Hex())
-		gasDiff := int64(*usedGas) - int64(header.GasUsed)
-		fmt.Printf("GasUsed: execution=%d, header=%d, diff=%d\n", *usedGas, header.GasUsed, gasDiff)
-		fmt.Printf("TxCount=%d, ReceiptCount=%d\n", len(block.Transactions()), len(receipts))
-		fmt.Printf("IsPrague=%v, IsOsaka=%v, BlockTime=%d\n",
-			chainConfig.IsPrague(header.Time), chainConfig.IsOsaka(header.Time), header.Time)
-
-		// Save all transaction gas info to file for comparison with Etherscan
-		filename := fmt.Sprintf("block_%d_gas_debug.csv", block.NumberU64())
-		file, fileErr := os.Create(filename)
-		if fileErr == nil {
-			defer file.Close()
-			// Write CSV header
-			file.WriteString("TxIndex,Type,GasUsed,CumulativeGas,Hash,From,To,Status\n")
-			for i, tx := range block.Transactions() {
-				if i < len(receipts) {
-					txFrom, _ := tx.GetSender()
-					toAddr := ""
-					if tx.GetTo() != nil {
-						toAddr = tx.GetTo().Hex()
-					}
-					file.WriteString(fmt.Sprintf("%d,%d,%d,%d,%s,%s,%s,%d\n",
-						i, tx.Type(), receipts[i].GasUsed, receipts[i].CumulativeGasUsed,
-						tx.Hash().Hex(), txFrom.Hex(), toAddr, receipts[i].Status))
-				}
-			}
-			fmt.Printf(">>> Gas debug info saved to: %s\n", filename)
-		} else {
-			fmt.Printf(">>> Failed to save gas debug file: %v\n", fileErr)
-		}
-
-		// Print all transactions with their gas (also to console)
-		fmt.Printf("--- All Transactions Gas Usage (TxIndex, Type, GasUsed, Hash) ---\n")
-		for i, tx := range block.Transactions() {
-			if i < len(receipts) {
-				fmt.Printf("[TX %3d] Type=%d GasUsed=%10d Hash=%s\n",
-					i, tx.Type(), receipts[i].GasUsed, tx.Hash().Hex())
-			}
-		}
-
-		// Print gas summary by tx type
-		fmt.Printf("--- Gas by TX Type ---\n")
-		gasPerType := make(map[uint8]uint64)
-		countPerType := make(map[uint8]int)
-		for i, tx := range block.Transactions() {
-			if i < len(receipts) {
-				gasPerType[tx.Type()] += receipts[i].GasUsed
-				countPerType[tx.Type()]++
-			}
-		}
-		for typ, gas := range gasPerType {
-			fmt.Printf("Type %d: count=%d, totalGas=%d\n", typ, countPerType[typ], gas)
-		}
-		fmt.Printf("========== END DEBUG ==========\n\n")
-
 		if dbg.LogHashMismatchReason() {
 			logReceipts(receipts, includedTxs, chainConfig, header, logger)
 		}
@@ -231,9 +150,6 @@ func ExecuteBlockEphemerally(
 	}
 
 	if !vmConfig.StatelessExec && *usedGas != header.GasUsed {
-		fmt.Printf("\n========== GAS MISMATCH BLOCK %d ==========\n", block.NumberU64())
-		fmt.Printf("GasUsed: execution=%d, header=%d, diff=%d\n", *usedGas, header.GasUsed, int64(*usedGas)-int64(header.GasUsed))
-		fmt.Printf("========== END DEBUG ==========\n\n")
 		return nil, fmt.Errorf("gas used by execution: %d, in header: %d", *usedGas, header.GasUsed)
 	}
 

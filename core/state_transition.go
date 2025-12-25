@@ -364,27 +364,22 @@ func (st *StateTransition) TransitionDb(refunds bool, gasBailout bool) (*evmtype
 			return nil, errors.New("contract creation not allowed with type4 txs")
 		}
 
-		fmt.Printf("[TYPE4 AUTH] Processing %d authorizations\n", len(auths))
-
 		var b [32]byte
 		data := bytes.NewBuffer(nil)
-		for i, auth := range auths {
+		for _, auth := range auths {
 			data.Reset()
 
 			// 1. chainId check
 			if !auth.ChainID.IsZero() && rules.ChainID.String() != auth.ChainID.String() {
-				fmt.Printf("[TYPE4 AUTH %d] SKIP: chainId mismatch (auth=%s, rules=%s)\n", i, auth.ChainID.String(), rules.ChainID.String())
 				continue
 			}
 
 			// 2. authority recover
 			authorityPtr, err := auth.RecoverSigner(data, b[:])
 			if err != nil {
-				fmt.Printf("[TYPE4 AUTH %d] SKIP: recover failed (%v)\n", i, err)
 				continue
 			}
 			authority := *authorityPtr
-			fmt.Printf("[TYPE4 AUTH %d] Authority=%s DelegateAddr=%s AuthNonce=%d\n", i, authority.Hex(), auth.Address.Hex(), auth.Nonce)
 
 			// 3. add authority account to accesses_addresses
 			verifiedAuthorities = append(verifiedAuthorities, authority)
@@ -395,10 +390,8 @@ func (st *StateTransition) TransitionDb(refunds bool, gasBailout bool) (*evmtype
 			if codeHash != emptyCodeHash && codeHash != (libcommon.Hash{}) {
 				// check for delegation
 				if _, ok := st.state.GetDelegatedDesignation(authority); ok {
-					fmt.Printf("[TYPE4 AUTH %d] Has delegation designation\n", i)
 					// noop: has delegated designation
 				} else {
-					fmt.Printf("[TYPE4 AUTH %d] SKIP: code not empty and not delegated\n", i)
 					continue
 				}
 			}
@@ -406,7 +399,6 @@ func (st *StateTransition) TransitionDb(refunds bool, gasBailout bool) (*evmtype
 			// 5. nonce check
 			authorityNonce := st.state.GetNonce(authority)
 			if authorityNonce != auth.Nonce {
-				fmt.Printf("[TYPE4 AUTH %d] SKIP: nonce mismatch (state=%d, auth=%d)\n", i, authorityNonce, auth.Nonce)
 				continue
 			}
 
@@ -415,9 +407,6 @@ func (st *StateTransition) TransitionDb(refunds bool, gasBailout bool) (*evmtype
 			if exists {
 				refundAmt := uint64(fixedgas.PerEmptyAccountCost - fixedgas.PerAuthBaseCost)
 				st.state.AddRefund(refundAmt)
-				fmt.Printf("[TYPE4 AUTH %d] EXISTS: added refund %d\n", i, refundAmt)
-			} else {
-				fmt.Printf("[TYPE4 AUTH %d] NOT EXISTS: no refund\n", i)
 			}
 
 			// 7. set authority code
@@ -429,7 +418,6 @@ func (st *StateTransition) TransitionDb(refunds bool, gasBailout bool) (*evmtype
 
 			// 8. increase the nonce of authority
 			st.state.SetNonce(authority, authorityNonce+1)
-			fmt.Printf("[TYPE4 AUTH %d] SUCCESS: nonce %d -> %d\n", i, authorityNonce, authorityNonce+1)
 		}
 	}
 
@@ -439,33 +427,6 @@ func (st *StateTransition) TransitionDb(refunds bool, gasBailout bool) (*evmtype
 	gas, floorGas7623, err := IntrinsicGas(st.data, accessTuples, contractCreation, rules.IsHomestead, rules.IsIstanbul, isEIP3860, isPragueOrLater, uint64(len(auths)))
 	if err != nil {
 		return nil, err
-	}
-
-	// DEBUG: Print detailed gas info for Type 4 transactions
-	if len(auths) > 0 {
-		// Count non-zero bytes
-		dataNonZeroLen := uint64(0)
-		for _, byt := range st.data {
-			if byt != 0 {
-				dataNonZeroLen++
-			}
-		}
-		dataZeroLen := uint64(len(st.data)) - dataNonZeroLen
-		// Calculate expected intrinsic gas breakdown
-		baseTxGas := uint64(21000)
-		authCost := uint64(25000) * uint64(len(auths))
-		nonZeroDataCost := dataNonZeroLen * 16
-		zeroDataCost := dataZeroLen * 4
-		expectedIntrinsic := baseTxGas + authCost + nonZeroDataCost + zeroDataCost
-
-		fmt.Printf("[TYPE4 TX] From=%s To=%v\n", msg.From().Hex(), msg.To())
-		fmt.Printf("  DataLen=%d NonZeroBytes=%d ZeroBytes=%d\n", len(st.data), dataNonZeroLen, dataZeroLen)
-		fmt.Printf("  GasBreakdown: TxGas=%d + AuthCost=%d + NonZeroData=%d + ZeroData=%d = %d\n",
-			baseTxGas, authCost, nonZeroDataCost, zeroDataCost, expectedIntrinsic)
-		fmt.Printf("  ActualIntrinsicGas=%d (diff=%d)\n", gas, int64(gas)-int64(expectedIntrinsic))
-		fmt.Printf("  FloorGas7623=%d AccessListLen=%d StorageKeys=%d\n",
-			floorGas7623, len(accessTuples), accessTuples.StorageKeys())
-		fmt.Printf("  VerifiedAuthorities=%d (of %d total)\n", len(verifiedAuthorities), len(auths))
 	}
 
 	if st.gasRemaining < gas || st.gasRemaining < floorGas7623 {
@@ -518,13 +479,6 @@ func (st *StateTransition) TransitionDb(refunds bool, gasBailout bool) (*evmtype
 		// EIP-7623 floor gas applies to both Prague and Osaka
 		if rules.IsPrague || rules.IsOsaka {
 			finalGasUsed = max(floorGas7623, gasUsedAfterRefund)
-		}
-
-		// DEBUG: Print refund details for Type 4 transactions
-		if len(auths) > 0 {
-			fmt.Printf("[TYPE4 REFUND] InitialGas=%d GasUsedBeforeRefund=%d\n", st.initialGas, gasUsed)
-			fmt.Printf("  TotalRefund=%d AppliedRefund=%d GasUsedAfterRefund=%d\n", totalRefund, refund, gasUsedAfterRefund)
-			fmt.Printf("  FloorGas7623=%d FinalGasUsed=%d GasRemaining=%d\n", floorGas7623, finalGasUsed, st.initialGas-finalGasUsed)
 		}
 
 		st.gasRemaining = st.initialGas - finalGasUsed

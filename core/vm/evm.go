@@ -17,8 +17,6 @@
 package vm
 
 import (
-	"fmt"
-	"strings"
 	"sync/atomic"
 
 	"github.com/holiman/uint256"
@@ -197,13 +195,8 @@ func (evm *EVM) call(typ OpCode, caller ContractRef, addr libcommon.Address, inp
 	}
 
 	// EIP-7702: For top-level calls (depth == 0) in Prague, charge gas for delegation resolution
+	// This mirrors the logic in makeCallVariantGasCallEIP7702 for CALL opcodes
 	if depth == 0 && evm.chainRules.IsPrague && !isPrecompile {
-		// Debug: check what GetCode returns for TX 34's target address
-		addrLower := strings.ToLower(addr.Hex())
-		if addrLower == "0x6844b635347871b7f8d5cd3c5fb03f24c9cf4275" {
-			addrCode := evm.intraBlockState.GetCode(addr)
-			fmt.Printf("[DEBUG TX34] addr=%s codeLen=%d code=%x\n", addr.Hex(), len(addrCode), addrCode)
-		}
 		if dd, ok := evm.intraBlockState.GetDelegatedDesignation(addr); ok {
 			var ddCost uint64
 			wasInAccessList := !evm.intraBlockState.AddAddressToAccessList(dd)
@@ -212,7 +205,6 @@ func (evm *EVM) call(typ OpCode, caller ContractRef, addr libcommon.Address, inp
 			} else {
 				ddCost = params.WarmStorageReadCostEIP2929
 			}
-			fmt.Printf("[DELEGATION GAS] %s -> %s warm=%t cost=%d\n", addr.Hex(), dd.Hex(), wasInAccessList, ddCost)
 			if gas < ddCost {
 				return nil, 0, ErrOutOfGas
 			}
