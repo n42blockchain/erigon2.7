@@ -3,6 +3,7 @@ package state
 import (
 	"bytes"
 	"encoding/binary"
+
 	"github.com/erigontech/erigon-lib/kv/dbutils"
 
 	libcommon "github.com/erigontech/erigon-lib/common"
@@ -37,6 +38,17 @@ func (r *PlainStateReader) ReadAccountData(address libcommon.Address) (*accounts
 	var a accounts.Account
 	if err = a.DecodeForStorage(enc); err != nil {
 		return nil, err
+	}
+	// EIP-7702: Check PlainContractCode even when Incarnation=0, as delegation accounts
+	// are EOAs with code but Incarnation=0
+	if a.IsEmptyCodeHash() {
+		if codeHash, err1 := r.db.GetOne(kv.PlainContractCode, dbutils.PlainGenerateStoragePrefix(address[:], a.Incarnation)); err1 == nil {
+			if len(codeHash) > 0 {
+				a.CodeHash = libcommon.BytesToHash(codeHash)
+			}
+		} else {
+			return nil, err1
+		}
 	}
 	return &a, nil
 }
