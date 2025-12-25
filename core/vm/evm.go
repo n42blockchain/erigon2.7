@@ -194,24 +194,6 @@ func (evm *EVM) call(typ OpCode, caller ContractRef, addr libcommon.Address, inp
 		code = evm.intraBlockState.ResolveCode(addr)
 	}
 
-	// EIP-7702: For top-level calls (depth == 0) in Prague, charge gas for delegation resolution
-	// This mirrors the logic in makeCallVariantGasCallEIP7702 for CALL opcodes
-	if depth == 0 && evm.chainRules.IsPrague && !isPrecompile {
-		if dd, ok := evm.intraBlockState.GetDelegatedDesignation(addr); ok {
-			var ddCost uint64
-			wasInAccessList := !evm.intraBlockState.AddAddressToAccessList(dd)
-			if !wasInAccessList {
-				ddCost = params.ColdAccountAccessCostEIP2929
-			} else {
-				ddCost = params.WarmStorageReadCostEIP2929
-			}
-			if gas < ddCost {
-				return nil, 0, ErrOutOfGas
-			}
-			gas -= ddCost
-		}
-	}
-
 	snapshot := evm.intraBlockState.Snapshot()
 
 	if typ == CALL {
