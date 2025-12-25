@@ -100,6 +100,11 @@ func ExecuteBlockEphemerally(
 	gp := new(GasPool)
 	gp.AddGas(block.GasLimit()).AddBlobGas(chainConfig.GetMaxBlobGasPerBlock(block.Time()))
 
+	// DEBUG: Track nonce changes for specific accounts
+	trackAddr := libcommon.HexToAddress("0x4DE23f3f0Fb3318287378AdbdE030cf61714b2f3")
+	initialNonce := ibs.GetNonce(trackAddr)
+	fmt.Printf("[BLOCK %d] START: %s nonce=%d\n", block.NumberU64(), trackAddr.Hex(), initialNonce)
+
 	if err := InitializeBlockExecution(engine, chainReader, block.Header(), chainConfig, ibs, logger); err != nil {
 		return nil, err
 	}
@@ -108,6 +113,7 @@ func ExecuteBlockEphemerally(
 	includedTxs := make(types.Transactions, 0, block.Transactions().Len())
 	receipts := make(types.Receipts, 0, block.Transactions().Len())
 	noop := state.NewNoopWriter()
+	prevNonce := initialNonce
 	for i, tx := range block.Transactions() {
 		ibs.SetTxContext(tx.Hash(), block.Hash(), i)
 		writeTrace := false
@@ -127,6 +133,17 @@ func ExecuteBlockEphemerally(
 
 			vmConfig.Tracer = nil
 		}
+
+		// DEBUG: Check if trackAddr nonce changed after this tx
+		currentNonce := ibs.GetNonce(trackAddr)
+		if currentNonce != prevNonce {
+			txFrom, _ := tx.GetSender()
+			fmt.Printf("[BLOCK %d TX %d] %s nonce: %d -> %d, TxType=%d, TxFrom=%s, TxTo=%v\n",
+				block.NumberU64(), i, trackAddr.Hex(), prevNonce, currentNonce,
+				tx.Type(), txFrom.Hex(), tx.GetTo())
+			prevNonce = currentNonce
+		}
+
 		if err != nil {
 			if !vmConfig.StatelessExec {
 				return nil, fmt.Errorf("could not apply tx %d from block %d [%v]: %w", i, block.NumberU64(), tx.Hash().Hex(), err)
@@ -138,6 +155,13 @@ func ExecuteBlockEphemerally(
 				receipts = append(receipts, receipt)
 			}
 		}
+	}
+
+	// DEBUG: Track nonce changes after all transactions
+	finalNonce := ibs.GetNonce(trackAddr)
+	if finalNonce != initialNonce {
+		fmt.Printf("[BLOCK %d] END: %s nonce changed: %d -> %d (delta=%d)\n",
+			block.NumberU64(), trackAddr.Hex(), initialNonce, finalNonce, finalNonce-initialNonce)
 	}
 
 	receiptSha := types.DeriveSha(receipts)
