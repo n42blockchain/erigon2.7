@@ -880,10 +880,22 @@ func (r *StateReaderV3) ReadAccountData(address common.Address) (*accounts.Accou
 	if err := a.DecodeForStorage(enc); err != nil {
 		return nil, err
 	}
-	// Note: DO NOT read CodeHash from PlainContractCode for Incarnation=0 accounts.
-	// PlainContractCode/StateV3 cache may contain "latest state" data from snapshots,
-	// not historical state. Reading it would cause incorrect delegation detection.
-	// EIP-7702 delegations are correctly handled via SetCode during type=4 tx execution.
+	// EIP-7702: Check PlainContractCode even when Incarnation=0, as delegation accounts
+	// are EOAs with code but Incarnation=0.
+	if a.IsEmptyCodeHash() {
+		storagePrefix := dbutils.PlainGenerateStoragePrefix(addr, a.Incarnation)
+		codeHash, ok := r.rs.Get(kv.PlainContractCode, storagePrefix)
+		if !ok {
+			var err1 error
+			codeHash, err1 = r.tx.GetOne(kv.PlainContractCode, storagePrefix)
+			if err1 != nil {
+				return nil, err1
+			}
+		}
+		if len(codeHash) > 0 {
+			a.CodeHash = common.BytesToHash(codeHash)
+		}
+	}
 	if r.trace {
 		fmt.Printf("ReadAccountData [%x] => [nonce: %d, balance: %d, codeHash: %x], txNum: %d\n", address, a.Nonce, &a.Balance, a.CodeHash, r.txNum)
 	}

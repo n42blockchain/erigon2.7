@@ -204,9 +204,18 @@ func (s *PlainState) ReadAccountData(address libcommon.Address) (*accounts.Accou
 			}
 		}
 	}
-	// Note: DO NOT read CodeHash from PlainContractCode for Incarnation=0 accounts.
-	// PlainContractCode contains "latest state" data from snapshots, not historical state.
-	// EIP-7702 delegations are correctly handled via SetCode during type=4 tx execution.
+	// EIP-7702: Check PlainContractCode even when Incarnation=0, as delegation accounts
+	// are EOAs with code but Incarnation=0.
+	if a.IsEmptyCodeHash() {
+		storagePrefix := dbutils.PlainGenerateStoragePrefix(address[:], a.Incarnation)
+		if codeHash, err1 := s.tx.GetOne(kv.PlainContractCode, storagePrefix); err1 == nil {
+			if len(codeHash) > 0 {
+				a.CodeHash = libcommon.BytesToHash(codeHash)
+			}
+		} else {
+			return nil, err1
+		}
+	}
 	if s.trace {
 		fmt.Printf("ReadAccountData [%x] => [nonce: %d, balance: %d, codeHash: %x]\n", address, a.Nonce, &a.Balance, a.CodeHash)
 	}
