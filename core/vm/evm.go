@@ -196,35 +196,20 @@ func (evm *EVM) call(typ OpCode, caller ContractRef, addr libcommon.Address, inp
 	}
 
 	// EIP-7702: For top-level calls (depth == 0) in Prague, charge gas for delegation resolution
-	// This mirrors the logic in makeCallVariantGasCallEIP7702 for CALL opcodes
 	if depth == 0 && evm.chainRules.IsPrague && !isPrecompile {
-		// Debug: check code of target address
-		targetCode := evm.intraBlockState.GetCode(addr)
-		hasDelegation := len(targetCode) == 23 && targetCode[0] == 0xef && targetCode[1] == 0x01 && targetCode[2] == 0x00
-		if hasDelegation || len(targetCode) > 0 {
-			fmt.Printf("[EIP-7702 DEBUG] Addr=%s CodeLen=%d HasDelegation=%t Code=%x\n",
-				addr.Hex(), len(targetCode), hasDelegation, targetCode)
-		}
-
-		// Check if the target address has a delegation
 		if dd, ok := evm.intraBlockState.GetDelegatedDesignation(addr); ok {
-			// Charge gas for resolving the delegation target
 			var ddCost uint64
 			wasInAccessList := !evm.intraBlockState.AddAddressToAccessList(dd)
 			if !wasInAccessList {
-				// Delegation target was cold
 				ddCost = params.ColdAccountAccessCostEIP2929
 			} else {
-				// Delegation target was warm (already in access list from Prepare)
 				ddCost = params.WarmStorageReadCostEIP2929
 			}
-			fmt.Printf("[EIP-7702 TOP-LEVEL] Addr=%s DelegationTarget=%s WasWarm=%t GasCost=%d GasBefore=%d\n",
-				addr.Hex(), dd.Hex(), wasInAccessList, ddCost, gas)
+			fmt.Printf("[DELEGATION GAS] %s -> %s warm=%t cost=%d\n", addr.Hex(), dd.Hex(), wasInAccessList, ddCost)
 			if gas < ddCost {
 				return nil, 0, ErrOutOfGas
 			}
 			gas -= ddCost
-			fmt.Printf("[EIP-7702 TOP-LEVEL] GasAfter=%d\n", gas)
 		}
 	}
 
