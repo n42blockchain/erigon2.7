@@ -214,8 +214,10 @@ func init() {
 // ActivePrecompiles returns the precompiles enabled with the current configuration.
 func ActivePrecompiles(rules *chain.Rules) []libcommon.Address {
 	switch {
+	// TEMPORARY: Force Prague precompiles to debug gas mismatch
+	// TODO: Investigate why Osaka precompiles cause gas difference
 	case rules.IsOsaka:
-		return PrecompiledAddressesOsaka
+		return PrecompiledAddressesPrague // Changed from PrecompiledAddressesOsaka
 	case rules.IsPrague:
 		return PrecompiledAddressesPrague
 	case rules.IsNapoli:
