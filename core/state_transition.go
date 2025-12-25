@@ -25,7 +25,6 @@ import (
 	"github.com/holiman/uint256"
 
 	cmath "github.com/erigontech/erigon-lib/common/math"
-	"github.com/erigontech/erigon-lib/log/v3"
 
 	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon-lib/common/dbg"
@@ -371,49 +370,62 @@ func (st *StateTransition) TransitionDb(refunds bool, gasBailout bool) (*evmtype
 		}
 		var b [32]byte
 		data := bytes.NewBuffer(nil)
+		fmt.Printf("[EIP-7702 DEBUG] Processing %d authorizations\n", len(auths))
 		for i, auth := range auths {
 			data.Reset()
+			fmt.Printf("[EIP-7702 DEBUG] Auth[%d] ChainID=%s Address=%s Nonce=%d\n",
+				i, auth.ChainID.String(), auth.Address.Hex(), auth.Nonce)
 
 			// 1. chainId check
 			if !auth.ChainID.IsZero() && rules.ChainID.String() != auth.ChainID.String() {
-				log.Debug("invalid chainID, skipping", "chainId", auth.ChainID, "auth index", i)
+				fmt.Printf("[EIP-7702 DEBUG] Auth[%d] SKIP: chainID mismatch (auth=%s, rules=%s)\n",
+					i, auth.ChainID.String(), rules.ChainID.String())
 				continue
 			}
 
 			// 2. authority recover
 			authorityPtr, err := auth.RecoverSigner(data, b[:])
 			if err != nil {
-				log.Debug("authority recover failed, skipping", "err", err, "auth index", i)
+				fmt.Printf("[EIP-7702 DEBUG] Auth[%d] SKIP: RecoverSigner failed: %v\n", i, err)
 				continue
 			}
 			authority := *authorityPtr
+			fmt.Printf("[EIP-7702 DEBUG] Auth[%d] Recovered authority=%s\n", i, authority.Hex())
 
 			// 3. add authority account to accesses_addresses
 			verifiedAuthorities = append(verifiedAuthorities, authority)
 			// authority is added to accessed_address in prepare step
 
 			// 4. authority code should be empty or already delegated
-			if codeHash := st.state.GetCodeHash(authority); codeHash != emptyCodeHash && codeHash != (libcommon.Hash{}) {
+			codeHash := st.state.GetCodeHash(authority)
+			fmt.Printf("[EIP-7702 DEBUG] Auth[%d] CodeHash=%s emptyCodeHash=%s\n",
+				i, codeHash.Hex(), emptyCodeHash.Hex())
+			if codeHash != emptyCodeHash && codeHash != (libcommon.Hash{}) {
 				// check for delegation
 				if _, ok := st.state.GetDelegatedDesignation(authority); ok {
-					// noop: has delegated designation
+					fmt.Printf("[EIP-7702 DEBUG] Auth[%d] Has delegated designation, continuing\n", i)
 				} else {
-					log.Debug("authority code is not empty or not delegated, skipping", "auth index", i)
+					fmt.Printf("[EIP-7702 DEBUG] Auth[%d] SKIP: code not empty and not delegated\n", i)
 					continue
 				}
 			}
 
 			// 5. nonce check
 			authorityNonce := st.state.GetNonce(authority)
+			fmt.Printf("[EIP-7702 DEBUG] Auth[%d] AuthorityNonce=%d AuthNonce=%d\n",
+				i, authorityNonce, auth.Nonce)
 			if authorityNonce != auth.Nonce {
-				log.Debug("invalid nonce, skipping", "auth index", i)
+				fmt.Printf("[EIP-7702 DEBUG] Auth[%d] SKIP: nonce mismatch\n", i)
 				continue
 			}
 
 			// 6. Add PER_EMPTY_ACCOUNT_COST - PER_AUTH_BASE_COST gas to the global refund counter if authority exists in the trie.
 			authorityExists := st.state.Exist(authority)
+			fmt.Printf("[EIP-7702 DEBUG] Auth[%d] Exists=%v\n", i, authorityExists)
 			if authorityExists {
 				st.state.AddRefund(fixedgas.PerEmptyAccountCost - fixedgas.PerAuthBaseCost)
+				fmt.Printf("[EIP-7702 DEBUG] Auth[%d] Added refund %d\n",
+					i, fixedgas.PerEmptyAccountCost-fixedgas.PerAuthBaseCost)
 			}
 			// Debug: Print EIP-7702 authority info
 			fmt.Printf("[EIP-7702] Auth[%d] Authority=%s Exists=%v RefundAdded=%d\n",
