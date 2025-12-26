@@ -74,9 +74,10 @@ func (dbr *DbStateReader) ReadAccountData(address libcommon.Address) (*accounts.
 	if err := acc.DecodeForStorage(enc); err != nil {
 		return nil, err
 	}
-	// EIP-7702: Recover CodeHash from ContractCode if account has empty CodeHash.
-	// IMPORTANT: Only recover if the code is a valid EIP-7702 delegation (0xef0100 + address).
-	if acc.IsEmptyCodeHash() {
+	// EIP-7702: Only attempt to recover CodeHash from ContractCode if:
+	// 1. The decoded account has empty CodeHash AND
+	// 2. The original encoding indicates CodeHash should exist
+	if acc.IsEmptyCodeHash() && accounts.HasCodeHashInStorage(enc) {
 		if addrHash == (libcommon.Hash{}) {
 			var err1 error
 			addrHash, err1 = libcommon.HashData(address[:])

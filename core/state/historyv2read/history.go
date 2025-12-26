@@ -24,9 +24,9 @@ func RestoreCodeHash(tx kv.Getter, key, v []byte, force *libcommon.Hash) ([]byte
 		acc.EncodeForStorage(v)
 		return v, nil
 	}
-	// EIP-7702: Recover CodeHash from PlainContractCode if account has empty CodeHash.
-	// IMPORTANT: Only recover if the code is a valid EIP-7702 delegation (0xef0100 + address).
-	if acc.IsEmptyCodeHash() {
+	// EIP-7702: Only recover CodeHash if original encoding indicates CodeHash should exist.
+	// If the original encoding doesn't have CodeHash field, the account genuinely has no code.
+	if acc.IsEmptyCodeHash() && accounts.HasCodeHashInStorage(v) {
 		var codeHash []byte
 		var err error
 		prefix := make([]byte, length.Addr+length.BlockNum)

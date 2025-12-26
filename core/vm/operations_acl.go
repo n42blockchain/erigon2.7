@@ -273,7 +273,7 @@ func makeCallVariantGasCallEIP7702(oldCalculator gasFunc) gasFunc {
 			}
 
 			// Debug: log delegation gas charging
-			fmt.Printf("[EIP7702-v6] CALL delegation detected: addr=%x -> dd=%x, cold=%v, ddCost=%d\n",
+			fmt.Printf("[EIP7702-v7] CALL delegation detected: addr=%x -> dd=%x, cold=%v, ddCost=%d\n",
 				addr, dd, cold, ddCost)
 
 			if !contract.UseGas(ddCost) {

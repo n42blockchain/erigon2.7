@@ -15,7 +15,7 @@ import (
 )
 
 // EIP7702FixVersion is used to track code changes for debugging
-const EIP7702FixVersion = "v6"
+const EIP7702FixVersion = "v7"
 
 var _ StateReader = (*PlainStateReader)(nil)
 
@@ -44,10 +44,14 @@ func (r *PlainStateReader) ReadAccountData(address libcommon.Address) (*accounts
 	if err = a.DecodeForStorage(enc); err != nil {
 		return nil, err
 	}
-	// EIP-7702: Recover CodeHash from PlainContractCode if account has empty CodeHash.
-	// This is needed because the account encoding may not include CodeHash for delegation accounts.
-	// IMPORTANT: Only recover if the code is a valid EIP-7702 delegation (0xef0100 + address).
-	if a.IsEmptyCodeHash() {
+	// EIP-7702: Only attempt to recover CodeHash from PlainContractCode if:
+	// 1. The decoded account has empty CodeHash AND
+	// 2. The original encoding indicates CodeHash should exist (fieldSet bit 3 is set)
+	//
+	// If the original encoding doesn't have CodeHash field (bit 3 not set), the account
+	// genuinely has no code, and any data in PlainContractCode is stale/invalid.
+	// This prevents recovering stale delegation CodeHashes for accounts that no longer have delegations.
+	if a.IsEmptyCodeHash() && accounts.HasCodeHashInStorage(enc) {
 		prefix := dbutils.PlainGenerateStoragePrefix(address[:], a.Incarnation)
 		if codeHash, err1 := r.db.GetOne(kv.PlainContractCode, prefix); err1 == nil {
 			if len(codeHash) > 0 {

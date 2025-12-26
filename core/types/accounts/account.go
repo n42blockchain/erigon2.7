@@ -513,6 +513,47 @@ func (a *Account) DecodeForStorage(enc []byte) error {
 	return nil
 }
 
+// HasCodeHashInStorage checks if the account encoding (V2 format) contains a CodeHash field.
+// This is useful to detect if an account should have code based on its stored encoding.
+// Returns false if encoding is empty or doesn't have CodeHash flag set (bit 3).
+func HasCodeHashInStorage(enc []byte) bool {
+	if len(enc) == 0 {
+		return false
+	}
+	return enc[0]&8 > 0 // bit 3 indicates CodeHash presence
+}
+
+// HasCodeHashInStorageV3 checks if the account encoding (V3 format) contains a CodeHash field.
+// V3 format: [nonceBytes][nonce?][balanceBytes][balance?][codeHashBytes][codeHash?][incBytes][inc?]
+// Returns false if encoding doesn't have CodeHash (codeHashBytes == 0).
+func HasCodeHashInStorageV3(enc []byte) bool {
+	if len(enc) < 3 {
+		return false
+	}
+	pos := 0
+	// Skip nonce
+	nonceBytes := int(enc[pos])
+	pos++
+	if nonceBytes > 0 {
+		pos += nonceBytes
+	}
+	// Skip balance
+	if pos >= len(enc) {
+		return false
+	}
+	balanceBytes := int(enc[pos])
+	pos++
+	if balanceBytes > 0 {
+		pos += balanceBytes
+	}
+	// Check codeHashBytes
+	if pos >= len(enc) {
+		return false
+	}
+	codeHashBytes := int(enc[pos])
+	return codeHashBytes > 0
+}
+
 func DecodeIncarnationFromStorage(enc []byte) (uint64, error) {
 	if len(enc) == 0 {
 		return 0, nil

@@ -39,9 +39,10 @@ func (r *CachedReader2) ReadAccountData(address common.Address) (*accounts.Accou
 	if err = a.DecodeForStorage(enc); err != nil {
 		return nil, err
 	}
-	// EIP-7702: Recover CodeHash from PlainContractCode if account has empty CodeHash.
-	// IMPORTANT: Only recover if the code is a valid EIP-7702 delegation (0xef0100 + address).
-	if a.IsEmptyCodeHash() {
+	// EIP-7702: Only attempt to recover CodeHash from PlainContractCode if:
+	// 1. The decoded account has empty CodeHash AND
+	// 2. The original encoding indicates CodeHash should exist
+	if a.IsEmptyCodeHash() && accounts.HasCodeHashInStorage(enc) {
 		prefix := dbutils.PlainGenerateStoragePrefix(address[:], a.Incarnation)
 		if codeHash, err1 := r.db.GetOne(kv.PlainContractCode, prefix); err1 == nil {
 			if len(codeHash) > 0 {
