@@ -425,7 +425,8 @@ func SpawnExecuteBlocksStage(s *StageState, u Unwinder, txc wrap.TxContainer, to
 	}
 
 	if to > s.BlockNumber+16 {
-		logger.Info(fmt.Sprintf("[%s] Blocks execution", logPrefix), "from", s.BlockNumber, "to", to)
+		// EIP-7702 fix version marker - increment this when making changes
+		logger.Info(fmt.Sprintf("[%s] Blocks execution (EIP7702-FIX-v6)", logPrefix), "from", s.BlockNumber, "to", to)
 	}
 
 	stateStream := cfg.stateStream && to-s.BlockNumber < stateStreamLimit

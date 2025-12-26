@@ -3,6 +3,7 @@ package state
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 
 	"github.com/erigontech/erigon-lib/kv/dbutils"
 
@@ -12,6 +13,9 @@ import (
 	"github.com/erigontech/erigon/core/types"
 	"github.com/erigontech/erigon/core/types/accounts"
 )
+
+// EIP7702FixVersion is used to track code changes for debugging
+const EIP7702FixVersion = "v6"
 
 var _ StateReader = (*PlainStateReader)(nil)
 
@@ -49,6 +53,10 @@ func (r *PlainStateReader) ReadAccountData(address libcommon.Address) (*accounts
 			if len(codeHash) > 0 {
 				// Verify the code is a valid EIP-7702 delegation before using this CodeHash
 				if code, err2 := r.db.GetOne(kv.Code, codeHash); err2 == nil && types.IsDelegation(code) {
+					// Debug: log CodeHash recovery
+					delegationTarget, _ := types.ParseDelegation(code)
+					fmt.Printf("[EIP7702-%s] Recovered delegation CodeHash for %x -> %x (target: %x)\n",
+						EIP7702FixVersion, address, codeHash[:8], delegationTarget)
 					a.CodeHash = libcommon.BytesToHash(codeHash)
 				}
 			}
