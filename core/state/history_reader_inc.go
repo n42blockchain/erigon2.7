@@ -97,8 +97,8 @@ func (hr *HistoryReaderInc) ReadAccountData(address common.Address) (*accounts.A
 		if err = a.DecodeForStorage(enc); err != nil {
 			return nil, err
 		}
-		// EIP-7702: Only recover CodeHash if original encoding indicates CodeHash should exist
-		if a.IsEmptyCodeHash() && accounts.HasCodeHashInStorage(enc) {
+		// EIP-7702: Recover CodeHash from PlainContractCode if account has empty CodeHash.
+		if a.IsEmptyCodeHash() {
 			storagePrefix := dbutils.PlainGenerateStoragePrefix(addr, a.Incarnation)
 			if codeHash, err1 := hr.chainTx.GetOne(kv.PlainContractCode, storagePrefix); err1 == nil {
 				if len(codeHash) > 0 {
@@ -126,8 +126,8 @@ func (hr *HistoryReaderInc) ReadAccountData(address common.Address) (*accounts.A
 	if err = accounts.DeserialiseV3(&a, enc); err != nil {
 		return nil, err
 	}
-	// EIP-7702: Only recover CodeHash if V3 encoding indicates CodeHash should exist
-	if a.IsEmptyCodeHash() && accounts.HasCodeHashInStorageV3(enc) {
+	// EIP-7702: Recover CodeHash from PlainContractCode if account has empty CodeHash (V3 format).
+	if a.IsEmptyCodeHash() {
 		storagePrefix := dbutils.PlainGenerateStoragePrefix(addr, a.Incarnation)
 		if codeHash, err1 := hr.chainTx.GetOne(kv.PlainContractCode, storagePrefix); err1 == nil {
 			if len(codeHash) > 0 {

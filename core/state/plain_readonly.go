@@ -205,13 +205,9 @@ func (s *PlainState) ReadAccountData(address libcommon.Address) (*accounts.Accou
 			}
 		}
 	}
-	// EIP-7702: Only attempt to recover CodeHash from PlainContractCode if:
-	// 1. The decoded account has empty CodeHash AND
-	// 2. The original encoding indicates CodeHash should exist
-	//
-	// If the original encoding doesn't have CodeHash field, the account genuinely has no code,
-	// and any data in PlainContractCode is stale/invalid.
-	if a.IsEmptyCodeHash() && accounts.HasCodeHashInStorage(enc) {
+	// EIP-7702: Recover CodeHash from PlainContractCode if account has empty CodeHash.
+	// Only recover if the code is a valid EIP-7702 delegation (0xef0100 + address).
+	if a.IsEmptyCodeHash() {
 		storagePrefix := dbutils.PlainGenerateStoragePrefix(address[:], a.Incarnation)
 		if codeHash, err1 := s.tx.GetOne(kv.PlainContractCode, storagePrefix); err1 == nil {
 			if len(codeHash) > 0 {
