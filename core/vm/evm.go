@@ -37,8 +37,10 @@ var emptyCodeHash = crypto.Keccak256Hash(nil)
 func (evm *EVM) precompile(addr libcommon.Address) (PrecompiledContract, bool) {
 	var precompiles map[libcommon.Address]PrecompiledContract
 	switch {
-	case evm.chainRules.IsOsaka:
-		precompiles = PrecompiledContractsOsaka
+	// v19: Temporarily disable Osaka precompiles to test if EIP-7883 MODEXP gas calculation
+	// is causing the gas mismatch. Force Prague precompiles for now.
+	// case evm.chainRules.IsOsaka:
+	// 	precompiles = PrecompiledContractsOsaka
 	case evm.chainRules.IsPrague:
 		precompiles = PrecompiledContractsPrague
 	case evm.chainRules.IsNapoli:

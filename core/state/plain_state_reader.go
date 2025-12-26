@@ -13,7 +13,7 @@ import (
 )
 
 // EIP7702FixVersion is used to track code changes for debugging
-const EIP7702FixVersion = "v18-clean-baseline"
+const EIP7702FixVersion = "v19-disable-osaka"
 
 var _ StateReader = (*PlainStateReader)(nil)
 

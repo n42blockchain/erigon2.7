@@ -124,8 +124,9 @@ func copyJumpTable(jt *JumpTable) *JumpTable {
 func NewEVMInterpreter(evm *EVM, cfg Config) *EVMInterpreter {
 	var jt *JumpTable
 	switch {
-	case evm.ChainRules().IsOsaka:
-		jt = &osakaInstructionSet
+	// v19: Temporarily disable Osaka instruction set to test if EIP-7883 is causing gas mismatch
+	// case evm.ChainRules().IsOsaka:
+	// 	jt = &osakaInstructionSet
 	case evm.ChainRules().IsPrague:
 		jt = &pragueInstructionSet
 	case evm.ChainRules().IsCancun:
