@@ -25,6 +25,7 @@ import (
 	"github.com/erigontech/erigon-lib/metrics"
 	libstate "github.com/erigontech/erigon-lib/state"
 	"github.com/erigontech/erigon/cmd/state/exec22"
+	"github.com/erigontech/erigon/core/types"
 	"github.com/erigontech/erigon/core/types/accounts"
 	"github.com/erigontech/erigon/turbo/shards"
 )
@@ -515,9 +516,13 @@ func recoverCodeHashPlain(acc *accounts.Account, db kv.Tx, key []byte) {
 	var address common.Address
 	copy(address[:], key)
 	// EIP-7702: Recover CodeHash from PlainContractCode if account has empty CodeHash.
+	// IMPORTANT: Only recover if the code is a valid EIP-7702 delegation (0xef0100 + address).
 	if acc.IsEmptyCodeHash() {
 		if codeHash, err2 := db.GetOne(kv.PlainContractCode, dbutils.PlainGenerateStoragePrefix(address[:], acc.Incarnation)); err2 == nil && len(codeHash) > 0 {
-			copy(acc.CodeHash[:], codeHash)
+			// Verify the code is a valid EIP-7702 delegation before using this CodeHash
+			if code, err3 := db.GetOne(kv.Code, codeHash); err3 == nil && types.IsDelegation(code) {
+				copy(acc.CodeHash[:], codeHash)
+			}
 		}
 	}
 }
@@ -880,6 +885,7 @@ func (r *StateReaderV3) ReadAccountData(address common.Address) (*accounts.Accou
 		return nil, err
 	}
 	// EIP-7702: Recover CodeHash from PlainContractCode if account has empty CodeHash.
+	// IMPORTANT: Only recover if the code is a valid EIP-7702 delegation (0xef0100 + address).
 	if a.IsEmptyCodeHash() {
 		storagePrefix := dbutils.PlainGenerateStoragePrefix(addr, a.Incarnation)
 		codeHash, ok := r.rs.Get(kv.PlainContractCode, storagePrefix)
@@ -891,7 +897,18 @@ func (r *StateReaderV3) ReadAccountData(address common.Address) (*accounts.Accou
 			}
 		}
 		if len(codeHash) > 0 {
-			a.CodeHash = common.BytesToHash(codeHash)
+			// Verify the code is a valid EIP-7702 delegation before using this CodeHash
+			code, codeOk := r.rs.Get(kv.Code, codeHash)
+			if !codeOk {
+				var err2 error
+				code, err2 = r.tx.GetOne(kv.Code, codeHash)
+				if err2 != nil {
+					return nil, err2
+				}
+			}
+			if types.IsDelegation(code) {
+				a.CodeHash = common.BytesToHash(codeHash)
+			}
 		}
 	}
 	if r.trace {

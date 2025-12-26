@@ -347,6 +347,12 @@ func ParseDelegation(code []byte) (libcommon.Address, bool) {
 	return addr, true
 }
 
+// IsDelegation checks if the code is a valid EIP-7702 delegation designation.
+// Valid delegation code has format: 0xef0100 + 20-byte address (total 23 bytes)
+func IsDelegation(code []byte) bool {
+	return len(code) == DelegateDesignationCodeSize && bytes.HasPrefix(code, params.DelegatedDesignationPrefix)
+}
+
 // AddressToDelegation adds the delegation prefix to the specified address.
 func AddressToDelegation(addr libcommon.Address) []byte {
 	return append(params.DelegatedDesignationPrefix, addr.Bytes()...)

@@ -7,6 +7,7 @@ import (
 	"github.com/erigontech/erigon-lib/common/length"
 	"github.com/erigontech/erigon-lib/kv"
 	"github.com/erigontech/erigon-lib/kv/temporal/historyv2"
+	"github.com/erigontech/erigon/core/types"
 	"github.com/erigontech/erigon/core/types/accounts"
 )
 
@@ -24,6 +25,7 @@ func RestoreCodeHash(tx kv.Getter, key, v []byte, force *libcommon.Hash) ([]byte
 		return v, nil
 	}
 	// EIP-7702: Recover CodeHash from PlainContractCode if account has empty CodeHash.
+	// IMPORTANT: Only recover if the code is a valid EIP-7702 delegation (0xef0100 + address).
 	if acc.IsEmptyCodeHash() {
 		var codeHash []byte
 		var err error
@@ -36,9 +38,12 @@ func RestoreCodeHash(tx kv.Getter, key, v []byte, force *libcommon.Hash) ([]byte
 			return nil, err
 		}
 		if len(codeHash) > 0 {
-			acc.CodeHash.SetBytes(codeHash)
-			v = make([]byte, acc.EncodingLengthForStorage())
-			acc.EncodeForStorage(v)
+			// Verify the code is a valid EIP-7702 delegation before using this CodeHash
+			if code, err2 := tx.GetOne(kv.Code, codeHash); err2 == nil && types.IsDelegation(code) {
+				acc.CodeHash.SetBytes(codeHash)
+				v = make([]byte, acc.EncodingLengthForStorage())
+				acc.EncodeForStorage(v)
+			}
 		}
 	}
 	return v, nil
