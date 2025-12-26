@@ -9,11 +9,12 @@ import (
 	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon-lib/kv"
 
+	"github.com/erigontech/erigon/core/types"
 	"github.com/erigontech/erigon/core/types/accounts"
 )
 
 // EIP7702FixVersion is used to track code changes for debugging
-const EIP7702FixVersion = "v11-no-recovery"
+const EIP7702FixVersion = "v12-restore-recovery"
 
 var _ StateReader = (*PlainStateReader)(nil)
 
@@ -42,7 +43,20 @@ func (r *PlainStateReader) ReadAccountData(address libcommon.Address) (*accounts
 	if err = a.DecodeForStorage(enc); err != nil {
 		return nil, err
 	}
-	// v11: NO CodeHash recovery - testing clean state
+	// v12: Restore CodeHash recovery for EIP-7702 delegation accounts
+	// Only recover if:
+	// 1. Account's CodeHash is empty (from Erigon 3 snapshot)
+	// 2. PlainContractCode has an entry
+	// 3. The entry is NOT emptyCodeHash (delegation wasn't revoked)
+	// 4. The code at that hash is a valid EIP-7702 delegation
+	if a.IsEmptyCodeHash() {
+		if codeHash, err2 := r.db.GetOne(kv.PlainContractCode, dbutils.PlainGenerateStoragePrefix(address[:], a.Incarnation)); err2 == nil && len(codeHash) > 0 && !bytes.Equal(codeHash, emptyCodeHash) {
+			// Verify the code is a valid EIP-7702 delegation before using this CodeHash
+			if code, err3 := r.db.GetOne(kv.Code, codeHash); err3 == nil && types.IsDelegation(code) {
+				a.CodeHash = libcommon.BytesToHash(codeHash)
+			}
+		}
+	}
 	return &a, nil
 }
 

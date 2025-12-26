@@ -33,6 +33,7 @@ import (
 	"github.com/erigontech/erigon-lib/kv/kvcfg"
 
 	"github.com/erigontech/erigon/core/state/historyv2read"
+	"github.com/erigontech/erigon/core/types"
 	"github.com/erigontech/erigon/core/types/accounts"
 )
 
@@ -204,7 +205,15 @@ func (s *PlainState) ReadAccountData(address libcommon.Address) (*accounts.Accou
 			}
 		}
 	}
-	// v11: NO CodeHash recovery - testing clean state
+	// v12: Restore CodeHash recovery for EIP-7702 delegation accounts
+	if a.IsEmptyCodeHash() {
+		if codeHash, err2 := s.tx.GetOne(kv.PlainContractCode, dbutils.PlainGenerateStoragePrefix(address[:], a.Incarnation)); err2 == nil && len(codeHash) > 0 && !bytes.Equal(codeHash, emptyCodeHash) {
+			// Verify the code is a valid EIP-7702 delegation before using this CodeHash
+			if code, err3 := s.tx.GetOne(kv.Code, codeHash); err3 == nil && types.IsDelegation(code) {
+				a.CodeHash = libcommon.BytesToHash(codeHash)
+			}
+		}
+	}
 	if s.trace {
 		fmt.Printf("ReadAccountData [%x] => [nonce: %d, balance: %d, codeHash: %x]\n", address, a.Nonce, &a.Balance, a.CodeHash)
 	}

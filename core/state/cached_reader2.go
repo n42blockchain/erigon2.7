@@ -39,12 +39,14 @@ func (r *CachedReader2) ReadAccountData(address common.Address) (*accounts.Accou
 	if err = a.DecodeForStorage(enc); err != nil {
 		return nil, err
 	}
-	// v11: NO CodeHash recovery - testing clean state
-	if false { // disable unused imports
-		_ = dbutils.PlainGenerateStoragePrefix
-		_ = kv.PlainContractCode
-		_ = bytes.Equal
-		_ = types.IsDelegation
+	// v12: Restore CodeHash recovery for EIP-7702 delegation accounts
+	if a.IsEmptyCodeHash() {
+		if codeHash, err2 := r.db.GetOne(kv.PlainContractCode, dbutils.PlainGenerateStoragePrefix(address[:], a.Incarnation)); err2 == nil && len(codeHash) > 0 && !bytes.Equal(codeHash, emptyCodeHash) {
+			// Verify the code is a valid EIP-7702 delegation before using this CodeHash
+			if code, err3 := r.db.GetOne(kv.Code, codeHash); err3 == nil && types.IsDelegation(code) {
+				a.CodeHash = common.BytesToHash(codeHash)
+			}
+		}
 	}
 	return &a, nil
 }
