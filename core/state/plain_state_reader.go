@@ -14,7 +14,7 @@ import (
 )
 
 // EIP7702FixVersion is used to track code changes for debugging
-const EIP7702FixVersion = "v13-all-readers-recovery"
+const EIP7702FixVersion = "v14-diagnostic"
 
 var _ StateReader = (*PlainStateReader)(nil)
 
@@ -31,6 +31,14 @@ func NewPlainStateReader(db kv.Getter) *PlainStateReader {
 	}
 }
 
+// Diagnostic counters for EIP-7702 CodeHash recovery
+var (
+	diagEmptyCodeHashCount       int64
+	diagPlainContractCodeFound   int64
+	diagPlainContractCodeMissing int64
+	diagRecoverySuccess          int64
+)
+
 func (r *PlainStateReader) ReadAccountData(address libcommon.Address) (*accounts.Account, error) {
 	enc, err := r.db.GetOne(kv.PlainState, address.Bytes())
 	if err != nil {
@@ -43,21 +51,31 @@ func (r *PlainStateReader) ReadAccountData(address libcommon.Address) (*accounts
 	if err = a.DecodeForStorage(enc); err != nil {
 		return nil, err
 	}
-	// v12: Restore CodeHash recovery for EIP-7702 delegation accounts
+	// v13: Restore CodeHash recovery for EIP-7702 delegation accounts with diagnostics
 	// Only recover if:
 	// 1. Account's CodeHash is empty (from Erigon 3 snapshot)
 	// 2. PlainContractCode has an entry
 	// 3. The entry is NOT emptyCodeHash (delegation wasn't revoked)
 	// 4. The code at that hash is a valid EIP-7702 delegation
-	if a.IsEmptyCodeHash() {
+	if a.IsEmptyCodeHash() && a.Incarnation > 0 {
+		diagEmptyCodeHashCount++
 		if codeHash, err2 := r.db.GetOne(kv.PlainContractCode, dbutils.PlainGenerateStoragePrefix(address[:], a.Incarnation)); err2 == nil && len(codeHash) > 0 && !bytes.Equal(codeHash, emptyCodeHash) {
+			diagPlainContractCodeFound++
 			// Verify the code is a valid EIP-7702 delegation before using this CodeHash
 			if code, err3 := r.db.GetOne(kv.Code, codeHash); err3 == nil && types.IsDelegation(code) {
 				a.CodeHash = libcommon.BytesToHash(codeHash)
+				diagRecoverySuccess++
 			}
+		} else {
+			diagPlainContractCodeMissing++
 		}
 	}
 	return &a, nil
+}
+
+// GetDiagnostics returns diagnostic counters for CodeHash recovery
+func GetDiagnostics() (emptyCodeHash, found, missing, success int64) {
+	return diagEmptyCodeHashCount, diagPlainContractCodeFound, diagPlainContractCodeMissing, diagRecoverySuccess
 }
 
 func (r *PlainStateReader) ReadAccountStorage(address libcommon.Address, incarnation uint64, key *libcommon.Hash) ([]byte, error) {
