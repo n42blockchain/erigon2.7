@@ -18,7 +18,6 @@ package vm
 
 import (
 	"errors"
-	"fmt"
 
 	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon-lib/common/math"
@@ -271,10 +270,6 @@ func makeCallVariantGasCallEIP7702(oldCalculator gasFunc) gasFunc {
 			} else {
 				ddCost = params.WarmStorageReadCostEIP2929
 			}
-
-			// Debug: log delegation gas charging
-			fmt.Printf("[EIP7702-v9] CALL delegation detected: addr=%x -> dd=%x, cold=%v, ddCost=%d\n",
-				addr, dd, cold, ddCost)
 
 			if !contract.UseGas(ddCost) {
 				return 0, ErrOutOfGas

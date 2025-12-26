@@ -146,15 +146,7 @@ func ExecuteBlockEphemerally(
 		if dbg.LogHashMismatchReason() {
 			logReceipts(receipts, includedTxs, chainConfig, header, logger)
 		}
-		// Log EIP-7702 CodeHash recovery diagnostics
-		emptyCodeHash, found, missing, success, codeDomain := state.GetDiagnostics()
-		logger.Warn("[EIP7702-DIAG] CodeHash recovery stats",
-			"emptyCodeHashAccounts", emptyCodeHash,
-			"plainContractCodeFound", found,
-			"codeDomainFound", codeDomain,
-			"plainContractCodeMissing", missing,
-			"recoverySuccess", success)
-		// Always log summary for debugging receipt mismatch
+		// v18: Clean baseline - no CodeHash recovery diagnostics
 		logger.Warn("[DEBUG] Receipt mismatch details",
 			"block", block.NumberU64(),
 			"txCount", len(receipts),
