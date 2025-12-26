@@ -76,6 +76,8 @@ func (dbr *DbStateReader) ReadAccountData(address libcommon.Address) (*accounts.
 	// EIP-7702: Check ContractCode even when Incarnation=0, as delegation accounts
 	// are EOAs with code but Incarnation=0. The account data may not contain CodeHash
 	// (Erigon 3 format), so we need to read it from ContractCode table.
+	// BUT: Only recover CodeHash if the actual code exists in kv.Code table.
+	// This prevents using stale/orphaned ContractCode entries from failed executions.
 	if acc.IsEmptyCodeHash() {
 		if addrHash == (libcommon.Hash{}) {
 			var err1 error
@@ -87,7 +89,11 @@ func (dbr *DbStateReader) ReadAccountData(address libcommon.Address) (*accounts.
 		storagePrefix := dbutils.GenerateStoragePrefix(addrHash[:], acc.Incarnation)
 		if codeHash, err1 := dbr.db.GetOne(kv.ContractCode, storagePrefix); err1 == nil {
 			if len(codeHash) > 0 {
-				acc.CodeHash = libcommon.BytesToHash(codeHash)
+				// Verify the code actually exists before using this CodeHash
+				if code, err2 := dbr.db.GetOne(kv.Code, codeHash); err2 == nil && len(code) > 0 {
+					acc.CodeHash = libcommon.BytesToHash(codeHash)
+				}
+				// If code doesn't exist, this is likely stale data - ignore it
 			}
 		} else {
 			return nil, err1

@@ -515,10 +515,15 @@ func recoverCodeHashPlain(acc *accounts.Account, db kv.Tx, key []byte) {
 	var address common.Address
 	copy(address[:], key)
 	// EIP-7702: Check PlainContractCode even when Incarnation=0, as delegation accounts
-	// are EOAs with code but Incarnation=0
+	// are EOAs with code but Incarnation=0.
+	// BUT: Only recover CodeHash if the actual code exists in kv.Code table.
+	// This prevents using stale/orphaned PlainContractCode entries from failed executions.
 	if acc.IsEmptyCodeHash() {
-		if codeHash, err2 := db.GetOne(kv.PlainContractCode, dbutils.PlainGenerateStoragePrefix(address[:], acc.Incarnation)); err2 == nil {
-			copy(acc.CodeHash[:], codeHash)
+		if codeHash, err2 := db.GetOne(kv.PlainContractCode, dbutils.PlainGenerateStoragePrefix(address[:], acc.Incarnation)); err2 == nil && len(codeHash) > 0 {
+			// Verify the code actually exists before using this CodeHash
+			if code, err3 := db.GetOne(kv.Code, codeHash); err3 == nil && len(code) > 0 {
+				copy(acc.CodeHash[:], codeHash)
+			}
 		}
 	}
 }
@@ -882,6 +887,8 @@ func (r *StateReaderV3) ReadAccountData(address common.Address) (*accounts.Accou
 	}
 	// EIP-7702: Check PlainContractCode even when Incarnation=0, as delegation accounts
 	// are EOAs with code but Incarnation=0.
+	// BUT: Only recover CodeHash if the actual code exists in kv.Code table.
+	// This prevents using stale/orphaned PlainContractCode entries from failed executions.
 	if a.IsEmptyCodeHash() {
 		storagePrefix := dbutils.PlainGenerateStoragePrefix(addr, a.Incarnation)
 		codeHash, ok := r.rs.Get(kv.PlainContractCode, storagePrefix)
@@ -893,7 +900,19 @@ func (r *StateReaderV3) ReadAccountData(address common.Address) (*accounts.Accou
 			}
 		}
 		if len(codeHash) > 0 {
-			a.CodeHash = common.BytesToHash(codeHash)
+			// Verify the code actually exists before using this CodeHash
+			code, codeOk := r.rs.Get(kv.Code, codeHash)
+			if !codeOk {
+				var err2 error
+				code, err2 = r.tx.GetOne(kv.Code, codeHash)
+				if err2 != nil {
+					return nil, err2
+				}
+			}
+			if len(code) > 0 {
+				a.CodeHash = common.BytesToHash(codeHash)
+			}
+			// If code doesn't exist, this is likely stale data - ignore it
 		}
 	}
 	if r.trace {

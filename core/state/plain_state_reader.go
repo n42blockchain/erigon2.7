@@ -41,11 +41,18 @@ func (r *PlainStateReader) ReadAccountData(address libcommon.Address) (*accounts
 	}
 	// EIP-7702: Check PlainContractCode even when Incarnation=0, as delegation accounts
 	// are EOAs with code but Incarnation=0.
+	// BUT: Only recover CodeHash if the actual code exists in kv.Code table.
+	// This prevents using stale/orphaned PlainContractCode entries from failed executions.
 	if a.IsEmptyCodeHash() {
 		prefix := dbutils.PlainGenerateStoragePrefix(address[:], a.Incarnation)
 		if codeHash, err1 := r.db.GetOne(kv.PlainContractCode, prefix); err1 == nil {
 			if len(codeHash) > 0 {
-				a.CodeHash = libcommon.BytesToHash(codeHash)
+				// Verify the code actually exists before using this CodeHash
+				codeHashVal := libcommon.BytesToHash(codeHash)
+				if code, err2 := r.db.GetOne(kv.Code, codeHash); err2 == nil && len(code) > 0 {
+					a.CodeHash = codeHashVal
+				}
+				// If code doesn't exist, this is likely stale data - ignore it
 			}
 		} else {
 			return nil, err1

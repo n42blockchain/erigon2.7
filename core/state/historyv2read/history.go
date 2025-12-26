@@ -25,6 +25,8 @@ func RestoreCodeHash(tx kv.Getter, key, v []byte, force *libcommon.Hash) ([]byte
 	}
 	// EIP-7702: Check PlainContractCode even when Incarnation=0, as delegation accounts
 	// are EOAs with code but Incarnation=0.
+	// BUT: Only recover CodeHash if the actual code exists in kv.Code table.
+	// This prevents using stale/orphaned PlainContractCode entries from failed executions.
 	if acc.IsEmptyCodeHash() {
 		var codeHash []byte
 		var err error
@@ -37,9 +39,17 @@ func RestoreCodeHash(tx kv.Getter, key, v []byte, force *libcommon.Hash) ([]byte
 			return nil, err
 		}
 		if len(codeHash) > 0 {
-			acc.CodeHash.SetBytes(codeHash)
-			v = make([]byte, acc.EncodingLengthForStorage())
-			acc.EncodeForStorage(v)
+			// Verify the code actually exists before using this CodeHash
+			code, err2 := tx.GetOne(kv.Code, codeHash)
+			if err2 != nil {
+				return nil, err2
+			}
+			if len(code) > 0 {
+				acc.CodeHash.SetBytes(codeHash)
+				v = make([]byte, acc.EncodingLengthForStorage())
+				acc.EncodeForStorage(v)
+			}
+			// If code doesn't exist, this is likely stale data - ignore it
 		}
 	}
 	return v, nil

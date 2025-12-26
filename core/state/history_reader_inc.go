@@ -98,11 +98,16 @@ func (hr *HistoryReaderInc) ReadAccountData(address common.Address) (*accounts.A
 		}
 		// EIP-7702: Check PlainContractCode even when Incarnation=0, as delegation accounts
 		// are EOAs with code but Incarnation=0.
+		// BUT: Only recover CodeHash if the actual code exists in kv.Code table.
+		// This prevents using stale/orphaned PlainContractCode entries from failed executions.
 		if a.IsEmptyCodeHash() {
 			storagePrefix := dbutils.PlainGenerateStoragePrefix(addr, a.Incarnation)
 			if codeHash, err1 := hr.chainTx.GetOne(kv.PlainContractCode, storagePrefix); err1 == nil {
 				if len(codeHash) > 0 {
-					a.CodeHash.SetBytes(codeHash)
+					// Verify the code actually exists before using this CodeHash
+					if code, err2 := hr.chainTx.GetOne(kv.Code, codeHash); err2 == nil && len(code) > 0 {
+						a.CodeHash.SetBytes(codeHash)
+					}
 				}
 			} else {
 				return nil, err1
@@ -125,11 +130,16 @@ func (hr *HistoryReaderInc) ReadAccountData(address common.Address) (*accounts.A
 	}
 	// EIP-7702: Check PlainContractCode even when Incarnation=0, as delegation accounts
 	// are EOAs with code but Incarnation=0.
+	// BUT: Only recover CodeHash if the actual code exists in kv.Code table.
+	// This prevents using stale/orphaned PlainContractCode entries from failed executions.
 	if a.IsEmptyCodeHash() {
 		storagePrefix := dbutils.PlainGenerateStoragePrefix(addr, a.Incarnation)
 		if codeHash, err1 := hr.chainTx.GetOne(kv.PlainContractCode, storagePrefix); err1 == nil {
 			if len(codeHash) > 0 {
-				a.CodeHash.SetBytes(codeHash)
+				// Verify the code actually exists before using this CodeHash
+				if code, err2 := hr.chainTx.GetOne(kv.Code, codeHash); err2 == nil && len(code) > 0 {
+					a.CodeHash.SetBytes(codeHash)
+				}
 			}
 		} else {
 			return nil, err1
