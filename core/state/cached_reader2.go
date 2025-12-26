@@ -44,7 +44,8 @@ func (r *CachedReader2) ReadAccountData(address common.Address) (*accounts.Accou
 	if a.IsEmptyCodeHash() {
 		prefix := dbutils.PlainGenerateStoragePrefix(address[:], a.Incarnation)
 		if codeHash, err1 := r.db.GetOne(kv.PlainContractCode, prefix); err1 == nil {
-			if len(codeHash) > 0 {
+			// Skip if codeHash is empty or equals emptyCodeHash (delegation was revoked)
+			if len(codeHash) > 0 && !bytes.Equal(codeHash, emptyCodeHash) {
 				// Verify the code is a valid EIP-7702 delegation before using this CodeHash
 				if code, err2 := r.db.GetOne(kv.Code, codeHash); err2 == nil && types.IsDelegation(code) {
 					a.CodeHash.SetBytes(codeHash)

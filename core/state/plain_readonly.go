@@ -210,7 +210,8 @@ func (s *PlainState) ReadAccountData(address libcommon.Address) (*accounts.Accou
 	if a.IsEmptyCodeHash() {
 		storagePrefix := dbutils.PlainGenerateStoragePrefix(address[:], a.Incarnation)
 		if codeHash, err1 := s.tx.GetOne(kv.PlainContractCode, storagePrefix); err1 == nil {
-			if len(codeHash) > 0 {
+			// Skip if codeHash is empty or equals emptyCodeHash (delegation was revoked)
+			if len(codeHash) > 0 && !bytes.Equal(codeHash, emptyCodeHash) {
 				// Verify the code is a valid EIP-7702 delegation before using this CodeHash
 				if code, err2 := s.tx.GetOne(kv.Code, codeHash); err2 == nil && types.IsDelegation(code) {
 					a.CodeHash = libcommon.BytesToHash(codeHash)

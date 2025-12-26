@@ -518,10 +518,13 @@ func recoverCodeHashPlain(acc *accounts.Account, db kv.Tx, key []byte) {
 	// EIP-7702: Recover CodeHash from PlainContractCode if account has empty CodeHash.
 	// IMPORTANT: Only recover if the code is a valid EIP-7702 delegation (0xef0100 + address).
 	if acc.IsEmptyCodeHash() {
-		if codeHash, err2 := db.GetOne(kv.PlainContractCode, dbutils.PlainGenerateStoragePrefix(address[:], acc.Incarnation)); err2 == nil && len(codeHash) > 0 {
-			// Verify the code is a valid EIP-7702 delegation before using this CodeHash
-			if code, err3 := db.GetOne(kv.Code, codeHash); err3 == nil && types.IsDelegation(code) {
-				copy(acc.CodeHash[:], codeHash)
+		if codeHash, err2 := db.GetOne(kv.PlainContractCode, dbutils.PlainGenerateStoragePrefix(address[:], acc.Incarnation)); err2 == nil {
+			// Skip if codeHash is empty or equals emptyCodeHash (delegation was revoked)
+			if len(codeHash) > 0 && !bytes.Equal(codeHash, emptyCodeHash) {
+				// Verify the code is a valid EIP-7702 delegation before using this CodeHash
+				if code, err3 := db.GetOne(kv.Code, codeHash); err3 == nil && types.IsDelegation(code) {
+					copy(acc.CodeHash[:], codeHash)
+				}
 			}
 		}
 	}
@@ -895,7 +898,8 @@ func (r *StateReaderV3) ReadAccountData(address common.Address) (*accounts.Accou
 				return nil, err1
 			}
 		}
-		if len(codeHash) > 0 {
+		// Skip if codeHash is empty or equals emptyCodeHash (delegation was revoked)
+		if len(codeHash) > 0 && !bytes.Equal(codeHash, emptyCodeHash) {
 			// Verify the code is a valid EIP-7702 delegation before using this CodeHash
 			code, codeOk := r.rs.Get(kv.Code, codeHash)
 			if !codeOk {

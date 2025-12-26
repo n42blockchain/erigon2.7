@@ -1,6 +1,7 @@
 package historyv2read
 
 import (
+	"bytes"
 	"encoding/binary"
 
 	libcommon "github.com/erigontech/erigon-lib/common"
@@ -12,6 +13,9 @@ import (
 )
 
 const DefaultIncarnation = uint64(1)
+
+// emptyCodeHash is the known hash of an empty code (Keccak256 of empty bytes)
+var emptyCodeHash = libcommon.HexToHash("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470").Bytes()
 
 func RestoreCodeHash(tx kv.Getter, key, v []byte, force *libcommon.Hash) ([]byte, error) {
 	var acc accounts.Account
@@ -36,7 +40,8 @@ func RestoreCodeHash(tx kv.Getter, key, v []byte, force *libcommon.Hash) ([]byte
 		if err != nil {
 			return nil, err
 		}
-		if len(codeHash) > 0 {
+		// Skip if codeHash is empty or equals emptyCodeHash (delegation was revoked)
+		if len(codeHash) > 0 && !bytes.Equal(codeHash, emptyCodeHash) {
 			// Verify the code is a valid EIP-7702 delegation before using this CodeHash
 			if code, err2 := tx.GetOne(kv.Code, codeHash); err2 == nil && types.IsDelegation(code) {
 				acc.CodeHash.SetBytes(codeHash)

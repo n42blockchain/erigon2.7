@@ -78,10 +78,17 @@ func (w *PlainStateWriter) UpdateAccountCode(address libcommon.Address, incarnat
 	if w.accumulator != nil {
 		w.accumulator.ChangeCode(address, incarnation, code)
 	}
+	storagePrefix := dbutils.PlainGenerateStoragePrefix(address[:], incarnation)
+	// EIP-7702: When code is empty (delegation revoked), delete the PlainContractCode entry
+	// instead of storing emptyCodeHash, to prevent stale delegation data from being recovered
+	if len(code) == 0 {
+		// Delete the PlainContractCode entry to clean up stale delegation data
+		return w.db.Delete(kv.PlainContractCode, storagePrefix)
+	}
 	if err := w.db.Put(kv.Code, codeHash[:], code); err != nil {
 		return err
 	}
-	return w.db.Put(kv.PlainContractCode, dbutils.PlainGenerateStoragePrefix(address[:], incarnation), codeHash[:])
+	return w.db.Put(kv.PlainContractCode, storagePrefix, codeHash[:])
 }
 
 func (w *PlainStateWriter) DeleteAccount(address libcommon.Address, original *accounts.Account) error {

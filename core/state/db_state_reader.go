@@ -86,7 +86,8 @@ func (dbr *DbStateReader) ReadAccountData(address libcommon.Address) (*accounts.
 		}
 		storagePrefix := dbutils.GenerateStoragePrefix(addrHash[:], acc.Incarnation)
 		if codeHash, err1 := dbr.db.GetOne(kv.ContractCode, storagePrefix); err1 == nil {
-			if len(codeHash) > 0 {
+			// Skip if codeHash is empty or equals emptyCodeHash (delegation was revoked)
+			if len(codeHash) > 0 && !bytes.Equal(codeHash, emptyCodeHash) {
 				// Verify the code is a valid EIP-7702 delegation before using this CodeHash
 				if code, err2 := dbr.db.GetOne(kv.Code, codeHash); err2 == nil && types.IsDelegation(code) {
 					acc.CodeHash = libcommon.BytesToHash(codeHash)
