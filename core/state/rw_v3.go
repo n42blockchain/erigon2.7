@@ -25,6 +25,7 @@ import (
 	"github.com/erigontech/erigon-lib/metrics"
 	libstate "github.com/erigontech/erigon-lib/state"
 	"github.com/erigontech/erigon/cmd/state/exec22"
+	"github.com/erigontech/erigon/core/types"
 	"github.com/erigontech/erigon/core/types/accounts"
 	"github.com/erigontech/erigon/turbo/shards"
 )
@@ -512,7 +513,17 @@ func (rs *StateV3) ApplyHistory(txTask *exec22.TxTask, agg *libstate.Aggregator)
 }
 
 func recoverCodeHashPlain(acc *accounts.Account, db kv.Tx, key []byte) {
-	// v11: NO CodeHash recovery - testing clean state
+	// v12: Restore CodeHash recovery for EIP-7702 delegation accounts
+	var address common.Address
+	copy(address[:], key)
+	if acc.Incarnation > 0 && acc.IsEmptyCodeHash() {
+		if codeHash, err2 := db.GetOne(kv.PlainContractCode, dbutils.PlainGenerateStoragePrefix(address[:], acc.Incarnation)); err2 == nil && len(codeHash) > 0 && !bytes.Equal(codeHash, emptyCodeHash) {
+			// Verify the code is a valid EIP-7702 delegation before using this CodeHash
+			if code, err3 := db.GetOne(kv.Code, codeHash); err3 == nil && types.IsDelegation(code) {
+				copy(acc.CodeHash[:], codeHash)
+			}
+		}
+	}
 }
 
 func (rs *StateV3) Unwind(ctx context.Context, tx kv.RwTx, blockUnwindTo, txUnwindTo uint64, agg *libstate.Aggregator, accumulator *shards.Accumulator) error {

@@ -14,7 +14,7 @@ import (
 )
 
 // EIP7702FixVersion is used to track code changes for debugging
-const EIP7702FixVersion = "v12-restore-recovery"
+const EIP7702FixVersion = "v13-all-readers-recovery"
 
 var _ StateReader = (*PlainStateReader)(nil)
 

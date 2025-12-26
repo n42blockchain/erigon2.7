@@ -1,9 +1,13 @@
 package historyv2read
 
 import (
+	"bytes"
+
 	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon-lib/kv"
+	"github.com/erigontech/erigon-lib/kv/dbutils"
 	"github.com/erigontech/erigon-lib/kv/temporal/historyv2"
+	"github.com/erigontech/erigon/core/types"
 	"github.com/erigontech/erigon/core/types/accounts"
 )
 
@@ -23,7 +27,18 @@ func RestoreCodeHash(tx kv.Getter, key, v []byte, force *libcommon.Hash) ([]byte
 		acc.EncodeForStorage(v)
 		return v, nil
 	}
-	// v11: NO CodeHash recovery - testing clean state
+	// v12: Restore CodeHash recovery for EIP-7702 delegation accounts
+	if acc.IsEmptyCodeHash() && len(key) == 20 {
+		if codeHash, err2 := tx.GetOne(kv.PlainContractCode, dbutils.PlainGenerateStoragePrefix(key, acc.Incarnation)); err2 == nil && len(codeHash) > 0 && !bytes.Equal(codeHash, emptyCodeHash) {
+			// Verify the code is a valid EIP-7702 delegation before using this CodeHash
+			if code, err3 := tx.GetOne(kv.Code, codeHash); err3 == nil && types.IsDelegation(code) {
+				acc.CodeHash = libcommon.BytesToHash(codeHash)
+				v = make([]byte, acc.EncodingLengthForStorage())
+				acc.EncodeForStorage(v)
+				return v, nil
+			}
+		}
+	}
 	return v, nil
 }
 
