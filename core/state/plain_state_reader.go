@@ -15,7 +15,14 @@ import (
 )
 
 // EIP7702FixVersion is used to track code changes for debugging
-const EIP7702FixVersion = "v8"
+const EIP7702FixVersion = "v9"
+
+// EIP7702DirtyAddresses is a temporary blacklist of addresses with dirty PlainContractCode entries.
+// These addresses have stale delegation data that should not be recovered.
+// TODO: Remove this after the database is properly cleaned up.
+var EIP7702DirtyAddresses = map[libcommon.Address]bool{
+	libcommon.HexToAddress("0x7c95cc0a0a0cd944fbad5e0f602370dc946877cc"): true,
+}
 
 var _ StateReader = (*PlainStateReader)(nil)
 
@@ -46,7 +53,8 @@ func (r *PlainStateReader) ReadAccountData(address libcommon.Address) (*accounts
 	}
 	// EIP-7702: Recover CodeHash from PlainContractCode if account has empty CodeHash.
 	// Only recover if the code is a valid EIP-7702 delegation (0xef0100 + address).
-	if a.IsEmptyCodeHash() {
+	// Skip addresses in the dirty blacklist (temporary fix for stale data).
+	if a.IsEmptyCodeHash() && !EIP7702DirtyAddresses[address] {
 		prefix := dbutils.PlainGenerateStoragePrefix(address[:], a.Incarnation)
 		if codeHash, err1 := r.db.GetOne(kv.PlainContractCode, prefix); err1 == nil {
 			if len(codeHash) > 0 {
