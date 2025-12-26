@@ -3,7 +3,9 @@ package state
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 
+	"github.com/erigontech/erigon-lib/crypto"
 	"github.com/erigontech/erigon-lib/kv/dbutils"
 
 	libcommon "github.com/erigontech/erigon-lib/common"
@@ -14,7 +16,7 @@ import (
 )
 
 // EIP7702FixVersion is used to track code changes for debugging
-const EIP7702FixVersion = "v15-fix-incarnation"
+const EIP7702FixVersion = "v17-format-diag"
 
 var _ StateReader = (*PlainStateReader)(nil)
 
@@ -37,6 +39,8 @@ var (
 	diagPlainContractCodeFound   int64
 	diagPlainContractCodeMissing int64
 	diagRecoverySuccess          int64
+	diagCodeDomainFound          int64
+	diagRawDataSamples           int64 // Limit raw data output
 )
 
 func (r *PlainStateReader) ReadAccountData(address libcommon.Address) (*accounts.Account, error) {
@@ -51,29 +55,54 @@ func (r *PlainStateReader) ReadAccountData(address libcommon.Address) (*accounts
 	if err = a.DecodeForStorage(enc); err != nil {
 		return nil, err
 	}
-	// v15: Restore CodeHash recovery for EIP-7702 delegation accounts with diagnostics
-	// Only recover if:
-	// 1. Account's CodeHash is empty (from Erigon 3 snapshot)
-	// 2. PlainContractCode has an entry
-	// 3. The entry is NOT emptyCodeHash (delegation wasn't revoked)
-	// 4. The code at that hash is a valid EIP-7702 delegation
-	// Note: EIP-7702 delegation accounts are EOAs, so Incarnation can be 0
+	// v17: Diagnostic version to check data format
+	// Output raw data for first few accounts with empty CodeHash
 	if a.IsEmptyCodeHash() {
 		diagEmptyCodeHashCount++
-		// For EIP-7702, use Incarnation 1 as default if account has Incarnation 0
-		// This is because delegation accounts might have been created with Incarnation 0
+
+		// Output raw data for first 3 accounts to diagnose format
+		if diagRawDataSamples < 3 {
+			diagRawDataSamples++
+			// Check if it looks like V2 or V3 format
+			// V2: first byte is fieldSet (bit flags)
+			// V3: first byte is nonceBytes length
+			fieldSet := enc[0]
+			fmt.Printf("[EIP7702-RAW] addr=%x len=%d raw[0]=%d(0x%x) fieldSet_bits=%08b nonce=%d balance=%s inc=%d codeHash=%x\n",
+				address[:4], len(enc), fieldSet, fieldSet, fieldSet, a.Nonce, a.Balance.String(), a.Incarnation, a.CodeHash[:4])
+		}
+
+		recovered := false
+
+		// Method 1: Try PlainContractCode table
 		incarnation := a.Incarnation
 		if incarnation == 0 {
-			incarnation = 1 // Try with Incarnation 1 for EIP-7702 delegation accounts
+			incarnation = 1
 		}
 		if codeHash, err2 := r.db.GetOne(kv.PlainContractCode, dbutils.PlainGenerateStoragePrefix(address[:], incarnation)); err2 == nil && len(codeHash) > 0 && !bytes.Equal(codeHash, emptyCodeHash) {
 			diagPlainContractCodeFound++
-			// Verify the code is a valid EIP-7702 delegation before using this CodeHash
 			if code, err3 := r.db.GetOne(kv.Code, codeHash); err3 == nil && types.IsDelegation(code) {
 				a.CodeHash = libcommon.BytesToHash(codeHash)
 				diagRecoverySuccess++
+				recovered = true
 			}
-		} else {
+		}
+
+		// Method 2: Try CodeDomain via TemporalTx (for Erigon 3 snapshots)
+		if !recovered {
+			if ttx, ok := r.db.(kv.TemporalTx); ok {
+				// Get latest code from CodeDomain
+				if code, ok2, err2 := ttx.DomainGet(kv.CodeDomain, address.Bytes(), nil); err2 == nil && ok2 && len(code) > 0 {
+					if types.IsDelegation(code) {
+						a.CodeHash = crypto.Keccak256Hash(code)
+						diagCodeDomainFound++
+						diagRecoverySuccess++
+						recovered = true
+					}
+				}
+			}
+		}
+
+		if !recovered {
 			diagPlainContractCodeMissing++
 		}
 	}
@@ -81,8 +110,8 @@ func (r *PlainStateReader) ReadAccountData(address libcommon.Address) (*accounts
 }
 
 // GetDiagnostics returns diagnostic counters for CodeHash recovery
-func GetDiagnostics() (emptyCodeHash, found, missing, success int64) {
-	return diagEmptyCodeHashCount, diagPlainContractCodeFound, diagPlainContractCodeMissing, diagRecoverySuccess
+func GetDiagnostics() (emptyCodeHash, found, missing, success, codeDomain int64) {
+	return diagEmptyCodeHashCount, diagPlainContractCodeFound, diagPlainContractCodeMissing, diagRecoverySuccess, diagCodeDomainFound
 }
 
 func (r *PlainStateReader) ReadAccountStorage(address libcommon.Address, incarnation uint64, key *libcommon.Hash) ([]byte, error) {
