@@ -14,7 +14,7 @@ import (
 )
 
 // EIP7702FixVersion is used to track code changes for debugging
-const EIP7702FixVersion = "v14-diagnostic"
+const EIP7702FixVersion = "v15-fix-incarnation"
 
 var _ StateReader = (*PlainStateReader)(nil)
 
@@ -51,15 +51,22 @@ func (r *PlainStateReader) ReadAccountData(address libcommon.Address) (*accounts
 	if err = a.DecodeForStorage(enc); err != nil {
 		return nil, err
 	}
-	// v13: Restore CodeHash recovery for EIP-7702 delegation accounts with diagnostics
+	// v15: Restore CodeHash recovery for EIP-7702 delegation accounts with diagnostics
 	// Only recover if:
 	// 1. Account's CodeHash is empty (from Erigon 3 snapshot)
 	// 2. PlainContractCode has an entry
 	// 3. The entry is NOT emptyCodeHash (delegation wasn't revoked)
 	// 4. The code at that hash is a valid EIP-7702 delegation
-	if a.IsEmptyCodeHash() && a.Incarnation > 0 {
+	// Note: EIP-7702 delegation accounts are EOAs, so Incarnation can be 0
+	if a.IsEmptyCodeHash() {
 		diagEmptyCodeHashCount++
-		if codeHash, err2 := r.db.GetOne(kv.PlainContractCode, dbutils.PlainGenerateStoragePrefix(address[:], a.Incarnation)); err2 == nil && len(codeHash) > 0 && !bytes.Equal(codeHash, emptyCodeHash) {
+		// For EIP-7702, use Incarnation 1 as default if account has Incarnation 0
+		// This is because delegation accounts might have been created with Incarnation 0
+		incarnation := a.Incarnation
+		if incarnation == 0 {
+			incarnation = 1 // Try with Incarnation 1 for EIP-7702 delegation accounts
+		}
+		if codeHash, err2 := r.db.GetOne(kv.PlainContractCode, dbutils.PlainGenerateStoragePrefix(address[:], incarnation)); err2 == nil && len(codeHash) > 0 && !bytes.Equal(codeHash, emptyCodeHash) {
 			diagPlainContractCodeFound++
 			// Verify the code is a valid EIP-7702 delegation before using this CodeHash
 			if code, err3 := r.db.GetOne(kv.Code, codeHash); err3 == nil && types.IsDelegation(code) {
