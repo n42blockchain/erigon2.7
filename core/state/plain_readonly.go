@@ -204,25 +204,9 @@ func (s *PlainState) ReadAccountData(address libcommon.Address) (*accounts.Accou
 			}
 		}
 	}
-	// EIP-7702: Check PlainContractCode even when Incarnation=0, as delegation accounts
-	// are EOAs with code but Incarnation=0.
-	// BUT: Only recover CodeHash if the actual code exists in kv.Code table.
-	// This prevents using stale/orphaned PlainContractCode entries from failed executions.
-	if a.IsEmptyCodeHash() {
-		storagePrefix := dbutils.PlainGenerateStoragePrefix(address[:], a.Incarnation)
-		if codeHash, err1 := s.tx.GetOne(kv.PlainContractCode, storagePrefix); err1 == nil {
-			if len(codeHash) > 0 {
-				// Verify the code actually exists before using this CodeHash
-				codeHashVal := libcommon.BytesToHash(codeHash)
-				if code, err2 := s.tx.GetOne(kv.Code, codeHash); err2 == nil && len(code) > 0 {
-					a.CodeHash = codeHashVal
-				}
-				// If code doesn't exist, this is likely stale data - ignore it
-			}
-		} else {
-			return nil, err1
-		}
-	}
+	// NOTE: CodeHash recovery from PlainContractCode is DISABLED for debugging.
+	// The CodeHash should already be in the account data if it was set during
+	// proper execution.
 	if s.trace {
 		fmt.Printf("ReadAccountData [%x] => [nonce: %d, balance: %d, codeHash: %x]\n", address, a.Nonce, &a.Balance, a.CodeHash)
 	}

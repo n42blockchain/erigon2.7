@@ -512,20 +512,7 @@ func (rs *StateV3) ApplyHistory(txTask *exec22.TxTask, agg *libstate.Aggregator)
 }
 
 func recoverCodeHashPlain(acc *accounts.Account, db kv.Tx, key []byte) {
-	var address common.Address
-	copy(address[:], key)
-	// EIP-7702: Check PlainContractCode even when Incarnation=0, as delegation accounts
-	// are EOAs with code but Incarnation=0.
-	// BUT: Only recover CodeHash if the actual code exists in kv.Code table.
-	// This prevents using stale/orphaned PlainContractCode entries from failed executions.
-	if acc.IsEmptyCodeHash() {
-		if codeHash, err2 := db.GetOne(kv.PlainContractCode, dbutils.PlainGenerateStoragePrefix(address[:], acc.Incarnation)); err2 == nil && len(codeHash) > 0 {
-			// Verify the code actually exists before using this CodeHash
-			if code, err3 := db.GetOne(kv.Code, codeHash); err3 == nil && len(code) > 0 {
-				copy(acc.CodeHash[:], codeHash)
-			}
-		}
-	}
+	// NOTE: CodeHash recovery from PlainContractCode is DISABLED for debugging.
 }
 
 func (rs *StateV3) Unwind(ctx context.Context, tx kv.RwTx, blockUnwindTo, txUnwindTo uint64, agg *libstate.Aggregator, accumulator *shards.Accumulator) error {
@@ -885,36 +872,7 @@ func (r *StateReaderV3) ReadAccountData(address common.Address) (*accounts.Accou
 	if err := a.DecodeForStorage(enc); err != nil {
 		return nil, err
 	}
-	// EIP-7702: Check PlainContractCode even when Incarnation=0, as delegation accounts
-	// are EOAs with code but Incarnation=0.
-	// BUT: Only recover CodeHash if the actual code exists in kv.Code table.
-	// This prevents using stale/orphaned PlainContractCode entries from failed executions.
-	if a.IsEmptyCodeHash() {
-		storagePrefix := dbutils.PlainGenerateStoragePrefix(addr, a.Incarnation)
-		codeHash, ok := r.rs.Get(kv.PlainContractCode, storagePrefix)
-		if !ok {
-			var err1 error
-			codeHash, err1 = r.tx.GetOne(kv.PlainContractCode, storagePrefix)
-			if err1 != nil {
-				return nil, err1
-			}
-		}
-		if len(codeHash) > 0 {
-			// Verify the code actually exists before using this CodeHash
-			code, codeOk := r.rs.Get(kv.Code, codeHash)
-			if !codeOk {
-				var err2 error
-				code, err2 = r.tx.GetOne(kv.Code, codeHash)
-				if err2 != nil {
-					return nil, err2
-				}
-			}
-			if len(code) > 0 {
-				a.CodeHash = common.BytesToHash(codeHash)
-			}
-			// If code doesn't exist, this is likely stale data - ignore it
-		}
-	}
+	// NOTE: CodeHash recovery from PlainContractCode is DISABLED for debugging.
 	if r.trace {
 		fmt.Printf("ReadAccountData [%x] => [nonce: %d, balance: %d, codeHash: %x], txNum: %d\n", address, a.Nonce, &a.Balance, a.CodeHash, r.txNum)
 	}
