@@ -1,16 +1,13 @@
 package state
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 
 	"github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon-lib/kv"
-	"github.com/erigontech/erigon-lib/kv/dbutils"
 	libstate "github.com/erigontech/erigon-lib/state"
 
-	"github.com/erigontech/erigon/core/types"
 	"github.com/erigontech/erigon/core/types/accounts"
 )
 
@@ -98,14 +95,6 @@ func (hr *HistoryReaderInc) ReadAccountData(address common.Address) (*accounts.A
 		if err = a.DecodeForStorage(enc); err != nil {
 			return nil, err
 		}
-		// v12: Restore CodeHash recovery for EIP-7702 delegation accounts
-		if a.IsEmptyCodeHash() && hr.chainTx != nil {
-			if codeHash, err2 := hr.chainTx.GetOne(kv.PlainContractCode, dbutils.PlainGenerateStoragePrefix(addr, a.Incarnation)); err2 == nil && len(codeHash) > 0 && !bytes.Equal(codeHash, emptyCodeHash) {
-				if code, err3 := hr.chainTx.GetOne(kv.Code, codeHash); err3 == nil && types.IsDelegation(code) {
-					a.CodeHash = common.BytesToHash(codeHash)
-				}
-			}
-		}
 		if hr.trace {
 			fmt.Printf("ReadAccountData [%x] => [nonce: %d, balance: %d, codeHash: %x], noState=%t, stateTxNum=%d, txNum: %d\n", address, a.Nonce, &a.Balance, a.CodeHash, noState, stateTxNum, hr.txNum)
 		}
@@ -120,14 +109,6 @@ func (hr *HistoryReaderInc) ReadAccountData(address common.Address) (*accounts.A
 	var a accounts.Account
 	if err = accounts.DeserialiseV3(&a, enc); err != nil {
 		return nil, err
-	}
-	// v12: Restore CodeHash recovery for EIP-7702 delegation accounts
-	if a.IsEmptyCodeHash() && hr.chainTx != nil {
-		if codeHash, err2 := hr.chainTx.GetOne(kv.PlainContractCode, dbutils.PlainGenerateStoragePrefix(addr, a.Incarnation)); err2 == nil && len(codeHash) > 0 && !bytes.Equal(codeHash, emptyCodeHash) {
-			if code, err3 := hr.chainTx.GetOne(kv.Code, codeHash); err3 == nil && types.IsDelegation(code) {
-				a.CodeHash = common.BytesToHash(codeHash)
-			}
-		}
 	}
 	if hr.trace {
 		fmt.Printf("ReadAccountData [%x] => [nonce: %d, balance: %d, codeHash: %x], noState=%t, txNum: %d\n", address, a.Nonce, &a.Balance, a.CodeHash, noState, hr.txNum)

@@ -645,9 +645,7 @@ func updateAccount(EIP161Enabled bool, isAura bool, stateWriter StateWriter, add
 	if isDirty && (stateObject.createdContract || !stateObject.selfdestructed) && !emptyRemoval {
 		stateObject.deleted = false
 		// Write any contract code associated with the state object
-		// EIP-7702: Also update PlainContractCode when code is cleared (delegation revoked)
-		// This ensures the old delegation codeHash is overwritten with emptyCodeHash
-		if stateObject.dirtyCode {
+		if stateObject.code != nil && stateObject.dirtyCode {
 			if err := stateWriter.UpdateAccountCode(addr, stateObject.data.Incarnation, stateObject.data.CodeHash, stateObject.code); err != nil {
 				return err
 			}
@@ -674,8 +672,7 @@ func printAccount(EIP161Enabled bool, addr libcommon.Address, stateObject *state
 	}
 	if isDirty && (stateObject.createdContract || !stateObject.selfdestructed) && !emptyRemoval {
 		// Write any contract code associated with the state object
-		// EIP-7702: Also print when code is cleared (delegation revoked)
-		if stateObject.dirtyCode {
+		if stateObject.code != nil && stateObject.dirtyCode {
 			fmt.Printf("UpdateCode: %x,%x\n", addr, stateObject.CodeHash())
 		}
 		if stateObject.createdContract {
@@ -825,8 +822,7 @@ func (sdb *IntraBlockState) Prepare(rules *chain.Rules, sender, coinbase libcomm
 			al.AddAddress(coinbase)
 		}
 	}
-	// EIP-7702: warm authorities and delegated designation (Prague and later)
-	if rules.IsPrague || rules.IsOsaka {
+	if rules.IsPrague {
 		for _, addr := range authorities {
 			sdb.AddAddressToAccessList(addr)
 		}
