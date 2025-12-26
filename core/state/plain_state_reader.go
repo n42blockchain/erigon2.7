@@ -3,26 +3,17 @@ package state
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 
 	"github.com/erigontech/erigon-lib/kv/dbutils"
 
 	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon-lib/kv"
 
-	"github.com/erigontech/erigon/core/types"
 	"github.com/erigontech/erigon/core/types/accounts"
 )
 
 // EIP7702FixVersion is used to track code changes for debugging
-const EIP7702FixVersion = "v10"
-
-// EIP7702DirtyAddresses is a temporary blacklist of addresses with dirty PlainContractCode entries.
-// These addresses have stale delegation data that should not be recovered.
-// TODO: Remove this after the database is properly cleaned up.
-var EIP7702DirtyAddresses = map[libcommon.Address]bool{
-	libcommon.HexToAddress("0x7c95cc0a0a0cd944fbad5e0f602370dc946877cc"): true,
-}
+const EIP7702FixVersion = "v11-no-recovery"
 
 var _ StateReader = (*PlainStateReader)(nil)
 
@@ -51,27 +42,7 @@ func (r *PlainStateReader) ReadAccountData(address libcommon.Address) (*accounts
 	if err = a.DecodeForStorage(enc); err != nil {
 		return nil, err
 	}
-	// EIP-7702: Recover CodeHash from PlainContractCode if account has empty CodeHash.
-	// Only recover if the code is a valid EIP-7702 delegation (0xef0100 + address).
-	// Skip addresses in the dirty blacklist (temporary fix for stale data).
-	if a.IsEmptyCodeHash() && !EIP7702DirtyAddresses[address] {
-		prefix := dbutils.PlainGenerateStoragePrefix(address[:], a.Incarnation)
-		if codeHash, err1 := r.db.GetOne(kv.PlainContractCode, prefix); err1 == nil {
-			// Skip if codeHash is empty or equals emptyCodeHash (delegation was revoked)
-			if len(codeHash) > 0 && !bytes.Equal(codeHash, emptyCodeHash) {
-				// Verify the code is a valid EIP-7702 delegation before using this CodeHash
-				if code, err2 := r.db.GetOne(kv.Code, codeHash); err2 == nil && types.IsDelegation(code) {
-					// Debug: log CodeHash recovery
-					delegationTarget, _ := types.ParseDelegation(code)
-					fmt.Printf("[EIP7702-%s] Recovered delegation CodeHash for %x -> %x (target: %x)\n",
-						EIP7702FixVersion, address, codeHash[:8], delegationTarget)
-					a.CodeHash = libcommon.BytesToHash(codeHash)
-				}
-			}
-		} else {
-			return nil, err1
-		}
-	}
+	// v11: NO CodeHash recovery - testing clean state
 	return &a, nil
 }
 

@@ -112,22 +112,19 @@ func (dsw *DbStateWriter) UpdateAccountCode(address libcommon.Address, incarnati
 	if err := dsw.csw.UpdateAccountCode(address, incarnation, codeHash, code); err != nil {
 		return err
 	}
-	addrHash, err := libcommon.HashData(address.Bytes())
-	if err != nil {
-		return err
-	}
-	storagePrefix := dbutils2.GenerateStoragePrefix(addrHash[:], incarnation)
-	// EIP-7702: When code is empty (delegation revoked), delete the ContractCode entry
-	// instead of storing emptyCodeHash, to prevent stale delegation data from being recovered
-	if len(code) == 0 {
-		return dsw.db.Delete(kv.ContractCode, storagePrefix)
-	}
 	//save contract code mapping
 	if err := dsw.db.Put(kv.Code, codeHash[:], code); err != nil {
 		return err
 	}
+	addrHash, err := libcommon.HashData(address.Bytes())
+	if err != nil {
+		return err
+	}
 	//save contract to codeHash mapping
-	return dsw.db.Put(kv.ContractCode, storagePrefix, codeHash[:])
+	if err := dsw.db.Put(kv.ContractCode, dbutils2.GenerateStoragePrefix(addrHash[:], incarnation), codeHash[:]); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (dsw *DbStateWriter) WriteAccountStorage(address libcommon.Address, incarnation uint64, key *libcommon.Hash, original, value *uint256.Int) error {

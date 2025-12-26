@@ -10,7 +10,6 @@ import (
 	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon-lib/kv"
 
-	"github.com/erigontech/erigon/core/types"
 	"github.com/erigontech/erigon/core/types/accounts"
 )
 
@@ -74,29 +73,7 @@ func (dbr *DbStateReader) ReadAccountData(address libcommon.Address) (*accounts.
 	if err := acc.DecodeForStorage(enc); err != nil {
 		return nil, err
 	}
-	// EIP-7702: Recover CodeHash from ContractCode if account has empty CodeHash.
-	// Only recover if the code is a valid EIP-7702 delegation (0xef0100 + address).
-	if acc.IsEmptyCodeHash() {
-		if addrHash == (libcommon.Hash{}) {
-			var err1 error
-			addrHash, err1 = libcommon.HashData(address[:])
-			if err1 != nil {
-				return nil, err1
-			}
-		}
-		storagePrefix := dbutils.GenerateStoragePrefix(addrHash[:], acc.Incarnation)
-		if codeHash, err1 := dbr.db.GetOne(kv.ContractCode, storagePrefix); err1 == nil {
-			// Skip if codeHash is empty or equals emptyCodeHash (delegation was revoked)
-			if len(codeHash) > 0 && !bytes.Equal(codeHash, emptyCodeHash) {
-				// Verify the code is a valid EIP-7702 delegation before using this CodeHash
-				if code, err2 := dbr.db.GetOne(kv.Code, codeHash); err2 == nil && types.IsDelegation(code) {
-					acc.CodeHash = libcommon.BytesToHash(codeHash)
-				}
-			}
-		} else {
-			return nil, err1
-		}
-	}
+	// v11: NO CodeHash recovery - testing clean state
 	return acc, nil
 }
 

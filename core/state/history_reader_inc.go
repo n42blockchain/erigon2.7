@@ -1,16 +1,13 @@
 package state
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 
 	"github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon-lib/kv"
-	"github.com/erigontech/erigon-lib/kv/dbutils"
 	libstate "github.com/erigontech/erigon-lib/state"
 
-	"github.com/erigontech/erigon/core/types"
 	"github.com/erigontech/erigon/core/types/accounts"
 )
 
@@ -98,21 +95,7 @@ func (hr *HistoryReaderInc) ReadAccountData(address common.Address) (*accounts.A
 		if err = a.DecodeForStorage(enc); err != nil {
 			return nil, err
 		}
-		// EIP-7702: Recover CodeHash from PlainContractCode if account has empty CodeHash.
-		if a.IsEmptyCodeHash() {
-			storagePrefix := dbutils.PlainGenerateStoragePrefix(addr, a.Incarnation)
-			if codeHash, err1 := hr.chainTx.GetOne(kv.PlainContractCode, storagePrefix); err1 == nil {
-				// Skip if codeHash is empty or equals emptyCodeHash (delegation was revoked)
-				if len(codeHash) > 0 && !bytes.Equal(codeHash, emptyCodeHash) {
-					// Verify the code is a valid EIP-7702 delegation before using this CodeHash
-					if code, err2 := hr.chainTx.GetOne(kv.Code, codeHash); err2 == nil && types.IsDelegation(code) {
-						a.CodeHash.SetBytes(codeHash)
-					}
-				}
-			} else {
-				return nil, err1
-			}
-		}
+		// v11: NO CodeHash recovery - testing clean state
 		if hr.trace {
 			fmt.Printf("ReadAccountData [%x] => [nonce: %d, balance: %d, codeHash: %x], noState=%t, stateTxNum=%d, txNum: %d\n", address, a.Nonce, &a.Balance, a.CodeHash, noState, stateTxNum, hr.txNum)
 		}
@@ -128,21 +111,7 @@ func (hr *HistoryReaderInc) ReadAccountData(address common.Address) (*accounts.A
 	if err = accounts.DeserialiseV3(&a, enc); err != nil {
 		return nil, err
 	}
-	// EIP-7702: Recover CodeHash from PlainContractCode if account has empty CodeHash (V3 format).
-	if a.IsEmptyCodeHash() {
-		storagePrefix := dbutils.PlainGenerateStoragePrefix(addr, a.Incarnation)
-		if codeHash, err1 := hr.chainTx.GetOne(kv.PlainContractCode, storagePrefix); err1 == nil {
-			// Skip if codeHash is empty or equals emptyCodeHash (delegation was revoked)
-			if len(codeHash) > 0 && !bytes.Equal(codeHash, emptyCodeHash) {
-				// Verify the code is a valid EIP-7702 delegation before using this CodeHash
-				if code, err2 := hr.chainTx.GetOne(kv.Code, codeHash); err2 == nil && types.IsDelegation(code) {
-					a.CodeHash.SetBytes(codeHash)
-				}
-			}
-		} else {
-			return nil, err1
-		}
-	}
+	// v11: NO CodeHash recovery - testing clean state
 	if hr.trace {
 		fmt.Printf("ReadAccountData [%x] => [nonce: %d, balance: %d, codeHash: %x], noState=%t, txNum: %d\n", address, a.Nonce, &a.Balance, a.CodeHash, noState, hr.txNum)
 	}

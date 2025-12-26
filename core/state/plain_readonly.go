@@ -33,7 +33,6 @@ import (
 	"github.com/erigontech/erigon-lib/kv/kvcfg"
 
 	"github.com/erigontech/erigon/core/state/historyv2read"
-	"github.com/erigontech/erigon/core/types"
 	"github.com/erigontech/erigon/core/types/accounts"
 )
 
@@ -205,22 +204,7 @@ func (s *PlainState) ReadAccountData(address libcommon.Address) (*accounts.Accou
 			}
 		}
 	}
-	// EIP-7702: Recover CodeHash from PlainContractCode if account has empty CodeHash.
-	// Only recover if the code is a valid EIP-7702 delegation (0xef0100 + address).
-	if a.IsEmptyCodeHash() {
-		storagePrefix := dbutils.PlainGenerateStoragePrefix(address[:], a.Incarnation)
-		if codeHash, err1 := s.tx.GetOne(kv.PlainContractCode, storagePrefix); err1 == nil {
-			// Skip if codeHash is empty or equals emptyCodeHash (delegation was revoked)
-			if len(codeHash) > 0 && !bytes.Equal(codeHash, emptyCodeHash) {
-				// Verify the code is a valid EIP-7702 delegation before using this CodeHash
-				if code, err2 := s.tx.GetOne(kv.Code, codeHash); err2 == nil && types.IsDelegation(code) {
-					a.CodeHash = libcommon.BytesToHash(codeHash)
-				}
-			}
-		} else {
-			return nil, err1
-		}
-	}
+	// v11: NO CodeHash recovery - testing clean state
 	if s.trace {
 		fmt.Printf("ReadAccountData [%x] => [nonce: %d, balance: %d, codeHash: %x]\n", address, a.Nonce, &a.Balance, a.CodeHash)
 	}
