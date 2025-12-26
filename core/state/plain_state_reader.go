@@ -39,11 +39,18 @@ func (r *PlainStateReader) ReadAccountData(address libcommon.Address) (*accounts
 	if err = a.DecodeForStorage(enc); err != nil {
 		return nil, err
 	}
-	// NOTE: CodeHash recovery from PlainContractCode is DISABLED for debugging.
-	// If this fixes the gas mismatch, it confirms the issue is related to
-	// incorrect delegation detection from PlainContractCode data.
-	// The CodeHash should already be in the account data if it was set during
-	// proper execution.
+	// EIP-7702: Recover CodeHash from PlainContractCode if account has empty CodeHash.
+	// This is needed because the account encoding may not include CodeHash for delegation accounts.
+	if a.IsEmptyCodeHash() {
+		prefix := dbutils.PlainGenerateStoragePrefix(address[:], a.Incarnation)
+		if codeHash, err1 := r.db.GetOne(kv.PlainContractCode, prefix); err1 == nil {
+			if len(codeHash) > 0 {
+				a.CodeHash = libcommon.BytesToHash(codeHash)
+			}
+		} else {
+			return nil, err1
+		}
+	}
 	return &a, nil
 }
 

@@ -73,7 +73,24 @@ func (dbr *DbStateReader) ReadAccountData(address libcommon.Address) (*accounts.
 	if err := acc.DecodeForStorage(enc); err != nil {
 		return nil, err
 	}
-	// NOTE: CodeHash recovery from ContractCode is DISABLED for debugging.
+	// EIP-7702: Recover CodeHash from ContractCode if account has empty CodeHash.
+	if acc.IsEmptyCodeHash() {
+		if addrHash == (libcommon.Hash{}) {
+			var err1 error
+			addrHash, err1 = libcommon.HashData(address[:])
+			if err1 != nil {
+				return nil, err1
+			}
+		}
+		storagePrefix := dbutils.GenerateStoragePrefix(addrHash[:], acc.Incarnation)
+		if codeHash, err1 := dbr.db.GetOne(kv.ContractCode, storagePrefix); err1 == nil {
+			if len(codeHash) > 0 {
+				acc.CodeHash = libcommon.BytesToHash(codeHash)
+			}
+		} else {
+			return nil, err1
+		}
+	}
 	return acc, nil
 }
 

@@ -204,9 +204,17 @@ func (s *PlainState) ReadAccountData(address libcommon.Address) (*accounts.Accou
 			}
 		}
 	}
-	// NOTE: CodeHash recovery from PlainContractCode is DISABLED for debugging.
-	// The CodeHash should already be in the account data if it was set during
-	// proper execution.
+	// EIP-7702: Recover CodeHash from PlainContractCode if account has empty CodeHash.
+	if a.IsEmptyCodeHash() {
+		storagePrefix := dbutils.PlainGenerateStoragePrefix(address[:], a.Incarnation)
+		if codeHash, err1 := s.tx.GetOne(kv.PlainContractCode, storagePrefix); err1 == nil {
+			if len(codeHash) > 0 {
+				a.CodeHash = libcommon.BytesToHash(codeHash)
+			}
+		} else {
+			return nil, err1
+		}
+	}
 	if s.trace {
 		fmt.Printf("ReadAccountData [%x] => [nonce: %d, balance: %d, codeHash: %x]\n", address, a.Nonce, &a.Balance, a.CodeHash)
 	}
