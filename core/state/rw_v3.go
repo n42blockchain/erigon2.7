@@ -514,8 +514,11 @@ func (rs *StateV3) ApplyHistory(txTask *exec22.TxTask, agg *libstate.Aggregator)
 func recoverCodeHashPlain(acc *accounts.Account, db kv.Tx, key []byte) {
 	var address common.Address
 	copy(address[:], key)
-	if acc.Incarnation > 0 && acc.IsEmptyCodeHash() {
-		if codeHash, err2 := db.GetOne(kv.PlainContractCode, dbutils.PlainGenerateStoragePrefix(address[:], acc.Incarnation)); err2 == nil {
+	// EIP-7702 fix: Also recover CodeHash for Incarnation=0 accounts (delegation accounts)
+	// Previously only checked Incarnation > 0, but EIP-7702 delegation accounts have Incarnation=0
+	// and can still have code (delegation code with 0xef0100 prefix)
+	if acc.IsEmptyCodeHash() {
+		if codeHash, err2 := db.GetOne(kv.PlainContractCode, dbutils.PlainGenerateStoragePrefix(address[:], acc.Incarnation)); err2 == nil && len(codeHash) > 0 {
 			copy(acc.CodeHash[:], codeHash)
 		}
 	}

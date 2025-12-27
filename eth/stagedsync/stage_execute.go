@@ -426,7 +426,7 @@ func SpawnExecuteBlocksStage(s *StageState, u Unwinder, txc wrap.TxContainer, to
 
 	if to > s.BlockNumber+16 {
 		// EIP-7702 fix version marker - increment this when making changes
-		logger.Info(fmt.Sprintf("[%s] Blocks execution (EIP7702-FIX-v20-revert-2.61.3)", logPrefix), "from", s.BlockNumber, "to", to)
+		logger.Info(fmt.Sprintf("[%s] Blocks execution (EIP7702-FIX-v24-require-resync)", logPrefix), "from", s.BlockNumber, "to", to)
 	}
 
 	stateStream := cfg.stateStream && to-s.BlockNumber < stateStreamLimit
@@ -924,8 +924,11 @@ func unwindExecutionStage(u *UnwindState, s *StageState, txc wrap.TxContainer, c
 func recoverCodeHashPlain(acc *accounts.Account, db kv.Tx, key []byte) {
 	var address common.Address
 	copy(address[:], key)
-	if acc.Incarnation > 0 && acc.IsEmptyCodeHash() {
-		if codeHash, err2 := db.GetOne(kv.PlainContractCode, dbutils.PlainGenerateStoragePrefix(address[:], acc.Incarnation)); err2 == nil {
+	// EIP-7702 fix: Also recover CodeHash for Incarnation=0 accounts (delegation accounts)
+	// Previously only checked Incarnation > 0, but EIP-7702 delegation accounts have Incarnation=0
+	// and can still have code (delegation code with 0xef0100 prefix)
+	if acc.IsEmptyCodeHash() {
+		if codeHash, err2 := db.GetOne(kv.PlainContractCode, dbutils.PlainGenerateStoragePrefix(address[:], acc.Incarnation)); err2 == nil && len(codeHash) > 0 {
 			copy(acc.CodeHash[:], codeHash)
 		}
 	}

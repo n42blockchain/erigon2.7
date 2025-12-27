@@ -13,7 +13,8 @@ import (
 )
 
 // EIP7702FixVersion is used to track code changes for debugging
-const EIP7702FixVersion = "v21-disable-osaka-restore-2.61.3"
+// v24: Removed CodeHash recovery - state must be re-synced from clean data
+const EIP7702FixVersion = "v24-require-resync"
 
 var _ StateReader = (*PlainStateReader)(nil)
 
@@ -42,6 +43,13 @@ func (r *PlainStateReader) ReadAccountData(address libcommon.Address) (*accounts
 	if err = a.DecodeForStorage(enc); err != nil {
 		return nil, err
 	}
+
+	// NOTE: We intentionally do NOT restore CodeHash from PlainContractCode here.
+	// If the account's CodeHash is empty in PlainState, it means the state was saved
+	// without CodeHash (possibly due to a bug in previous code).
+	// Restoring it here would cause gas calculation to differ from the network.
+	// The correct fix is to re-sync from a clean state.
+
 	return &a, nil
 }
 
