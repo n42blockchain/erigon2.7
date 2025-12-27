@@ -146,7 +146,6 @@ func ExecuteBlockEphemerally(
 		if dbg.LogHashMismatchReason() {
 			logReceipts(receipts, includedTxs, chainConfig, header, logger)
 		}
-		// v18: Clean baseline - no CodeHash recovery diagnostics
 		logger.Warn("[DEBUG] Receipt mismatch details",
 			"block", block.NumberU64(),
 			"txCount", len(receipts),
