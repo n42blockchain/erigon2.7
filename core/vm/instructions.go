@@ -476,6 +476,8 @@ func opGasprice(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([
 }
 
 // opBlockhash executes the BLOCKHASH opcode
+// EIP-2935: After Prague, extends the accessible block hash history from 256 to 8191 blocks
+// by reading from the history storage contract at params.HistoryStorageAddress
 func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
 	arg := scope.Stack.Peek()
 	arg64, overflow := arg.Uint64WithOverflow()
@@ -483,18 +485,53 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 		arg.Clear()
 		return nil, nil
 	}
-	var upper, lower uint64
-	upper = interpreter.evm.Context.BlockNumber
-	if upper <= params.BlockHashOldWindow {
-		lower = 0
-	} else {
-		lower = upper - params.BlockHashOldWindow
-	}
-	if arg64 >= lower && arg64 < upper {
-		arg.SetBytes(interpreter.evm.Context.GetHash(arg64).Bytes())
-	} else {
+
+	blockNum := interpreter.evm.Context.BlockNumber
+
+	// Block number must be less than current block
+	if arg64 >= blockNum {
 		arg.Clear()
+		return nil, nil
 	}
+
+	// Check if within the traditional 256 block window
+	var lowerOld uint64
+	if blockNum <= params.BlockHashOldWindow {
+		lowerOld = 0
+	} else {
+		lowerOld = blockNum - params.BlockHashOldWindow
+	}
+
+	// If within the old 256 block window, use GetHash (available for all forks)
+	if arg64 >= lowerOld {
+		arg.SetBytes(interpreter.evm.Context.GetHash(arg64).Bytes())
+		return nil, nil
+	}
+
+	// EIP-2935: For blocks beyond 256 but within 8191, read from history storage contract
+	// This is only available after Prague fork
+	if interpreter.evm.ChainRules().IsPrague {
+		var lowerNew uint64
+		if blockNum <= params.BlockHashHistoryServeWindow {
+			lowerNew = 0
+		} else {
+			lowerNew = blockNum - params.BlockHashHistoryServeWindow
+		}
+
+		if arg64 >= lowerNew {
+			// Read from the history storage contract
+			// Storage slot = blockNumber % BlockHashHistoryServeWindow
+			slotNum := arg64 % params.BlockHashHistoryServeWindow
+			storageSlot := libcommon.BytesToHash(uint256.NewInt(slotNum).Bytes())
+			var hashValue uint256.Int
+			interpreter.evm.IntraBlockState().GetState(params.HistoryStorageAddress, &storageSlot, &hashValue)
+			arg.Set(&hashValue)
+			return nil, nil
+		}
+	}
+
+	// Block is too old, return zero
+	arg.Clear()
 	return nil, nil
 }
 
