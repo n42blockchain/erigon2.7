@@ -26,13 +26,12 @@ import (
 	"github.com/erigontech/erigon/cl/cltypes"
 	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon-lib/kv"
-	"github.com/erigontech/erigon-lib/kv/dbutils"
 	"github.com/erigontech/erigon-lib/kv/memdb"
 )
 
 func setupTestDB(t *testing.T) kv.RwDB {
-	// Create an in-memory SQLite DB for testing purposes
-	db := memdb.NewTestDB(t, dbcfg.ChainDB)
+	// Create an in-memory DB for testing purposes
+	db := memdb.NewTestDB(t)
 	return db
 }
 

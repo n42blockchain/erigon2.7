@@ -44,7 +44,6 @@ import (
 	"github.com/erigontech/erigon/cl/utils/eth_clock"
 	"github.com/erigontech/erigon/cl/validator/validator_params"
 	libcommon "github.com/erigontech/erigon-lib/common"
-	"github.com/erigontech/erigon-lib/kv/dbutils"
 	"github.com/erigontech/erigon-lib/kv/memdb"
 )
 
@@ -88,10 +87,10 @@ func TestForkChoiceBasic(t *testing.T) {
 	emitters := beaconevents.NewEventEmitter()
 
 	// Create required components
-	genesisState, err := initial_state.GetGenesisState(1) // Mainnet
+	genesisState, err := initial_state.GetGenesisState(clparams.NetworkType(1)) // Mainnet
 	require.NoError(t, err)
 	ethClock := eth_clock.NewEthereumClock(genesisState.GenesisTime(), genesisState.GenesisValidatorsRoot(), &clparams.MainnetBeaconConfig)
-	blobStorage := blob_storage.NewBlobStore(memdb.NewTestDB(t, dbcfg.ChainDB), afero.NewMemMapFs(), math.MaxUint64, &clparams.MainnetBeaconConfig, ethClock)
+	blobStorage := blob_storage.NewBlobStore(memdb.NewTestDB(t), afero.NewMemMapFs(), math.MaxUint64, &clparams.MainnetBeaconConfig, ethClock)
 	localValidators := validator_params.NewValidatorParams()
 
 	store, err := forkchoice.NewForkChoiceStore(
@@ -176,10 +175,10 @@ func TestForkChoiceChainBellatrix(t *testing.T) {
 	sd := synced_data.NewSyncedDataManager(&clparams.MainnetBeaconConfig, true)
 
 	// Create required components
-	genesisState, err := initial_state.GetGenesisState(1) // Mainnet
+	genesisState, err := initial_state.GetGenesisState(clparams.NetworkType(1)) // Mainnet
 	require.NoError(t, err)
 	ethClock := eth_clock.NewEthereumClock(genesisState.GenesisTime(), genesisState.GenesisValidatorsRoot(), &clparams.MainnetBeaconConfig)
-	blobStorage := blob_storage.NewBlobStore(memdb.NewTestDB(t, dbcfg.ChainDB), afero.NewMemMapFs(), math.MaxUint64, &clparams.MainnetBeaconConfig, ethClock)
+	blobStorage := blob_storage.NewBlobStore(memdb.NewTestDB(t), afero.NewMemMapFs(), math.MaxUint64, &clparams.MainnetBeaconConfig, ethClock)
 	localValidators := validator_params.NewValidatorParams()
 
 	store, err := forkchoice.NewForkChoiceStore(

@@ -31,7 +31,7 @@ import (
 )
 
 func TestMsgID(t *testing.T) {
-	n := clparams.NetworkConfigs[chain.MainnetChainID]
+	n := clparams.NetworkConfigs[clparams.NetworkType(chain.MainnetChainID)]
 	s := &Sentinel{
 		ctx: context.TODO(),
 		cfg: &SentinelConfig{

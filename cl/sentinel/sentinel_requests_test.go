@@ -44,17 +44,16 @@ import (
 	"github.com/erigontech/erigon/cl/sentinel/communication"
 	"github.com/erigontech/erigon/cl/sentinel/communication/ssz_snappy"
 	"github.com/erigontech/erigon/cl/utils"
-	"github.com/erigontech/erigon-lib/log/v3"
+	"github.com/erigontech/erigon-lib/chain"
 	"github.com/erigontech/erigon-lib/common/datadir"
 	"github.com/erigontech/erigon-lib/kv"
-	"github.com/erigontech/erigon-lib/kv/dbutils"
 	"github.com/erigontech/erigon-lib/kv/memdb"
-	"github.com/erigontech/erigon-lib/chain"
+	"github.com/erigontech/erigon-lib/log/v3"
 )
 
 func loadChain(t *testing.T) (db kv.RwDB, blocks []*cltypes.SignedBeaconBlock, f afero.Fs, preState, postState *state.CachingBeaconState, reader *antiquarytests.MockBlockReader) {
 	blocks, preState, postState = antiquarytests.GetPhase0Random()
-	db = memdb.NewTestDB(t, dbcfg.ChainDB)
+	db = memdb.NewTestDB(t)
 	reader = antiquarytests.LoadChain(blocks, postState, db, t)
 
 	sn := synced_data.NewSyncedDataManager(&clparams.MainnetBeaconConfig, true)
@@ -73,7 +72,7 @@ func TestSentinelBlocksByRange(t *testing.T) {
 	ethClock := getEthClock(t)
 	ctx := context.Background()
 	db, blocks, _, _, _, reader := loadChain(t)
-	networkConfig, beaconConfig := clparams.GetConfigsByNetwork(chain.MainnetChainID)
+	networkConfig, beaconConfig := clparams.GetConfigsByNetwork(clparams.NetworkType(chain.MainnetChainID))
 
 	// Create mock PeerDasStateReader
 	ctrl := gomock.NewController(t)
@@ -186,7 +185,7 @@ func TestSentinelBlocksByRoots(t *testing.T) {
 	ctx := context.Background()
 	db, blocks, _, _, _, reader := loadChain(t)
 	ethClock := getEthClock(t)
-	networkConfig, beaconConfig := clparams.GetConfigsByNetwork(chain.MainnetChainID)
+	networkConfig, beaconConfig := clparams.GetConfigsByNetwork(clparams.NetworkType(chain.MainnetChainID))
 
 	// Create mock PeerDasStateReader
 	ctrl := gomock.NewController(t)
@@ -305,7 +304,7 @@ func TestSentinelStatusRequest(t *testing.T) {
 	ctx := context.Background()
 	db, blocks, _, _, _, reader := loadChain(t)
 	ethClock := getEthClock(t)
-	networkConfig, beaconConfig := clparams.GetConfigsByNetwork(chain.MainnetChainID)
+	networkConfig, beaconConfig := clparams.GetConfigsByNetwork(clparams.NetworkType(chain.MainnetChainID))
 
 	// Create mock PeerDasStateReader
 	ctrl := gomock.NewController(t)

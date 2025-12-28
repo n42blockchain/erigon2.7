@@ -17,6 +17,7 @@
 package handler
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -30,7 +31,6 @@ import (
 	"github.com/erigontech/erigon/cl/clparams"
 	"github.com/erigontech/erigon/cl/cltypes/solid"
 	"github.com/erigontech/erigon/cl/phase1/core/state"
-	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon-lib/log/v3"
 )
 
@@ -52,7 +52,7 @@ func TestGetStateFork(t *testing.T) {
 		code    int
 	}{
 		{
-			blockID: "0x" + libcommon.Bytes2Hex(postRoot[:]),
+			blockID: "0x" + hex.EncodeToString(postRoot[:]),
 			code:    http.StatusOK,
 		},
 		{
@@ -60,7 +60,7 @@ func TestGetStateFork(t *testing.T) {
 			code:    http.StatusOK,
 		},
 		{
-			blockID: "0x" + libcommon.Bytes2Hex(make([]byte, 32)),
+			blockID: "0x" + hex.EncodeToString(make([]byte, 32)),
 			code:    http.StatusNotFound,
 		},
 		{
@@ -117,7 +117,7 @@ func TestGetStateRoot(t *testing.T) {
 		code    int
 	}{
 		{
-			blockID: "0x" + libcommon.Bytes2Hex(postRoot[:]),
+			blockID: "0x" + hex.EncodeToString(postRoot[:]),
 			code:    http.StatusOK,
 		},
 		{
@@ -125,7 +125,7 @@ func TestGetStateRoot(t *testing.T) {
 			code:    http.StatusOK,
 		},
 		{
-			blockID: "0x" + libcommon.Bytes2Hex(make([]byte, 32)),
+			blockID: "0x" + hex.EncodeToString(make([]byte, 32)),
 			code:    http.StatusNotFound,
 		},
 		{
@@ -150,7 +150,7 @@ func TestGetStateRoot(t *testing.T) {
 			// unmarshal the json
 			require.NoError(t, json.NewDecoder(resp.Body).Decode(&jsonVal))
 			data := jsonVal["data"].(map[string]interface{})
-			require.Equal(t, data["root"], "0x"+libcommon.Bytes2Hex(postRoot[:]))
+			require.Equal(t, data["root"], "0x"+hex.EncodeToString(postRoot[:]))
 		})
 	}
 }
@@ -176,7 +176,7 @@ func TestGetStateFullHistorical(t *testing.T) {
 		code    int
 	}{
 		{
-			blockID: "0x" + libcommon.Bytes2Hex(postRoot[:]),
+			blockID: "0x" + hex.EncodeToString(postRoot[:]),
 			code:    http.StatusOK,
 		},
 		{
@@ -184,7 +184,7 @@ func TestGetStateFullHistorical(t *testing.T) {
 			code:    http.StatusOK,
 		},
 		{
-			blockID: "0x" + libcommon.Bytes2Hex(make([]byte, 32)),
+			blockID: "0x" + hex.EncodeToString(make([]byte, 32)),
 			code:    http.StatusNotFound,
 		},
 		{
@@ -270,7 +270,7 @@ func TestGetStateFullForkchoice(t *testing.T) {
 		code    int
 	}{
 		{
-			blockID: "0x" + libcommon.Bytes2Hex(postRoot[:]),
+			blockID: "0x" + hex.EncodeToString(postRoot[:]),
 			code:    http.StatusOK,
 		},
 		{
@@ -278,7 +278,7 @@ func TestGetStateFullForkchoice(t *testing.T) {
 			code:    http.StatusOK,
 		},
 		{
-			blockID: "0x" + libcommon.Bytes2Hex(make([]byte, 32)),
+			blockID: "0x" + hex.EncodeToString(make([]byte, 32)),
 			code:    http.StatusNotFound,
 		},
 		{
@@ -345,7 +345,7 @@ func TestGetStateSyncCommittees(t *testing.T) {
 		code    int
 	}{
 		{
-			blockID: "0x" + libcommon.Bytes2Hex(postRoot[:]),
+			blockID: "0x" + hex.EncodeToString(postRoot[:]),
 			code:    http.StatusOK,
 		},
 		{
@@ -353,7 +353,7 @@ func TestGetStateSyncCommittees(t *testing.T) {
 			code:    http.StatusOK,
 		},
 		{
-			blockID: "0x" + libcommon.Bytes2Hex(make([]byte, 32)),
+			blockID: "0x" + hex.EncodeToString(make([]byte, 32)),
 			code:    http.StatusNotFound,
 		},
 		{
@@ -403,7 +403,7 @@ func TestGetStateSyncCommitteesHistorical(t *testing.T) {
 		code    int
 	}{
 		{
-			blockID: "0x" + libcommon.Bytes2Hex(postRoot[:]),
+			blockID: "0x" + hex.EncodeToString(postRoot[:]),
 			code:    http.StatusOK,
 		},
 		{
@@ -411,7 +411,7 @@ func TestGetStateSyncCommitteesHistorical(t *testing.T) {
 			code:    http.StatusOK,
 		},
 		{
-			blockID: "0x" + libcommon.Bytes2Hex(make([]byte, 32)),
+			blockID: "0x" + hex.EncodeToString(make([]byte, 32)),
 			code:    http.StatusNotFound,
 		},
 		{
@@ -461,7 +461,7 @@ func TestGetStateFinalityCheckpoints(t *testing.T) {
 		code    int
 	}{
 		{
-			blockID: "0x" + libcommon.Bytes2Hex(postRoot[:]),
+			blockID: "0x" + hex.EncodeToString(postRoot[:]),
 			code:    http.StatusOK,
 		},
 		{
@@ -469,7 +469,7 @@ func TestGetStateFinalityCheckpoints(t *testing.T) {
 			code:    http.StatusOK,
 		},
 		{
-			blockID: "0x" + libcommon.Bytes2Hex(make([]byte, 32)),
+			blockID: "0x" + hex.EncodeToString(make([]byte, 32)),
 			code:    http.StatusNotFound,
 		},
 		{
@@ -518,7 +518,7 @@ func TestGetRandao(t *testing.T) {
 		code    int
 	}{
 		{
-			blockID: "0x" + libcommon.Bytes2Hex(postRoot[:]),
+			blockID: "0x" + hex.EncodeToString(postRoot[:]),
 			code:    http.StatusOK,
 		},
 		{
@@ -526,7 +526,7 @@ func TestGetRandao(t *testing.T) {
 			code:    http.StatusOK,
 		},
 		{
-			blockID: "0x" + libcommon.Bytes2Hex(make([]byte, 32)),
+			blockID: "0x" + hex.EncodeToString(make([]byte, 32)),
 			code:    http.StatusNotFound,
 		},
 		{

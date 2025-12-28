@@ -114,7 +114,7 @@ func TestBeaconBody(t *testing.T) {
 }
 
 func TestBeaconBlockJson(t *testing.T) {
-	_, bc := clparams.GetConfigsByNetwork(chain.GnosisChainID)
+	_, bc := clparams.GetConfigsByNetwork(clparams.NetworkType(chain.GnosisChainID))
 	block := NewSignedBeaconBlock(bc, clparams.DenebVersion)
 	block.Block.Body.Version = clparams.DenebVersion
 	err := json.Unmarshal(beaconBodyJSON, block)

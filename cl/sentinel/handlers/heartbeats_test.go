@@ -206,7 +206,7 @@ func TestMetadataV2(t *testing.T) {
 
 	f := forkchoicemock.NewForkChoiceStorageMock(t)
 	ethClock := getEthClock(t)
-	nc := clparams.NetworkConfigs[chain.MainnetChainID]
+	nc := clparams.NetworkConfigs[clparams.NetworkType(chain.MainnetChainID)]
 	_, beaconCfg := clparams.GetConfigsByNetwork(1)
 	c := NewConsensusHandlers(
 		ctx,
@@ -264,7 +264,7 @@ func TestMetadataV1(t *testing.T) {
 
 	f := forkchoicemock.NewForkChoiceStorageMock(t)
 
-	nc := clparams.NetworkConfigs[chain.MainnetChainID]
+	nc := clparams.NetworkConfigs[clparams.NetworkType(chain.MainnetChainID)]
 	ethClock := getEthClock(t)
 	_, beaconCfg := clparams.GetConfigsByNetwork(1)
 	c := NewConsensusHandlers(
@@ -352,7 +352,7 @@ func TestStatus(t *testing.T) {
 		HeadSlot:       1,
 	}
 	hs.SetStatus(s)
-	nc := clparams.NetworkConfigs[chain.MainnetChainID]
+	nc := clparams.NetworkConfigs[clparams.NetworkType(chain.MainnetChainID)]
 	_, beaconCfg := clparams.GetConfigsByNetwork(1)
 	c := NewConsensusHandlers(
 		ctx,

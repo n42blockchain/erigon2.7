@@ -17,6 +17,7 @@
 package handler
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -174,8 +175,8 @@ func (t *validatorTestSuite) TestGetEthV1ValidatorAggregateAttestation() {
 			expCode: http.StatusOK,
 			expBody: map[string]any{
 				"data": map[string]any{
-					"aggregation_bits": "0x" + libcommon.Bytes2Hex([]byte{0b00111111, 0b00000011, 0, 0}),
-					"signature":        "0x" + libcommon.Bytes2Hex([][96]byte{{0, 1, 2, 3, 4, 5}}[0][:]),
+					"aggregation_bits": "0x" + hex.EncodeToString([]byte{0b00111111, 0b00000011, 0, 0}),
+					"signature":        "0x" + hex.EncodeToString([][96]byte{{0, 1, 2, 3, 4, 5}}[0][:]),
 					"data": map[string]any{
 						"slot":              "1",
 						"index":             "1",

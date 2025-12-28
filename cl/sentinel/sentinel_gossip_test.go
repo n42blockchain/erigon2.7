@@ -38,7 +38,7 @@ import (
 )
 
 func getEthClock(t *testing.T) eth_clock.EthereumClock {
-	s, err := initial_state.GetGenesisState(chain.MainnetChainID)
+	s, err := initial_state.GetGenesisState(clparams.NetworkType(chain.MainnetChainID))
 	require.NoError(t, err)
 	return eth_clock.NewEthereumClock(s.GenesisTime(), s.GenesisValidatorsRoot(), s.BeaconConfig())
 }
@@ -50,7 +50,7 @@ func TestSentinelGossipOnHardFork(t *testing.T) {
 
 	ctx := context.Background()
 	db, _, _, _, _, reader := loadChain(t)
-	networkConfig, beaconConfig := clparams.GetConfigsByNetwork(chain.MainnetChainID)
+	networkConfig, beaconConfig := clparams.GetConfigsByNetwork(clparams.NetworkType(chain.MainnetChainID))
 	bcfg := *beaconConfig
 	bcfg.InitializeForkSchedule()
 

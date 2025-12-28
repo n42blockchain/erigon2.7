@@ -29,7 +29,7 @@ import (
 )
 
 func TestSlotData(t *testing.T) {
-	s, err := initial_state.GetGenesisState(chain.MainnetChainID)
+	s, err := initial_state.GetGenesisState(clparams.NetworkType(chain.MainnetChainID))
 	require.NoError(t, err)
 	m := &SlotData{
 		Version:                       clparams.ElectraVersion,
