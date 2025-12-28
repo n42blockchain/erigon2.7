@@ -51,10 +51,13 @@ This document describes the current status of CL (Consensus Layer) tests and the
 | `cl/beacon/handler` | 25+ tests | ✅ PASS |
 | `cl/phase1/core/checkpoint_sync` | 3 tests | ✅ PASS |
 
-#### ⚠️ Pre-existing Test Issues (Not Migration Related)
-| Package | Issue | Status |
-|---------|-------|--------|
-| `cl/phase1/execution_client/block_collector` | ETL Load requires DB context | 🔧 Needs test fix |
+#### ✅ EIP-Specific Tests (New)
+| Package | EIP | Test Count | Status |
+|---------|-----|------------|--------|
+| `cl/cltypes/solid` | EIP-7549 (Electra) | 8+ tests | ✅ PASS |
+| `cl/das/utils` | EIP-7594 (DAS/Fulu) | 14 tests | ✅ PASS |
+| `cl/clparams` | Version handling | 8 tests | ✅ PASS |
+| `cl/phase1/execution_client/block_collector` | Block collector | 4 tests | ✅ PASS |
 
 ### 2. Spec Tests (Ethereum Consensus Spec)
 
@@ -113,11 +116,11 @@ The following tables have been added to `ChaindataTables` in `erigon-lib/kv/tabl
 - ✅ `PendingPartialWithdrawals`
 - ✅ `PendingPartialWithdrawalsDump`
 
-### 2. Pre-existing Test Issues
-The following test has a pre-existing issue unrelated to v3.3.2 migration:
+### 2. Pre-existing Test Issues ✅ FIXED
+~~The following test has a pre-existing issue unrelated to v3.3.2 migration:~~
 - `cl/phase1/execution_client/block_collector/block_collector_test.go`: 
-  - Issue: ETL collector Flush requires valid DB context
-  - The test doesn't provide proper DB initialization for ETL load operations
+  - ✅ FIXED: Changed `return next(k, nil, nil)` to `return nil` in ETL callback
+  - The ETL collector was calling `next()` with nil values when no DB bucket was provided
 
 ### 2. API Compatibility
 Some v3.3.2 APIs differ from the current codebase:
@@ -138,12 +141,26 @@ Some v3.3.2 APIs differ from the current codebase:
 2. Run spec tests for each fork version
 3. Track test pass rates
 
-### Phase 3: Add Missing Unit Tests (Priority: Medium)
-Key areas needing more tests:
-- EIP-7549 (Committee index in attestations)
-- EIP-7594 (PeerDAS)
-- Electra/Fulu state transitions
+### Phase 3: Add Missing Unit Tests (Priority: Medium) ✅ DONE
+EIP-specific tests have been added:
+- ✅ EIP-7549 (Electra Attestation Committee Bits)
+  - `TestElectraAttestation`
+  - `TestGetCommitteeIndexFromBits_*`
+  - `TestSingleAttestation*`
+  - `TestAttestationJSONUnmarshal*`
+- ✅ EIP-7594 (PeerDAS/Fulu)
+  - `TestGetCustodyGroups*`
+  - `TestComputeColumnsForCustodyGroup*`
+  - `TestGetCustodyColumns*`
+- ✅ Version handling tests for Electra/Fulu
+  - `TestStateVersion*`
+  - `TestElectraVersionCheck`
+  - `TestFuluVersionCheck`
+  - `TestVersionFeatureDetection`
+
+Still needs more coverage:
 - Consolidation request handling
+- Full state transition tests for Electra/Fulu
 
 ### Phase 4: Integration Testing (Priority: Medium)
 1. Set up Lighthouse interoperability tests
