@@ -21,7 +21,7 @@ import (
 	"github.com/erigontech/erigon/cl/utils"
 	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon-lib/common/dbg"
-	hexutil "github.com/erigontech/erigon-lib/common/hexutility"
+	"github.com/erigontech/erigon-lib/common/hexutil"
 	"github.com/erigontech/erigon-lib/log/v3"
 	"github.com/erigontech/erigon-lib/kv"
 	"github.com/erigontech/erigon/turbo/engineapi/engine_types"

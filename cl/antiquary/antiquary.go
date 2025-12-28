@@ -38,7 +38,7 @@ import (
 	"github.com/erigontech/erigon/turbo/snapshotsync"
 	"github.com/erigontech/erigon/turbo/snapshotsync/freezeblocks"
 	"github.com/erigontech/erigon-lib/downloader/snaptype"
-	"github.com/erigontech/erigon-lib/gointerfaces/downloader"
+	downloaderproto "github.com/erigontech/erigon-lib/gointerfaces/downloader"
 )
 
 const safetyMargin = 20_000 // We retire snapshots 10k blocks after the finalized head
@@ -136,17 +136,28 @@ func (a *Antiquary) Loop() error {
 		progress := time.Now()
 
 		// Fist part of the antiquate is to download caplin snapshots
+		// Use Stats to check download completion since Completed method is not available
+		var lastBytesCompleted uint64
 		for !time.Now().Add(completionEpoch).Before(progress) && !a.backfilled.Load() {
 			select {
 			case <-reCheckTicker.C:
-				completedReply, err := a.downloader.Completed(a.ctx, &downloaderproto.CompletedRequest{})
+				statsReply, err := a.downloader.Stats(a.ctx, &downloaderproto.StatsRequest{})
 				if err != nil {
-					return err
+					a.logger.Warn("[Antiquary] Failed to get downloader stats", "err", err)
+					continue
 				}
-				if !completedReply.Completed {
-					progress = time.Now() // reset the progress if we are not completed
+				// Check if download is complete: BytesCompleted == BytesTotal and no active peers downloading
+				if statsReply.BytesCompleted >= statsReply.BytesTotal && statsReply.BytesTotal > 0 {
+					// Download is complete
+					break
+				}
+				// If bytes are still increasing, reset the progress timer
+				if statsReply.BytesCompleted != lastBytesCompleted {
+					lastBytesCompleted = statsReply.BytesCompleted
+					progress = time.Now()
 				}
 			case <-a.ctx.Done():
+				return a.ctx.Err()
 			}
 		}
 	}
@@ -167,11 +178,11 @@ func (a *Antiquary) Loop() error {
 	}
 
 	logInterval := time.NewTicker(30 * time.Second)
-	if err := a.sn.OpenFolder(); err != nil {
+	if err := a.sn.ReopenFolder(); err != nil {
 		return err
 	}
 	if a.stateSn != nil {
-		if err := a.stateSn.OpenFolder(); err != nil {
+		if err := a.stateSn.ReopenFolder(); err != nil {
 			return err
 		}
 	}
@@ -222,7 +233,7 @@ func (a *Antiquary) Loop() error {
 	}
 
 	if a.stateSn != nil {
-		if err := a.stateSn.OpenFolder(); err != nil {
+		if err := a.stateSn.ReopenFolder(); err != nil {
 			return err
 		}
 	}
@@ -319,7 +330,7 @@ func (a *Antiquary) antiquate() error {
 	if err := freezeblocks.DumpBeaconBlocks(a.ctx, a.mainDB, from, to, a.sn.Salt, a.dirs, 1, log.LvlDebug, a.logger); err != nil {
 		return err
 	}
-	if err := a.sn.OpenFolder(); err != nil {
+	if err := a.sn.ReopenFolder(); err != nil {
 		return err
 	}
 	tx, err := a.mainDB.BeginRw(a.ctx)
@@ -337,7 +348,7 @@ func (a *Antiquary) antiquate() error {
 	if err := tx.Commit(); err != nil {
 		return err
 	}
-	if err := a.sn.OpenFolder(); err != nil {
+	if err := a.sn.ReopenFolder(); err != nil {
 		return err
 	}
 
@@ -401,24 +412,14 @@ func (a *Antiquary) antiquateBlobs() error {
 	}
 	roTx.Rollback()
 	a.logger.Info("[Antiquary] Antiquating blobs", "from", currentBlobsProgress, "to", to)
-	blobCountFn := func(slot uint64) (uint64, error) {
-		blindedBlock, err := a.snReader.ReadBlindedBlockBySlot(a.ctx, nil, slot)
-		if err != nil {
-			return 0, err
-		}
-		if blindedBlock == nil {
-			return 0, nil
-		}
-		return uint64(blindedBlock.Block.Body.BlobKzgCommitments.Len()), nil
-	}
 
 	// now, we need to retire the blobs
-	if err := freezeblocks.DumpBlobsSidecar(a.ctx, a.blobStorage, a.mainDB, currentBlobsProgress, to, a.sn.Salt, a.dirs, 1, blobCountFn, log.LvlDebug, a.logger); err != nil {
+	if err := freezeblocks.DumpBlobsSidecar(a.ctx, a.blobStorage, a.mainDB, currentBlobsProgress, to, a.sn.Salt, a.dirs, 1, log.LvlDebug, a.logger); err != nil {
 		return err
 	}
 	to = (to / snaptype.CaplinMergeLimit) * snaptype.CaplinMergeLimit
 	a.logger.Info("[Antiquary] Finished Antiquating blobs", "from", currentBlobsProgress, "to", to)
-	if err := a.sn.OpenFolder(); err != nil {
+	if err := a.sn.ReopenFolder(); err != nil {
 		return err
 	}
 

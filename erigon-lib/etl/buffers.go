@@ -44,6 +44,10 @@ const (
 
 var BufferOptimalSize = 256 * datasize.MB /*  var because we want to sometimes change it from tests or command-line flags */
 
+// SmallSortableBuffers is a smaller buffer size for collectors that don't need large buffers
+// Useful for multiple parallel collectors to reduce memory usage
+var SmallSortableBuffers = 32 * datasize.MB
+
 type Buffer interface {
 	Put(k, v []byte)
 	Get(i int, keyBuf, valBuf []byte) ([]byte, []byte)

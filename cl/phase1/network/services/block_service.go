@@ -37,7 +37,7 @@ import (
 	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon-lib/log/v3"
 	"github.com/erigontech/erigon-lib/kv"
-	"github.com/erigontech/erigon-lib/gointerfaces/sentinel"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 )
 
 var (
@@ -301,6 +301,7 @@ func (b *blockService) loop(ctx context.Context) {
 		})
 	}
 }
+
 
 
 

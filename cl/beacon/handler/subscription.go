@@ -32,7 +32,7 @@ import (
 	"github.com/erigontech/erigon/cl/phase1/network/subnets"
 	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon-lib/log/v3"
-	"github.com/erigontech/erigon-lib/gointerfaces/sentinel"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 )
 
 type ValidatorSyncCommitteeSubscriptionsRequest struct {
@@ -160,6 +160,7 @@ func (a *ApiHandler) GetEthV1ValidatorSyncCommitteeContribution(w http.ResponseW
 	}
 	return newBeaconResponse(a.syncMessagePool.GetSyncContribution(slot, subCommitteeIndex, beaconBlockRoot)), nil
 }
+
 
 
 

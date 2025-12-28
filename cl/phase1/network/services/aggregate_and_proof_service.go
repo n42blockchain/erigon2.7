@@ -40,7 +40,7 @@ import (
 	"github.com/erigontech/erigon/cl/utils/bls"
 	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon-lib/log/v3"
-	"github.com/erigontech/erigon-lib/gointerfaces/sentinel"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 )
 
 // SignedAggregateAndProofData is passed to SignedAggregateAndProof service. The service does the signature verification
@@ -440,6 +440,7 @@ func (a *aggregateAndProofServiceImpl) loop(ctx context.Context) {
 		}
 	}
 }
+
 
 
 

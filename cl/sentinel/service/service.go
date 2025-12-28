@@ -38,7 +38,7 @@ import (
 	"github.com/erigontech/erigon/cl/utils"
 	"github.com/erigontech/erigon-lib/log/v3"
 	"github.com/erigontech/erigon-lib/gointerfaces"
-	"github.com/erigontech/erigon-lib/gointerfaces/sentinel"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 )
 
 const gracePeerCount = 32
@@ -303,28 +303,8 @@ func (s *SentinelServer) SendRequest(ctx context.Context, req *sentinelproto.Req
 	return resp, nil
 }
 
-func (s *SentinelServer) SendPeerRequest(ctx context.Context, reqWithPeer *sentinelproto.RequestDataWithPeer) (*sentinelproto.ResponseData, error) {
-	pid, err := peer.Decode(reqWithPeer.Pid)
-	if err != nil {
-		return nil, err
-	}
-	req := &sentinelproto.RequestData{
-		Data:  reqWithPeer.Data,
-		Topic: reqWithPeer.Topic,
-	}
-	resp, err := s.requestPeer(ctx, pid, req)
-	if err != nil {
-		if strings.Contains(err.Error(), "protocols not supported") {
-			s.sentinel.Peers().RemovePeer(pid)
-			s.sentinel.Host().Peerstore().RemovePeer(pid)
-			s.sentinel.Host().Network().ClosePeer(pid)
-			s.sentinel.Peers().SetBanStatus(pid, true)
-		}
-		s.logger.Trace("[sentinel] peer gave us bad data", "peer", pid, "err", err, "topic", req.Topic)
-		return nil, err
-	}
-	return resp, nil
-}
+// Note: SendPeerRequest is deprecated - use SendRequest instead
+// The RequestDataWithPeer type has been removed from the proto
 
 func (s *SentinelServer) Identity(ctx context.Context, in *sentinelproto.EmptyMessage) (*sentinelproto.IdentityResponse, error) {
 	// call s.sentinel.Identity()
@@ -465,18 +445,19 @@ func (s *SentinelServer) handleGossipPacket(pkt *sentinel.GossipMessage) error {
 }
 
 func trackPeerStatistics(peerID string, inbound bool, msgType string, msgCap string, bytes int) {
-	isDiagEnabled := diaglib.TypeOf(diaglib.PeerStatisticMsgUpdate{}).Enabled()
-	if isDiagEnabled {
-		diaglib.Send(diaglib.PeerStatisticMsgUpdate{
-			PeerName: "TODO",
-			PeerType: "Sentinel",
-			PeerID:   peerID,
-			Inbound:  inbound,
-			MsgType:  msgType,
-			MsgCap:   msgCap,
-			Bytes:    bytes,
-		})
-	}
+	// TODO: Re-enable diagnostics when diaglib package is available
+	// isDiagEnabled := diaglib.TypeOf(diaglib.PeerStatisticMsgUpdate{}).Enabled()
+	// if isDiagEnabled {
+	// 	diaglib.Send(diaglib.PeerStatisticMsgUpdate{
+	// 		PeerName: "TODO",
+	// 		PeerType: "Sentinel",
+	// 		PeerID:   peerID,
+	// 		Inbound:  inbound,
+	// 		MsgType:  msgType,
+	// 		MsgCap:   msgCap,
+	// 		Bytes:    bytes,
+	// 	})
+	// }
 }
 
 func parseTopic(input string) (string, string) {
@@ -520,6 +501,7 @@ func (r ResponseCode) ErrorMessage(resp *http.Response) string {
 	errBody, _ := io.ReadAll(resp.Body)
 	return string(errBody)
 }
+
 
 
 

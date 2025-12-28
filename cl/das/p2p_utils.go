@@ -53,6 +53,12 @@ func ComputeCells(blobs *cltypes.Blob) ([]cltypes.Cell, error) {
 	return nil, nil
 }
 
+// VerifyDataColumnSidecarKZGProofs is an alias for VerifyDataColumnsSidecarKZGProofs
+// for compatibility with code expecting the singular form
+func VerifyDataColumnSidecarKZGProofs(sidecar *cltypes.DataColumnSidecar) bool {
+	return VerifyDataColumnsSidecarKZGProofs(sidecar)
+}
+
 // ComputeSubnetForDataColumnSidecar computes the subnet ID for a given data column sidecar index.
 // This function is re-entrant and thread-safe.
 func ComputeSubnetForDataColumnSidecar(columnIndex cltypes.ColumnIndex) uint64 {

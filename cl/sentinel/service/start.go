@@ -39,7 +39,7 @@ import (
 	"github.com/erigontech/erigon-lib/kv"
 	"github.com/erigontech/erigon/turbo/snapshotsync/freezeblocks"
 	"github.com/erigontech/erigon-lib/direct"
-	"github.com/erigontech/erigon-lib/gointerfaces/sentinel"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 	"github.com/erigontech/erigon/p2p/enode"
 )
 
@@ -237,6 +237,7 @@ func StartServe(
 		log.Warn("[Sentinel] could not serve service", "reason", err)
 	}
 }
+
 
 
 

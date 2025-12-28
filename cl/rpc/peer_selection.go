@@ -203,3 +203,4 @@ func (c *columnDataPeers) pickPeerRoundRobin(
 	log.Trace("no good peer found", "peerCount", len(c.peersQueue))
 	return nil, "", 0, ErrNoGoodPeer
 }
+

@@ -21,7 +21,7 @@ import (
 
 	"github.com/erigontech/erigon/cl/clparams"
 	"github.com/erigontech/erigon/cl/cltypes"
-	"github.com/erigontech/erigon-lib/gointerfaces/sentinel"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 )
 
 // Note: BlobSidecarService and BlockService are tested in spectests
@@ -61,6 +61,7 @@ type ProposerSlashingService Service[*cltypes.ProposerSlashing]
 
 //go:generate mockgen -typed=true -destination=./mock_services/data_column_sidecar_service_mock.go -package=mock_services . DataColumnSidecarService
 type DataColumnSidecarService Service[*cltypes.DataColumnSidecar]
+
 
 
 

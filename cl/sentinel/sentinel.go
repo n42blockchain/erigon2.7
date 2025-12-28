@@ -52,7 +52,7 @@ import (
 	"github.com/erigontech/erigon-lib/log/v3"
 	"github.com/erigontech/erigon-lib/kv"
 	"github.com/erigontech/erigon/turbo/snapshotsync/freezeblocks"
-	"github.com/erigontech/erigon-lib/gointerfaces/sentinel"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 	"github.com/erigontech/erigon/p2p/discover"
 	"github.com/erigontech/erigon/p2p/enode"
 	"github.com/erigontech/erigon/p2p/enr"
@@ -531,11 +531,7 @@ func (s *Sentinel) GetPeersInfos() *sentinelproto.PeersInfoResponse {
 		} else {
 			entry.Enr = ""
 		}
-		if enodeId, ok := s.pidToEnodeId.Load(p); ok {
-			entry.EnodeId = enodeId.(enode.ID).String()
-		} else {
-			entry.EnodeId = ""
-		}
+		// Note: EnodeId field not available in current proto definition
 		agent, err := s.host.Peerstore().Get(p, "AgentVersion")
 		if err == nil {
 			entry.AgentVersion = agent.(string)

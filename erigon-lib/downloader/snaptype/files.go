@@ -209,6 +209,10 @@ const Erigon2OldMergeLimit = 500_000
 const Erigon2MergeLimit = 500_000
 const Erigon2MinSegmentSize = 1_000
 
+// CaplinMergeLimit is the merge limit for Caplin (CL) snapshots
+// This corresponds to SLOTS_PER_HISTORICAL_ROOT (8192 slots)
+const CaplinMergeLimit = 8192
+
 // Erigon2LegacyMergeLimit is kept for backward compatibility to recognize
 // existing 100k-block snapshot files created before the merge limit was unified to 500k
 const Erigon2LegacyMergeLimit = 100_000

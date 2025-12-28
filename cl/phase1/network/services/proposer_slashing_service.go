@@ -30,7 +30,7 @@ import (
 	"github.com/erigontech/erigon/cl/phase1/core/state/lru"
 	"github.com/erigontech/erigon/cl/pool"
 	"github.com/erigontech/erigon/cl/utils/eth_clock"
-	"github.com/erigontech/erigon-lib/gointerfaces/sentinel"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 )
 
 type proposerSlashingService struct {
@@ -140,6 +140,7 @@ func (s *proposerSlashingService) ProcessMessage(ctx context.Context, subnet *ui
 		return nil
 	})
 }
+
 
 
 

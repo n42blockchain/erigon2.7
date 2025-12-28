@@ -24,7 +24,7 @@ import (
 	"strconv"
 
 	"github.com/erigontech/erigon/cl/beacon/beaconhttp"
-	"github.com/erigontech/erigon-lib/gointerfaces/sentinel"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 )
 
 /*
@@ -179,6 +179,7 @@ func (a *ApiHandler) GetEthV1NodeSyncing(w http.ResponseWriter, r *http.Request)
 			"el_offline":    false,
 		}), nil
 }
+
 
 
 

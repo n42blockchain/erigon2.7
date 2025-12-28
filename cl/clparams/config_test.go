@@ -32,11 +32,11 @@ func testConfig(t *testing.T, n NetworkType) {
 }
 
 func TestGetConfigsByNetwork(t *testing.T) {
-	testConfig(t, chain.MainnetChainID)
-	testConfig(t, chain.SepoliaChainID)
-	testConfig(t, chain.GnosisChainID)
-	testConfig(t, chain.ChiadoChainID)
-	testConfig(t, chain.HoodiChainID)
+	testConfig(t, NetworkType(chain.MainnetChainID))
+	testConfig(t, NetworkType(chain.SepoliaChainID))
+	testConfig(t, NetworkType(chain.GnosisChainID))
+	testConfig(t, NetworkType(chain.ChiadoChainID))
+	testConfig(t, NetworkType(chain.HoodiChainID))
 }
 
 

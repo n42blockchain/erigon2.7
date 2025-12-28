@@ -77,6 +77,28 @@ func (v *CaplinStateView) Close() {
 	// No-op for stub
 }
 
+// ReopenFolder opens the snapshot folder
+func (s *CaplinStateSnapshots) ReopenFolder() error {
+	return nil
+}
+
+// OpenFolder is an alias for ReopenFolder for backwards compatibility
+func (s *CaplinStateSnapshots) OpenFolder() error {
+	return s.ReopenFolder()
+}
+
+// DumpCaplinState dumps state data to snapshots (stub implementation)
+func (s *CaplinStateSnapshots) DumpCaplinState(ctx context.Context, fromSlot, toSlot, blocksPerFile uint64, salt uint32, dirs interface{}, workers int, lvl log.Lvl, logger log.Logger) error {
+	// Stub implementation
+	return nil
+}
+
+// SegFileNames returns segment file names for the given slot range (stub implementation)
+func (s *CaplinStateSnapshots) SegFileNames(from, to uint64) []string {
+	// Stub implementation
+	return nil
+}
+
 func BuildProtoRequest(downloadRequest []services.DownloadRequest) *proto_downloader.AddRequest {
 	req := &proto_downloader.AddRequest{Items: make([]*proto_downloader.AddItem, 0, len(coresnaptype.BlockSnapshotTypes))}
 	for _, r := range downloadRequest {

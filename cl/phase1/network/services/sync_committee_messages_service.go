@@ -31,7 +31,7 @@ import (
 	"github.com/erigontech/erigon/cl/utils"
 	"github.com/erigontech/erigon/cl/utils/eth_clock"
 	"github.com/erigontech/erigon/cl/validator/sync_contribution_pool"
-	"github.com/erigontech/erigon-lib/gointerfaces/sentinel"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 )
 
 type seenSyncCommitteeMessage struct {
@@ -193,6 +193,7 @@ func verifySyncCommitteeMessageSignature(s *state.CachingBeaconState, msg *cltyp
 	signingRoot := utils.Sha256(msg.BeaconBlockRoot[:], domain)
 	return msg.Signature[:], signingRoot[:], publicKey[:], nil
 }
+
 
 
 

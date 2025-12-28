@@ -37,7 +37,7 @@ import (
 	"github.com/erigontech/erigon/cl/utils/eth_clock"
 	"github.com/erigontech/erigon/cl/validator/sync_contribution_pool"
 	libcommon "github.com/erigontech/erigon-lib/common"
-	"github.com/erigontech/erigon-lib/gointerfaces/sentinel"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 )
 
 type seenSyncCommitteeContribution struct {
@@ -340,6 +340,7 @@ func verifyAggregatorSignatureForSyncContribution(s *state.CachingBeaconState, s
 	}
 	return signedContributionAndProof.Signature[:], signingRoot[:], aggregatorPubKey[:], nil
 }
+
 
 
 

@@ -37,7 +37,7 @@ import (
 	libcommon "github.com/erigontech/erigon-lib/common"
 	hexutil "github.com/erigontech/erigon-lib/common/hexutility"
 	"github.com/erigontech/erigon-lib/log/v3"
-	"github.com/erigontech/erigon/turbo/execution/eth1/eth1_utils"
+	ethutils "github.com/erigontech/erigon/turbo/execution/eth1/eth1_utils"
 	"github.com/erigontech/erigon/core/types"
 )
 

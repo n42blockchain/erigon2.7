@@ -248,3 +248,51 @@ func ConvertBigIntToRpc(in *big.Int) *types2.H256 {
 	base.SetFromBig(in)
 	return gointerfaces.ConvertUint256IntToH256(base)
 }
+
+// ValidateBlobs validates blob-related parameters in a block
+// It checks that blob gas usage and versioned hashes are consistent with transactions
+func ValidateBlobs(blobGasUsed uint64, maxBlobGasPerBlock uint64, maxBlobsPerBlock uint64, expectedBlobHashes []libcommon.Hash, transactions *[]types.Transaction) error {
+	if transactions == nil {
+		if len(expectedBlobHashes) > 0 {
+			return fmt.Errorf("expected %d blob hashes but no transactions", len(expectedBlobHashes))
+		}
+		return nil
+	}
+
+	// Count actual blob hashes from transactions
+	var actualBlobHashes []libcommon.Hash
+	for _, tx := range *transactions {
+		if tx.Type() == types.BlobTxType {
+			actualBlobHashes = append(actualBlobHashes, tx.GetBlobHashes()...)
+		}
+	}
+
+	// Check that expected and actual blob hashes match
+	if len(expectedBlobHashes) != len(actualBlobHashes) {
+		return fmt.Errorf("blob hash count mismatch: expected %d, got %d", len(expectedBlobHashes), len(actualBlobHashes))
+	}
+
+	for i, expected := range expectedBlobHashes {
+		if expected != actualBlobHashes[i] {
+			return fmt.Errorf("blob hash mismatch at index %d: expected %s, got %s", i, expected.Hex(), actualBlobHashes[i].Hex())
+		}
+	}
+
+	// Validate blob count doesn't exceed max
+	if uint64(len(actualBlobHashes)) > maxBlobsPerBlock {
+		return fmt.Errorf("too many blobs: %d > %d", len(actualBlobHashes), maxBlobsPerBlock)
+	}
+
+	// Validate blob gas usage (each blob uses a fixed amount of gas)
+	const blobGasPerBlob = 131072 // 2^17 gas per blob
+	expectedBlobGas := uint64(len(actualBlobHashes)) * blobGasPerBlob
+	if blobGasUsed != expectedBlobGas {
+		return fmt.Errorf("blob gas mismatch: expected %d, got %d", expectedBlobGas, blobGasUsed)
+	}
+
+	if blobGasUsed > maxBlobGasPerBlock {
+		return fmt.Errorf("blob gas exceeds max: %d > %d", blobGasUsed, maxBlobGasPerBlock)
+	}
+
+	return nil
+}

@@ -23,11 +23,11 @@ import (
 	"sync"
 	"time"
 
-	goethkzg "github.com/crate-crypto/go-eth-kzg"
+	gokzg4844 "github.com/crate-crypto/go-kzg-4844"
 
 	"github.com/erigontech/erigon/cl/gossip"
 	"github.com/erigontech/erigon/cl/utils/bls"
-	"github.com/erigontech/erigon-lib/gointerfaces/sentinel"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 
 	"github.com/erigontech/erigon/cl/beacon/beaconevents"
 	"github.com/erigontech/erigon/cl/beacon/synced_data"
@@ -158,7 +158,7 @@ func (b *blobSidecarService) verifyAndStoreBlobSidecar(msg *cltypes.BlobSidecar)
 	}
 
 	start := time.Now()
-	if err := kzgCtx.VerifyBlobKZGProof((*goethkzg.Blob)(&msg.Blob), goethkzg.KZGCommitment(msg.KzgCommitment), goethkzg.KZGProof(msg.KzgProof)); err != nil {
+	if err := kzgCtx.VerifyBlobKZGProof((*gokzg4844.Blob)(&msg.Blob), gokzg4844.KZGCommitment(msg.KzgCommitment), gokzg4844.KZGProof(msg.KzgProof)); err != nil {
 		return fmt.Errorf("blob KZG proof verification failed: %v", err)
 	}
 
@@ -267,6 +267,7 @@ func (b *blobSidecarService) loop(ctx context.Context) {
 		})
 	}
 }
+
 
 
 

@@ -96,6 +96,18 @@ func NewCollector(logPrefix, tmpdir string, sortableBuffer Buffer, logger log.Lo
 	return &Collector{autoClean: true, bufType: getTypeByBuffer(sortableBuffer), buf: sortableBuffer, logPrefix: logPrefix, tmpdir: tmpdir, logLvl: log.LvlInfo, logger: logger}
 }
 
+// NewCollectorWithAllocator creates a new collector with a specified buffer size
+// This is useful when you want to control memory usage with multiple parallel collectors
+func NewCollectorWithAllocator(logPrefix, tmpdir string, bufferSize datasize.ByteSize, logger log.Logger) *Collector {
+	return NewCollector(logPrefix, tmpdir, NewSortableBuffer(bufferSize), logger)
+}
+
+// LogLvl sets the log level for the collector and returns the collector for chaining
+func (c *Collector) LogLvl(lvl log.Lvl) *Collector {
+	c.logLvl = lvl
+	return c
+}
+
 func (c *Collector) SortAndFlushInBackground(v bool) { c.sortAndFlushInBackground = v }
 
 func (c *Collector) extractNextFunc(originalK, k []byte, v []byte) error {
@@ -109,8 +121,6 @@ func (c *Collector) extractNextFunc(originalK, k []byte, v []byte) error {
 func (c *Collector) Collect(k, v []byte) error {
 	return c.extractNextFunc(k, k, v)
 }
-
-func (c *Collector) LogLvl(v log.Lvl) { c.logLvl = v }
 
 func (c *Collector) flushBuffer(canStoreInRam bool) error {
 	if c.buf.Len() == 0 {

@@ -22,7 +22,7 @@ import (
 
 	"github.com/erigontech/erigon/cl/fork"
 	"github.com/erigontech/erigon/cl/utils/bls"
-	"github.com/erigontech/erigon-lib/gointerfaces/sentinel"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 )
 
 const (
@@ -67,6 +67,7 @@ func copyOfPeerData(in *sentinelproto.GossipData) *sentinelproto.Peer {
 
 	return ret
 }
+
 
 
 

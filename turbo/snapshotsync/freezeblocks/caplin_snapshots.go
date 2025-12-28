@@ -106,6 +106,21 @@ func (s *CaplinSnapshots) SegFilePaths(from, to uint64) []string {
 	return res
 }
 
+func (s *CaplinSnapshots) SegFileNames(from, to uint64) []string {
+	var res []string
+	for _, seg := range s.BeaconBlocks.segments {
+		if seg.from >= from && seg.to <= to {
+			res = append(res, seg.FileName())
+		}
+	}
+	for _, seg := range s.BlobSidecars.segments {
+		if seg.from >= from && seg.to <= to {
+			res = append(res, seg.FileName())
+		}
+	}
+	return res
+}
+
 func (s *CaplinSnapshots) BlocksAvailable() uint64 {
 	return cmp.Min(s.segmentsMax.Load(), s.idxMax.Load())
 }
@@ -264,6 +279,11 @@ func (s *CaplinSnapshots) ReopenFolder() error {
 		list = append(list, fName)
 	}
 	return s.ReopenList(list, false)
+}
+
+// OpenFolder is an alias for ReopenFolder for backwards compatibility
+func (s *CaplinSnapshots) OpenFolder() error {
+	return s.ReopenFolder()
 }
 
 func (s *CaplinSnapshots) closeWhatNotInList(l []string) {

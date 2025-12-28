@@ -38,7 +38,7 @@ import (
 	"github.com/erigontech/erigon/cl/validator/committee_subscription"
 	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon-lib/log/v3"
-	"github.com/erigontech/erigon-lib/gointerfaces/sentinel"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 )
 
 var (
@@ -387,6 +387,7 @@ func contains[T comparable](target T, slices []T) int {
 	}
 	return -1
 }
+
 
 
 

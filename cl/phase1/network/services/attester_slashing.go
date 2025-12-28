@@ -7,7 +7,7 @@ import (
 	"github.com/erigontech/erigon/cl/cltypes"
 	"github.com/erigontech/erigon/cl/gossip"
 	"github.com/erigontech/erigon/cl/phase1/forkchoice"
-	"github.com/erigontech/erigon-lib/gointerfaces/sentinel"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 )
 
 type attesterSlashingService struct {
@@ -37,6 +37,7 @@ func (s *attesterSlashingService) DecodeGossipMessage(data *sentinelproto.Gossip
 func (s *attesterSlashingService) ProcessMessage(ctx context.Context, subnet *uint64, msg *cltypes.AttesterSlashing) error {
 	return s.forkchoiceStore.OnAttesterSlashing(msg, false)
 }
+
 
 
 

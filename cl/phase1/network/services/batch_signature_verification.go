@@ -8,7 +8,7 @@ import (
 	"github.com/erigontech/erigon/cl/monitor"
 	"github.com/erigontech/erigon/cl/utils/bls"
 	"github.com/erigontech/erigon-lib/log/v3"
-	"github.com/erigontech/erigon-lib/gointerfaces/sentinel"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 )
 
 const (
@@ -199,6 +199,7 @@ func (b *BatchSignatureVerifier) runBatchVerification(signatures [][]byte, signR
 
 	return nil
 }
+
 
 
 

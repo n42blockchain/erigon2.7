@@ -18,7 +18,7 @@ import (
 	"github.com/erigontech/erigon/cl/utils/eth_clock"
 	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon-lib/log/v3"
-	"github.com/erigontech/erigon-lib/gointerfaces/sentinel"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 )
 
 var (
@@ -231,6 +231,7 @@ func (s *dataColumnSidecarService) verifyProposerSignature(proposerIndex uint64,
 	}
 	return valid, nil
 }
+
 
 
 

@@ -32,7 +32,7 @@ import (
 	"github.com/erigontech/erigon/cl/pool"
 	"github.com/erigontech/erigon/cl/utils"
 	libcommon "github.com/erigontech/erigon-lib/common"
-	"github.com/erigontech/erigon-lib/gointerfaces/sentinel"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 )
 
 // SignedBLSToExecutionChangeForGossip type represents SignedBLSToExecutionChange with the gossip data where it's coming from.
@@ -159,6 +159,7 @@ func (s *blsToExecutionChangeService) ProcessMessage(ctx context.Context, subnet
 	// gossip ourselves or ban the peer which sent that particular invalid signature.
 	return ErrIgnore
 }
+
 
 
 

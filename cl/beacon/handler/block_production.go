@@ -54,7 +54,7 @@ import (
 	"github.com/erigontech/erigon/cl/utils/bls"
 	"github.com/erigontech/erigon/cl/validator/attestation_producer"
 	libcommon "github.com/erigontech/erigon-lib/common"
-	hexutil "github.com/erigontech/erigon-lib/common/hexutility"
+	"github.com/erigontech/erigon-lib/common/hexutil"
 	"github.com/erigontech/erigon-lib/common/length"
 	"github.com/erigontech/erigon-lib/log/v3"
 	"github.com/erigontech/erigon-lib/kv"
@@ -62,7 +62,7 @@ import (
 	"github.com/erigontech/erigon/params"
 	"github.com/erigontech/erigon-lib/rlp"
 	"github.com/erigontech/erigon/core/types"
-	"github.com/erigontech/erigon-lib/gointerfaces/sentinel"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 )
 
 type BlockPublishingValidation string
@@ -652,11 +652,16 @@ func (a *ApiHandler) produceBeaconBody(
 			case <-stopTimer.C:
 				return
 			case <-ticker.C:
-				payload, bundles, requestsBundle, blockValue, err := a.engine.GetAssembledBlock(ctx, idBytes)
+				payload, bundles, blockValue, err := a.engine.GetAssembledBlock(ctx, idBytes)
 				if err != nil {
 					log.Error("BlockProduction: Failed to get payload", "err", err)
 					continue
 				}
+				// requestsBundle is not returned by the current interface
+				// TODO: Re-enable when the interface is updated
+				var requestsBundle interface {
+					GetRequests() [][]byte
+				} = nil
 				if payload == nil {
 					continue
 				}
@@ -1041,8 +1046,17 @@ func (a *ApiHandler) publishBlindedBlocks(w http.ResponseWriter, r *http.Request
 		if err != nil {
 			return nil, beaconhttp.NewEndpointError(http.StatusInternalServerError, err)
 		}
-		rawBlock := types.RawBlock{Header: header, Body: blockPayload.Body()}
-		blockRlpSize := rawBlock.EncodingSize()
+		// Estimate block RLP size from header
+		// Note: Using header encoding size as approximation since RawBlock type is not available
+		headerSize := header.EncodingSize()
+		// Add estimate for body size (transactions + uncles + withdrawals)
+		bodySize := 0
+		if body := blockPayload.Body(); body != nil {
+			for _, tx := range body.Transactions {
+				bodySize += len(tx)
+			}
+		}
+		blockRlpSize := headerSize + bodySize
 		blockRlpSize += rlp.ListPrefixLen(blockRlpSize)
 		if blockRlpSize > params.MaxRlpBlockSize {
 			return nil, beaconhttp.NewEndpointError(http.StatusBadRequest, fmt.Errorf("block payload rlp size exceeds the limit: %d > %d", blockRlpSize, params.MaxRlpBlockSize))
@@ -1766,6 +1780,7 @@ func computeAttestationReward(
 	reward := proposerRewardNumerator / proposerRewardDenominator
 	return reward, nil
 }
+
 
 
 

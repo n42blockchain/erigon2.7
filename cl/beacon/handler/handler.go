@@ -50,7 +50,7 @@ import (
 	"github.com/erigontech/erigon-lib/kv"
 	"github.com/erigontech/erigon/turbo/snapshotsync"
 	"github.com/erigontech/erigon/turbo/snapshotsync/freezeblocks"
-	"github.com/erigontech/erigon-lib/gointerfaces/sentinel"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 )
 
 const maxBlobBundleCacheSize = 48 // 8 blocks worth of blobs
@@ -403,6 +403,7 @@ func (a *ApiHandler) getHead() (libcommon.Hash, uint64, int, error) {
 	}
 	return blockRoot, blockSlot, 0, nil
 }
+
 
 
 

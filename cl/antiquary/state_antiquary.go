@@ -40,7 +40,7 @@ import (
 	"github.com/erigontech/erigon-lib/kv"
 	"github.com/erigontech/erigon/turbo/snapshotsync"
 	"github.com/erigontech/erigon-lib/downloader/snaptype"
-	"github.com/erigontech/erigon-lib/gointerfaces/downloader"
+	downloaderproto "github.com/erigontech/erigon-lib/gointerfaces/downloader"
 )
 
 // pool for buffers

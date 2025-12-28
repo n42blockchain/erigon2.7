@@ -32,7 +32,7 @@ import (
 	"github.com/erigontech/erigon/cl/utils"
 	"github.com/erigontech/erigon/cl/utils/eth_clock"
 	libcommon "github.com/erigontech/erigon-lib/common"
-	"github.com/erigontech/erigon-lib/gointerfaces/sentinel"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 )
 
 type voluntaryExitService struct {
@@ -180,6 +180,7 @@ func (s *voluntaryExitService) ProcessMessage(ctx context.Context, subnet *uint6
 	// gossip ourselves or ban the peer which sent that particular invalid signature.
 	return ErrIgnore
 }
+
 
 
 
