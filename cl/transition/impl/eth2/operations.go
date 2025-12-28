@@ -18,6 +18,7 @@ package eth2
 
 import (
 	"bytes"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"slices"
@@ -1091,7 +1092,7 @@ func (I *impl) ProcessWithdrawalRequest(s abstract.BeaconState, req *solid.Withd
 	// Verify pubkey exists
 	vindex, exist := s.ValidatorIndexByPubkey(reqPubkey)
 	if !exist {
-		log.Warn("ProcessWithdrawalRequest: validator index not found", "pubkey", libcommon.Bytes2Hex(reqPubkey[:]))
+		log.Warn("ProcessWithdrawalRequest: validator index not found", "pubkey", hex.EncodeToString(reqPubkey[:]))
 		return nil
 	}
 	validator, err := s.ValidatorForValidatorIndex(int(vindex))

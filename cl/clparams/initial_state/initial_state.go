@@ -59,23 +59,23 @@ func GetGenesisState(network clparams.NetworkType) (*state.CachingBeaconState, e
 	returnState := state.New(config)
 
 	switch network {
-	case clparams.NetworkType(chain.MainnetChainID:
+	case clparams.NetworkType(chain.MainnetChainID):
 		if err := returnState.DecodeSSZ(mainnetStateSSZ, int(clparams.Phase0Version)); err != nil {
 			return nil, err
 		}
-	case clparams.NetworkType(chain.SepoliaChainID:
+	case clparams.NetworkType(chain.SepoliaChainID):
 		if err := returnState.DecodeSSZ(sepoliaStateSSZ, int(clparams.Phase0Version)); err != nil {
 			return nil, err
 		}
-	case clparams.NetworkType(chain.GnosisChainID:
+	case clparams.NetworkType(chain.GnosisChainID):
 		if err := returnState.DecodeSSZ(gnosisStateSSZ, int(clparams.Phase0Version)); err != nil {
 			return nil, err
 		}
-	case clparams.NetworkType(chain.ChiadoChainID:
+	case clparams.NetworkType(chain.ChiadoChainID):
 		if err := returnState.DecodeSSZ(chiadoStateSSZ, int(clparams.Phase0Version)); err != nil {
 			return nil, err
 		}
-	case clparams.NetworkType(chain.HoodiChainID:
+	case clparams.NetworkType(chain.HoodiChainID):
 		// Download genesis state by wget the url
 		encodedState, err := downloadGenesisState("https://github.com/eth-clients/hoodi/raw/main/metadata/genesis.ssz")
 		if err != nil {
@@ -91,11 +91,11 @@ func GetGenesisState(network clparams.NetworkType) (*state.CachingBeaconState, e
 }
 
 func IsGenesisStateSupported(network clparams.NetworkType) bool {
-	return network == clparams.NetworkType(chain.MainnetChainID ||
-		network == clparams.NetworkType(chain.SepoliaChainID ||
-		network == clparams.NetworkType(chain.GnosisChainID ||
-		network == clparams.NetworkType(chain.ChiadoChainID ||
-		network == clparams.NetworkType(chain.HoodiChainID
+	return network == clparams.NetworkType(chain.MainnetChainID) ||
+		network == clparams.NetworkType(chain.SepoliaChainID) ||
+		network == clparams.NetworkType(chain.GnosisChainID) ||
+		network == clparams.NetworkType(chain.ChiadoChainID) ||
+		network == clparams.NetworkType(chain.HoodiChainID)
 }
 
 

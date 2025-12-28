@@ -34,8 +34,7 @@ import (
 	"github.com/erigontech/erigon-lib/log/v3"
 	"github.com/erigontech/erigon/turbo/engineapi/engine_types"
 	"github.com/erigontech/erigon/core/types"
-	"github.com/erigontech/erigon-lib/gointerfaces/types"
-	"github.com/erigontech/erigon/rpc"
+	typesproto "github.com/erigontech/erigon-lib/gointerfaces/types"
 )
 
 const DefaultRPCHTTPTimeout = time.Second * 30

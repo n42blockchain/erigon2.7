@@ -457,6 +457,8 @@ const (
 
 	// [Block Root] => [Parent Root]
 	BlockRootToParentRoot = "BlockRootToParentRoot"
+	// [Parent Root] => [Block Roots] (multiple children)
+	ParentRootToBlockRoots = "ParentRootToBlockRoots"
 
 	HighestFinalized = "HighestFinalized" // hash -> transaction/receipt lookup metadata
 
@@ -659,6 +661,7 @@ var ChaindataTables = []string{
 	BlockRootToStateRoot,
 	StateRootToBlockRoot,
 	BlockRootToParentRoot,
+	ParentRootToBlockRoots,
 	BeaconBlockHeaders,
 	HighestFinalized,
 	Attestetations,

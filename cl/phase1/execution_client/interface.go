@@ -25,7 +25,7 @@ import (
 	hexutil "github.com/erigontech/erigon-lib/common/hexutility"
 	"github.com/erigontech/erigon/turbo/engineapi/engine_types"
 	"github.com/erigontech/erigon/core/types"
-	"github.com/erigontech/erigon-lib/gointerfaces/types"
+	typesproto "github.com/erigontech/erigon-lib/gointerfaces/types"
 )
 
 var errContextExceeded = "rpc error: code = DeadlineExceeded desc = context deadline exceeded"

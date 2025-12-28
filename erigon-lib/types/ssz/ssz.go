@@ -100,6 +100,11 @@ func UnmarshalUint64SSZ(x []byte) uint64 {
 	return binary.LittleEndian.Uint64(x)
 }
 
+// Uint64SSZDecode is an alias for UnmarshalUint64SSZ for CL compatibility
+func Uint64SSZDecode(x []byte) uint64 {
+	return UnmarshalUint64SSZ(x)
+}
+
 func DecodeDynamicList[T Unmarshaler](bytes []byte, start, end uint32, max uint64, version int) ([]T, error) {
 	if start > end || len(bytes) < int(end) {
 		return nil, ErrBadOffset

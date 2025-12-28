@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"slices"
 
-	goethkzg "github.com/crate-crypto/go-eth-kzg"
+	// goethkzg "github.com/crate-crypto/go-eth-kzg" // TODO: Required for DAS support
 	"github.com/holiman/uint256"
 
 	"github.com/erigontech/erigon/cl/clparams"
 	"github.com/erigontech/erigon/cl/cltypes"
-	"github.com/erigontech/erigon-lib/crypto/kzg"
+	// "github.com/erigontech/erigon-lib/crypto/kzg" // TODO: Required for DAS support
 	"github.com/erigontech/erigon/p2p/enode"
 )
 
@@ -153,53 +153,17 @@ func RecoverMatrix(partialMatrix []cltypes.MatrixEntry, blobCount uint64) ([][]c
 }
 
 // RecoverCellsAndKZGProofs uses the go-eth-kzg library to recover the cells and proofs.
+// TODO: This requires go-eth-kzg library which has RecoverCellsAndComputeKZGProofs method.
+// The current go-kzg-4844 does not support DAS methods. Need to add go-eth-kzg dependency.
 func RecoverCellsAndKZGProofs(cellIndices []ColumnIndex, cells []cltypes.Cell) ([]cltypes.Cell, []cltypes.KZGProof, error) {
-	ckzgCells := make([]*goethkzg.Cell, len(cells))
-	for i := range cells {
-		ckzgCells[i] = (*goethkzg.Cell)(&cells[i])
-	}
-
-	// recover cells and proofs
-	recoveredCells, recoveredProofs, err := kzg.Ctx().RecoverCellsAndComputeKZGProofs(cellIndices, ckzgCells, 0 /* numGoRoutines */)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to recover cells and proofs: %w", err)
-	}
-
-	convertCells := make([]cltypes.Cell, len(recoveredCells))
-	for i := range recoveredCells {
-		convertCells[i] = cltypes.Cell(*recoveredCells[i])
-	}
-
-	convertProofs := make([]cltypes.KZGProof, len(recoveredProofs))
-	for i := range recoveredProofs {
-		convertProofs[i] = cltypes.KZGProof(recoveredProofs[i])
-	}
-	return convertCells, convertProofs, nil
+	return nil, nil, fmt.Errorf("RecoverCellsAndKZGProofs not implemented: requires go-eth-kzg library")
 }
 
 // ComputeCellsAndKZGProofs uses the go-eth-kzg library to compute the cells and proofs.
+// TODO: This requires go-eth-kzg library which has ComputeCellsAndKZGProofs method.
+// The current go-kzg-4844 does not support DAS methods. Need to add go-eth-kzg dependency.
 func ComputeCellsAndKZGProofs(blob []byte) ([]cltypes.Cell, []cltypes.KZGProof, error) {
-	ckzgBlob := goethkzg.Blob{}
-	if len(blob) != len(ckzgBlob) {
-		return nil, nil, fmt.Errorf("blob length mismatch: %d != %d", len(blob), len(ckzgBlob))
-	}
-	copy(ckzgBlob[:], blob)
-	cells, proofs, err := kzg.Ctx().ComputeCellsAndKZGProofs(&ckzgBlob, 0 /* numGoRoutines */)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to compute cells and proofs: %w", err)
-	}
-
-	convertCells := make([]cltypes.Cell, len(cells))
-	for i := range cells {
-		convertCells[i] = cltypes.Cell(*cells[i])
-	}
-
-	convertProofs := make([]cltypes.KZGProof, len(proofs))
-	for i := range proofs {
-		convertProofs[i] = cltypes.KZGProof(proofs[i])
-	}
-
-	return convertCells, convertProofs, nil
+	return nil, nil, fmt.Errorf("ComputeCellsAndKZGProofs not implemented: requires go-eth-kzg library")
 }
 
 func GetCustodyColumns(nodeID enode.ID, cgc uint64) (map[cltypes.CustodyIndex]bool, error) {
