@@ -637,6 +637,22 @@ type BeaconChainConfig struct {
 	// Fulu
 	ValidatorCustodyRequirement      uint64 `yaml:"VALIDATOR_CUSTODY_REQUIREMENT" spec:"true" json:"VALIDATOR_CUSTODY_REQUIREMENT,string"`               // ValidatorCustodyRequirement defines the custody requirement for validators.
 	BalancePerAdditionalCustodyGroup uint64 `yaml:"BALANCE_PER_ADDITIONAL_CUSTODY_GROUP" spec:"true" json:"BALANCE_PER_ADDITIONAL_CUSTODY_GROUP,string"` // BalancePerAdditionalCustodyGroup defines the balance required per additional custody group.
+	DefaultBuilderGasLimitFulu       uint64 `json:"-"`                                                                                                   // EIP-7935: DefaultBuilderGasLimitFulu is the default gas limit for Builder APIs in Fulu (60M).
+}
+
+// GetDefaultBuilderGasLimit returns the default builder gas limit for a given epoch.
+// EIP-7935: Increases the default block gas limit from 36M to 60M for Fusaka.
+func (b *BeaconChainConfig) GetDefaultBuilderGasLimit(epoch uint64) uint64 {
+	if epoch >= b.FuluForkEpoch {
+		if b.DefaultBuilderGasLimitFulu > 0 {
+			return b.DefaultBuilderGasLimitFulu
+		}
+		return 60_000_000 // EIP-7935 default for Fulu
+	}
+	if b.DefaultBuilderGasLimit > 0 {
+		return b.DefaultBuilderGasLimit
+	}
+	return 36_000_000 // Pre-Fulu default
 }
 
 // GetBlobParameters returns the blob parameters at a given epoch
@@ -958,6 +974,7 @@ var MainnetBeaconConfig BeaconChainConfig = BeaconChainConfig{
 	// Fulu
 	ValidatorCustodyRequirement:      8,
 	BalancePerAdditionalCustodyGroup: 32_000_000_000,
+	DefaultBuilderGasLimitFulu:       60_000_000, // EIP-7935: 60M gas limit for Fulu
 	BlobSchedule: []BlobParameters{
 		{412672, 15},
 		{419072, 21},
