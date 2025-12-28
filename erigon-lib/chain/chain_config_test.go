@@ -89,3 +89,198 @@ func TestNilBlobSchedule(t *testing.T) {
 	assert.Equal(t, uint64(15), b.MaxBlobsPerBlock(isPrague, isOsaka))
 	assert.Equal(t, uint64(8346618), b.BaseFeeUpdateFraction(isPrague, isOsaka))
 }
+
+// EIP-7840: Add blob schedule to EL config files
+// Tests for BlobSchedule structure and methods
+
+func TestEIP7840BlobScheduleStructure(t *testing.T) {
+	// Test BlobConfig structure
+	target := uint64(3)
+	max := uint64(6)
+	fraction := uint64(3338477)
+
+	config := &BlobConfig{
+		Target:                &target,
+		Max:                   &max,
+		BaseFeeUpdateFraction: &fraction,
+	}
+
+	assert.Equal(t, uint64(3), *config.Target)
+	assert.Equal(t, uint64(6), *config.Max)
+	assert.Equal(t, uint64(3338477), *config.BaseFeeUpdateFraction)
+}
+
+func TestEIP7840BlobScheduleWithCancunConfig(t *testing.T) {
+	target := uint64(3)
+	max := uint64(6)
+	fraction := uint64(3338477)
+
+	schedule := &BlobSchedule{
+		Cancun: &BlobConfig{
+			Target:                &target,
+			Max:                   &max,
+			BaseFeeUpdateFraction: &fraction,
+		},
+	}
+
+	// Pre-Prague should use Cancun values
+	isPrague := false
+	isOsaka := false
+	assert.Equal(t, uint64(3), schedule.TargetBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(6), schedule.MaxBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(3338477), schedule.BaseFeeUpdateFraction(isPrague, isOsaka))
+}
+
+func TestEIP7840BlobScheduleWithPragueConfig(t *testing.T) {
+	cancunTarget := uint64(3)
+	cancunMax := uint64(6)
+	cancunFraction := uint64(3338477)
+
+	pragueTarget := uint64(6)
+	pragueMax := uint64(9)
+	pragueFraction := uint64(5007716)
+
+	schedule := &BlobSchedule{
+		Cancun: &BlobConfig{
+			Target:                &cancunTarget,
+			Max:                   &cancunMax,
+			BaseFeeUpdateFraction: &cancunFraction,
+		},
+		Prague: &BlobConfig{
+			Target:                &pragueTarget,
+			Max:                   &pragueMax,
+			BaseFeeUpdateFraction: &pragueFraction,
+		},
+	}
+
+	// Pre-Prague should use Cancun values
+	isPrague := false
+	isOsaka := false
+	assert.Equal(t, uint64(3), schedule.TargetBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(6), schedule.MaxBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(3338477), schedule.BaseFeeUpdateFraction(isPrague, isOsaka))
+
+	// Prague should use Prague values
+	isPrague = true
+	assert.Equal(t, uint64(6), schedule.TargetBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(9), schedule.MaxBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(5007716), schedule.BaseFeeUpdateFraction(isPrague, isOsaka))
+}
+
+func TestEIP7840BlobScheduleWithOsakaConfig(t *testing.T) {
+	osakaTarget := uint64(10)
+	osakaMax := uint64(15)
+	osakaFraction := uint64(8346618)
+
+	schedule := &BlobSchedule{
+		Osaka: &BlobConfig{
+			Target:                &osakaTarget,
+			Max:                   &osakaMax,
+			BaseFeeUpdateFraction: &osakaFraction,
+		},
+	}
+
+	// Osaka should use Osaka values
+	isPrague := true
+	isOsaka := true
+	assert.Equal(t, uint64(10), schedule.TargetBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(15), schedule.MaxBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(8346618), schedule.BaseFeeUpdateFraction(isPrague, isOsaka))
+}
+
+func TestEIP7840BlobSchedulePartialConfig(t *testing.T) {
+	// Test with only Target specified
+	target := uint64(5)
+	schedule := &BlobSchedule{
+		Prague: &BlobConfig{
+			Target: &target,
+		},
+	}
+
+	isPrague := true
+	isOsaka := false
+
+	// Target should use specified value
+	assert.Equal(t, uint64(5), schedule.TargetBlobsPerBlock(isPrague, isOsaka))
+
+	// Max and BaseFeeUpdateFraction should use defaults (EIP-7691)
+	assert.Equal(t, uint64(9), schedule.MaxBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(5007716), schedule.BaseFeeUpdateFraction(isPrague, isOsaka))
+}
+
+func TestEIP7840BlobScheduleEmptyConfigs(t *testing.T) {
+	// Test with empty BlobConfig (all nil fields)
+	schedule := &BlobSchedule{
+		Cancun: &BlobConfig{},
+		Prague: &BlobConfig{},
+		Osaka:  &BlobConfig{},
+	}
+
+	// Should fall back to defaults for each fork
+	isPrague := false
+	isOsaka := false
+	assert.Equal(t, uint64(3), schedule.TargetBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(6), schedule.MaxBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(3338477), schedule.BaseFeeUpdateFraction(isPrague, isOsaka))
+
+	isPrague = true
+	assert.Equal(t, uint64(6), schedule.TargetBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(9), schedule.MaxBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(5007716), schedule.BaseFeeUpdateFraction(isPrague, isOsaka))
+
+	isOsaka = true
+	assert.Equal(t, uint64(10), schedule.TargetBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(15), schedule.MaxBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(8346618), schedule.BaseFeeUpdateFraction(isPrague, isOsaka))
+}
+
+func TestEIP7840BlobScheduleGnosisStyle(t *testing.T) {
+	// Test Gnosis-style config (smaller blob limits)
+	target := uint64(1)
+	max := uint64(2)
+	fraction := uint64(1112826)
+
+	schedule := &BlobSchedule{
+		Cancun: &BlobConfig{
+			Target:                &target,
+			Max:                   &max,
+			BaseFeeUpdateFraction: &fraction,
+		},
+		Prague: &BlobConfig{
+			Target:                &target,
+			Max:                   &max,
+			BaseFeeUpdateFraction: &fraction,
+		},
+	}
+
+	// Both Cancun and Prague should use the same values
+	isPrague := false
+	isOsaka := false
+	assert.Equal(t, uint64(1), schedule.TargetBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(2), schedule.MaxBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(1112826), schedule.BaseFeeUpdateFraction(isPrague, isOsaka))
+
+	isPrague = true
+	assert.Equal(t, uint64(1), schedule.TargetBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(2), schedule.MaxBlobsPerBlock(isPrague, isOsaka))
+	assert.Equal(t, uint64(1112826), schedule.BaseFeeUpdateFraction(isPrague, isOsaka))
+}
+
+func TestEIP7840BlobSchedulePrecedence(t *testing.T) {
+	// Test that Osaka takes precedence over Prague, which takes precedence over Cancun
+	cancunTarget := uint64(3)
+	pragueTarget := uint64(6)
+	osakaTarget := uint64(10)
+
+	schedule := &BlobSchedule{
+		Cancun: &BlobConfig{Target: &cancunTarget},
+		Prague: &BlobConfig{Target: &pragueTarget},
+		Osaka:  &BlobConfig{Target: &osakaTarget},
+	}
+
+	// Test precedence order
+	assert.Equal(t, uint64(3), schedule.TargetBlobsPerBlock(false, false))  // Cancun
+	assert.Equal(t, uint64(6), schedule.TargetBlobsPerBlock(true, false))   // Prague
+	assert.Equal(t, uint64(10), schedule.TargetBlobsPerBlock(true, true))   // Osaka
+	assert.Equal(t, uint64(10), schedule.TargetBlobsPerBlock(false, true))  // Osaka (even without Prague)
+}
