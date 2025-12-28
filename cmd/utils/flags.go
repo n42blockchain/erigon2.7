@@ -1664,11 +1664,15 @@ func setBeaconAPI(ctx *cli.Context, cfg *ethconfig.Config) error {
 
 func setCaplin(ctx *cli.Context, cfg *ethconfig.Config) {
 	// Caplin's block's backfilling is enabled if any of the following flags are set
-	cfg.CaplinConfig.Backfilling = ctx.Bool(CaplinBackfillingFlag.Name) || ctx.Bool(CaplinArchiveFlag.Name) || ctx.Bool(CaplinBlobBackfillingFlag.Name)
-	// More granularity here.
-	cfg.CaplinConfig.BlobBackfilling = ctx.Bool(CaplinBlobBackfillingFlag.Name)
+	isArchive := ctx.Bool(CaplinArchiveFlag.Name)
+	isBackfilling := ctx.Bool(CaplinBackfillingFlag.Name)
+	isBlobBackfilling := ctx.Bool(CaplinBlobBackfillingFlag.Name)
+	
+	cfg.CaplinConfig.ArchiveBlocks = isArchive || isBackfilling || isBlobBackfilling
+	cfg.CaplinConfig.ArchiveBlobs = isBlobBackfilling || isArchive
+	cfg.CaplinConfig.ArchiveStates = isArchive
+	cfg.CaplinConfig.ImmediateBlobsBackfilling = isBlobBackfilling
 	cfg.CaplinConfig.BlobPruningDisabled = ctx.Bool(CaplinDisableBlobPruningFlag.Name)
-	cfg.CaplinConfig.Archive = ctx.Bool(CaplinArchiveFlag.Name)
 }
 
 func setSilkworm(ctx *cli.Context, cfg *ethconfig.Config) {

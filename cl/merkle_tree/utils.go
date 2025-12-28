@@ -16,6 +16,10 @@
 
 package merkle_tree
 
+import (
+	"github.com/erigontech/erigon/cl/utils"
+)
+
 func NextPowerOfTwo(n uint64) uint64 {
 	if n == 0 {
 		return 1
@@ -54,6 +58,40 @@ func GetDepth(v uint64) uint8 {
 	}
 
 	return depth
+}
+
+// FloorLog2 returns floor(log2(n)) for n > 0
+func FloorLog2(n uint64) uint64 {
+	if n <= 1 {
+		return 0
+	}
+	result := uint64(0)
+	for n > 1 {
+		n >>= 1
+		result++
+	}
+	return result
+}
+
+// IsValidMerkleBranch verifies a merkle proof against a root
+func IsValidMerkleBranch(leaf [32]byte, branch []byte32, depth uint64, index uint64, root [32]byte) bool {
+	value := leaf
+	for i := uint64(0); i < depth; i++ {
+		if i < uint64(len(branch)) {
+			if (index>>i)&1 == 1 {
+				value = hashTwo(branch[i], value)
+			} else {
+				value = hashTwo(value, branch[i])
+			}
+		}
+	}
+	return value == root
+}
+
+type byte32 = [32]byte
+
+func hashTwo(a, b [32]byte) [32]byte {
+	return utils.Sha256(a[:], b[:])
 }
 
 

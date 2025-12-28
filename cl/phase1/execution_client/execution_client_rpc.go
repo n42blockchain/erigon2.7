@@ -29,12 +29,12 @@ import (
 	"github.com/erigontech/erigon/cl/cltypes"
 	"github.com/erigontech/erigon/cl/phase1/execution_client/rpc_helper"
 	libcommon "github.com/erigontech/erigon-lib/common"
-	hexutil "github.com/erigontech/erigon-lib/common/hexutility"
-	"github.com/erigontech/erigon/rpc"
+	"github.com/erigontech/erigon-lib/common/hexutil"
+	hexutility "github.com/erigontech/erigon-lib/common/hexutility"
 	"github.com/erigontech/erigon-lib/log/v3"
-	"github.com/erigontech/erigon/turbo/engineapi/engine_types"
 	"github.com/erigontech/erigon/core/types"
-	typesproto "github.com/erigontech/erigon-lib/gointerfaces/types"
+	"github.com/erigontech/erigon/rpc"
+	"github.com/erigontech/erigon/turbo/engineapi/engine_types"
 )
 
 const DefaultRPCHTTPTimeout = time.Second * 30
@@ -46,7 +46,7 @@ type ExecutionClientRpc struct {
 }
 
 func NewExecutionClientRPC(jwtSecret []byte, addr string, port int) (*ExecutionClientRpc, error) {
-	roundTripper := jwt.NewHttpRoundTripper(http.DefaultTransport, jwtSecret)
+	roundTripper := rpc_helper.NewJWTRoundTripper(jwtSecret)
 	client := &http.Client{Timeout: DefaultRPCHTTPTimeout, Transport: roundTripper}
 
 	isHTTPpecified := strings.HasPrefix(addr, "http")
@@ -74,7 +74,7 @@ func (cc *ExecutionClientRpc) NewPayload(
 	payload *cltypes.Eth1Block,
 	beaconParentRoot *libcommon.Hash,
 	versionedHashes []libcommon.Hash,
-	executionRequestsList []hexutil.Bytes,
+	executionRequestsList []hexutility.Bytes,
 ) (PayloadStatus, error) {
 	if payload == nil {
 		return PayloadStatusValidated, nil
@@ -273,7 +273,7 @@ func (cc *ExecutionClientRpc) HasBlock(ctx context.Context, hash libcommon.Hash)
 
 // Block production
 
-func (cc *ExecutionClientRpc) GetAssembledBlock(ctx context.Context, id []byte) (*cltypes.Eth1Block, *engine_types.BlobsBundle, *typesproto.RequestsBundle, *big.Int, error) {
+func (cc *ExecutionClientRpc) GetAssembledBlock(ctx context.Context, id []byte) (*cltypes.Eth1Block, *engine_types.BlobsBundleV1, *big.Int, error) {
 	panic("unimplemented")
 }
 
@@ -284,30 +284,3 @@ func (cc *ExecutionClientRpc) HasGapInSnapshots(ctx context.Context) bool {
 func (cc *ExecutionClientRpc) GetBlobs(ctx context.Context, versionedHashes []libcommon.Hash) (blobs [][]byte, proofs [][][]byte) {
 	return nil, nil
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

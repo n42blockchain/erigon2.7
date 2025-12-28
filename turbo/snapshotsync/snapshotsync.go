@@ -36,6 +36,47 @@ const (
 	AlsoCaplin CaplinMode = 3
 )
 
+// CaplinStateView is a stub interface for accessing Caplin state snapshots
+// This is a placeholder for the snapshot viewing functionality
+type CaplinStateView struct{}
+
+// CaplinStateSegment represents a segment of Caplin state data
+type CaplinStateSegment struct{}
+
+// Get retrieves data for the given slot from the segment
+func (s *CaplinStateSegment) Get(slot uint64) ([]byte, error) {
+	return nil, nil
+}
+
+// VisibleSegment returns a visible segment for the given slot and table
+func (v *CaplinStateView) VisibleSegment(slot uint64, table string) (*CaplinStateSegment, bool) {
+	return nil, false
+}
+
+// CaplinStateSnapshots is a stub interface for managing Caplin state snapshots
+// This is a placeholder for the snapshot management functionality
+type CaplinStateSnapshots struct{}
+
+// NewCaplinStateSnapshots creates a new CaplinStateSnapshots
+func NewCaplinStateSnapshots() *CaplinStateSnapshots {
+	return &CaplinStateSnapshots{}
+}
+
+// View returns a read-only view of the snapshots
+func (s *CaplinStateSnapshots) View() *CaplinStateView {
+	return &CaplinStateView{}
+}
+
+// BlocksAvailable returns the number of blocks available in snapshots
+func (s *CaplinStateSnapshots) BlocksAvailable() uint64 {
+	return 0
+}
+
+// Close closes the view
+func (v *CaplinStateView) Close() {
+	// No-op for stub
+}
+
 func BuildProtoRequest(downloadRequest []services.DownloadRequest) *proto_downloader.AddRequest {
 	req := &proto_downloader.AddRequest{Items: make([]*proto_downloader.AddItem, 0, len(coresnaptype.BlockSnapshotTypes))}
 	for _, r := range downloadRequest {

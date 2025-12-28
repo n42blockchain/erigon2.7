@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	goethkzg "github.com/crate-crypto/go-eth-kzg"
+	gokzg4844 "github.com/crate-crypto/go-kzg-4844"
 
 	"github.com/erigontech/erigon/cl/clparams"
 	"github.com/erigontech/erigon/cl/cltypes"
@@ -22,7 +22,7 @@ import (
 	"github.com/erigontech/erigon-lib/crypto/kzg"
 	"github.com/erigontech/erigon-lib/common/length"
 	"github.com/erigontech/erigon-lib/log/v3"
-	"github.com/erigontech/erigon-lib/gointerfaces/sentinel"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 	"github.com/erigontech/erigon/p2p/enode"
 )
 
@@ -299,8 +299,12 @@ func (d *peerdas) blobsRecoverWorker(ctx context.Context) {
 			// kzg commitment
 			copy(kzgCommitment[:], anyColumnSidecar.KzgCommitments.Get(blobIndex)[:])
 			// kzg proof
-			ckzgBlob := goethkzg.Blob(blob)
-			proof, err := kzg.Ctx().ComputeBlobKZGProof(&ckzgBlob, goethkzg.KZGCommitment(kzgCommitment), 0 /* numGoRoutines */)
+			// Convert blob to gokzg4844 type for KZG proof computation
+			var kzgBlob gokzg4844.Blob
+			copy(kzgBlob[:], blob[:])
+			var kzgCommit gokzg4844.KZGCommitment
+			copy(kzgCommit[:], kzgCommitment[:])
+			proof, err := kzg.Ctx().ComputeBlobKZGProof(&kzgBlob, kzgCommit, 0 /* numGoRoutines */)
 			if err != nil {
 				log.Warn("[blobsRecover] failed to compute blob kzg proof", "blobIndex", blobIndex, "slot", slot, "blockRoot", blockRoot)
 				return
@@ -383,7 +387,7 @@ func (d *peerdas) blobsRecoverWorker(ctx context.Context) {
 					log.Warn("[blobsRecover] failed to verify column sidecar inclusion proof", "slot", slot, "blockRoot", blockRoot, "column", columnIndex)
 					continue
 				}
-				if !VerifyDataColumnSidecarKZGProofs(sidecar) {
+				if !VerifyDataColumnsSidecarKZGProofs(sidecar) {
 					log.Warn("[blobsRecover] failed to verify column sidecar kzg proofs", "slot", slot, "blockRoot", blockRoot, "column", columnIndex)
 					continue
 				}
@@ -700,7 +704,7 @@ mainloop:
 						d.rpc.BanPeer(result.pid)
 						return
 					}
-					if !VerifyDataColumnSidecarKZGProofs(sidecar) {
+					if !VerifyDataColumnsSidecarKZGProofs(sidecar) {
 						log.Debug("failed to verify column sidecar kzg proofs", "blockRoot", blockRoot, "columnIndex", sidecar.Index)
 						d.rpc.BanPeer(result.pid)
 						return

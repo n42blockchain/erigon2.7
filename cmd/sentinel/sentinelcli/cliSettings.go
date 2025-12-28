@@ -40,13 +40,15 @@ func SetupSentinelCli(ctx *cli.Context) (*SentinelCliCfg, error) {
 	}
 	if ctx.String(sentinelflags.BeaconConfigFlag.Name) != "" {
 		cfg.BeaconCfg = new(clparams.BeaconChainConfig)
-		if *cfg.BeaconCfg, err = clparams.CustomConfig(ctx.String(sentinelflags.BeaconConfigFlag.Name)); err != nil {
+		var networkCfg clparams.NetworkConfig
+		*cfg.BeaconCfg, networkCfg, err = clparams.CustomConfig(ctx.String(sentinelflags.BeaconConfigFlag.Name))
+		if err != nil {
 			return nil, err
 		}
+		cfg.NetworkCfg = &networkCfg
 		if ctx.String(sentinelflags.GenesisSSZFlag.Name) == "" {
 			return nil, fmt.Errorf("no genesis file provided")
 		}
-
 	}
 	cfg.ServerAddr = fmt.Sprintf("%s:%d", ctx.String(sentinelflags.SentinelServerAddr.Name), ctx.Int(sentinelflags.SentinelServerPort.Name))
 	cfg.ServerProtocol = "tcp"

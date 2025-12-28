@@ -10,7 +10,6 @@ import (
 	"github.com/erigontech/erigon/cl/clparams"
 	"github.com/erigontech/erigon/cl/cltypes"
 	"github.com/erigontech/erigon/cl/cltypes/solid"
-	peerdasutils "github.com/erigontech/erigon/cl/das/utils"
 	"github.com/erigontech/erigon/cl/phase1/core/state"
 	"github.com/erigontech/erigon/cl/phase1/core/state/lru"
 	"github.com/erigontech/erigon/cl/sentinel/communication"
@@ -18,8 +17,7 @@ import (
 	"github.com/erigontech/erigon/cl/utils/eth_clock"
 	"github.com/erigontech/erigon-lib/log/v3"
 	"github.com/erigontech/erigon-lib/types/ssz"
-	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
-	"github.com/erigontech/erigon/p2p/enode"
+	sentinel "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 )
 
 var (
@@ -31,7 +29,7 @@ var (
 )
 
 type columnDataPeers struct {
-	sentinel      sentinelproto.SentinelClient
+	sentinel      sentinel.SentinelClient
 	beaconConfig  *clparams.BeaconChainConfig
 	ethClock      eth_clock.EthereumClock
 	peerMetaCache *lru.CacheWithTTL[peerDataKey, *peerData]
@@ -43,13 +41,13 @@ type columnDataPeers struct {
 }
 
 func newColumnPeers(
-	sentinel sentinelproto.SentinelClient,
+	sentinelClient sentinel.SentinelClient,
 	beaconConfig *clparams.BeaconChainConfig,
 	ethClock eth_clock.EthereumClock,
 	beaconState *state.CachingBeaconState,
 ) *columnDataPeers {
 	s := &columnDataPeers{
-		sentinel:      sentinel,
+		sentinel:      sentinelClient,
 		beaconConfig:  beaconConfig,
 		ethClock:      ethClock,
 		peerMetaCache: lru.NewWithTTL[peerDataKey, *peerData]("colum-peer-cache", 512, 5*time.Minute),
@@ -79,7 +77,7 @@ func (c *columnDataPeers) refreshPeers(ctx context.Context) {
 		}
 		begin := time.Now()
 		state := "connected"
-		peers, err := c.sentinel.PeersInfo(ctx, &sentinelproto.PeersInfoRequest{
+		peers, err := c.sentinel.PeersInfo(ctx, &sentinel.PeersInfoRequest{
 			State: &state,
 		})
 		if err != nil {
@@ -97,7 +95,7 @@ func (c *columnDataPeers) refreshPeers(ctx context.Context) {
 
 			// request metadata
 			metadata := &cltypes.Metadata{}
-			if err := c.simpleReuqest(ctx, pid, communication.MetadataProtocolV3, metadata, []byte{}); err != nil {
+			if err := c.simpleRequest(ctx, pid, communication.MetadataProtocolV3, metadata, []byte{}); err != nil {
 				log.Debug("[peerSelector] failed to request peer metadata", "peer", pid, "err", err)
 				continue
 			}
@@ -105,20 +103,11 @@ func (c *columnDataPeers) refreshPeers(ctx context.Context) {
 				log.Debug("[peerSelector] empty cgc", "peer", pid)
 				continue
 			}
+			// For now, fill all custody indices since we don't have EnodeId in the current interface
+			// TODO: Extract enode ID from ENR when available
 			custodyIndices := map[cltypes.CustodyIndex]bool{}
-			if peer.EnodeId == "" {
-				// fill all custody indices
-				for i := cltypes.CustodyIndex(0); i < c.beaconConfig.NumberOfCustodyGroups; i++ {
-					custodyIndices[i] = true
-				}
-			} else {
-				// get custody indices
-				enodeId := enode.HexID(peer.EnodeId)
-				custodyIndices, err = peerdasutils.GetCustodyColumns(enodeId, *metadata.CustodyGroupCount)
-				if err != nil {
-					log.Debug("[peerSelector] failed to get custody indices", "peer", pid, "err", err)
-					continue
-				}
+			for i := cltypes.CustodyIndex(0); i < c.beaconConfig.NumberOfCustodyGroups; i++ {
+				custodyIndices[i] = true
 			}
 
 			data := &peerData{pid: pid, mask: custodyIndices}
@@ -151,9 +140,9 @@ func (c *columnDataPeers) refreshPeers(ctx context.Context) {
 	}
 }
 
-func (c *columnDataPeers) simpleReuqest(ctx context.Context, pid string, topic string, respContainer ssz.EncodableSSZ, payload []byte) error {
-	resp, err := c.sentinel.SendPeerRequest(ctx, &sentinelproto.RequestDataWithPeer{
-		Pid:   pid,
+func (c *columnDataPeers) simpleRequest(ctx context.Context, pid string, topic string, respContainer ssz.EncodableSSZ, payload []byte) error {
+	// Use SendRequest instead of SendPeerRequest (which doesn't exist)
+	resp, err := c.sentinel.SendRequest(ctx, &sentinel.RequestData{
 		Data:  payload,
 		Topic: topic,
 	})
@@ -186,10 +175,6 @@ func (c *columnDataPeers) pickPeerRoundRobin(
 		// matching
 		newReq := solid.NewDynamicListSSZ[*cltypes.DataColumnsByRootIdentifier](req.Len())
 		req.Range(func(_ int, item *cltypes.DataColumnsByRootIdentifier, length int) bool {
-			/*if item.Slot < peer.earliestAvailableSlot { // earlist available slot is not reliable now
-				//log.Debug("skipping peer", "peer", peer.pid, "slot", item.Slot, "earliestAvailableSlot", peer.earliestAvailableSlot)
-				return true
-			}*/
 			if len(peer.mask) == int(c.beaconConfig.NumberOfColumns) {
 				// full mask, no need to filter
 				newReq.Append(item)
@@ -218,30 +203,3 @@ func (c *columnDataPeers) pickPeerRoundRobin(
 	log.Trace("no good peer found", "peerCount", len(c.peersQueue))
 	return nil, "", 0, ErrNoGoodPeer
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

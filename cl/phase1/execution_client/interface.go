@@ -25,7 +25,6 @@ import (
 	hexutil "github.com/erigontech/erigon-lib/common/hexutility"
 	"github.com/erigontech/erigon/turbo/engineapi/engine_types"
 	"github.com/erigontech/erigon/core/types"
-	typesproto "github.com/erigontech/erigon-lib/gointerfaces/types"
 )
 
 var errContextExceeded = "rpc error: code = DeadlineExceeded desc = context deadline exceeded"
@@ -51,35 +50,8 @@ type ExecutionEngine interface {
 	FrozenBlocks(ctx context.Context) uint64
 	HasGapInSnapshots(ctx context.Context) bool
 	// Block production
-	GetAssembledBlock(ctx context.Context, id []byte) (*cltypes.Eth1Block, *engine_types.BlobsBundle, *typesproto.RequestsBundle, *big.Int, error)
+	GetAssembledBlock(ctx context.Context, id []byte) (*cltypes.Eth1Block, *engine_types.BlobsBundleV1, *big.Int, error)
 
 	// Blobs
 	GetBlobs(ctx context.Context, versionedHashes []libcommon.Hash) (blobs [][]byte, proofs [][][]byte)
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	libcommon "github.com/erigontech/erigon-lib/common"
+	hexutil "github.com/erigontech/erigon-lib/common/hexutility"
 	"github.com/erigontech/erigon-lib/log/v3"
 	"github.com/erigontech/erigon/cl/cltypes"
 	"github.com/erigontech/erigon/core/types"
@@ -59,15 +60,16 @@ type ExecutionEnginePool struct {
 }
 
 type newPayloadRequest struct {
-	payload        *cltypes.Eth1Block
-	beaconRoot     *libcommon.Hash
-	versionedHashes []libcommon.Hash
-	resultCh       chan newPayloadResult
+	payload               *cltypes.Eth1Block
+	beaconRoot            *libcommon.Hash
+	versionedHashes       []libcommon.Hash
+	executionRequestsList []hexutil.Bytes
+	resultCh              chan newPayloadResult
 }
 
 type newPayloadResult struct {
-	invalid bool
-	err     error
+	status PayloadStatus
+	err    error
 }
 
 // NewExecutionEnginePool creates a new pooled execution engine wrapper
@@ -114,8 +116,8 @@ func (p *ExecutionEnginePool) processBatches() {
 		
 		// Process all requests in the batch
 		for _, req := range batch {
-			invalid, err := p.engine.NewPayload(p.ctx, req.payload, req.beaconRoot, req.versionedHashes)
-			req.resultCh <- newPayloadResult{invalid: invalid, err: err}
+			status, err := p.engine.NewPayload(p.ctx, req.payload, req.beaconRoot, req.versionedHashes, req.executionRequestsList)
+			req.resultCh <- newPayloadResult{status: status, err: err}
 			close(req.resultCh)
 		}
 		
@@ -139,39 +141,40 @@ func (p *ExecutionEnginePool) processBatches() {
 }
 
 // NewPayload submits a new payload with batching optimization
-func (p *ExecutionEnginePool) NewPayload(ctx context.Context, payload *cltypes.Eth1Block, beaconParentRoot *libcommon.Hash, versionedHashes []libcommon.Hash) (bool, error) {
+func (p *ExecutionEnginePool) NewPayload(ctx context.Context, payload *cltypes.Eth1Block, beaconParentRoot *libcommon.Hash, versionedHashes []libcommon.Hash, executionRequestsList []hexutil.Bytes) (PayloadStatus, error) {
 	p.requestCount.Add(1)
 	
 	// For direct execution client, bypass batching for better latency
 	if p.engine.SupportInsertion() {
-		return p.engine.NewPayload(ctx, payload, beaconParentRoot, versionedHashes)
+		return p.engine.NewPayload(ctx, payload, beaconParentRoot, versionedHashes, executionRequestsList)
 	}
 	
 	// Use batching for RPC clients
 	req := &newPayloadRequest{
-		payload:        payload,
-		beaconRoot:     beaconParentRoot,
-		versionedHashes: versionedHashes,
-		resultCh:       make(chan newPayloadResult, 1),
+		payload:               payload,
+		beaconRoot:            beaconParentRoot,
+		versionedHashes:       versionedHashes,
+		executionRequestsList: executionRequestsList,
+		resultCh:              make(chan newPayloadResult, 1),
 	}
 	
 	select {
 	case p.pendingNewPayloads <- req:
 	case <-ctx.Done():
-		return false, ctx.Err()
+		return PayloadStatusNone, ctx.Err()
 	}
 	
 	select {
 	case result := <-req.resultCh:
-		return result.invalid, result.err
+		return result.status, result.err
 	case <-ctx.Done():
-		return false, ctx.Err()
+		return PayloadStatusNone, ctx.Err()
 	}
 }
 
 // ForkChoiceUpdate forwards to underlying engine
-func (p *ExecutionEnginePool) ForkChoiceUpdate(ctx context.Context, finalized libcommon.Hash, head libcommon.Hash, attributes *engine_types.PayloadAttributes) ([]byte, error) {
-	return p.engine.ForkChoiceUpdate(ctx, finalized, head, attributes)
+func (p *ExecutionEnginePool) ForkChoiceUpdate(ctx context.Context, finalized, safe, head libcommon.Hash, attributes *engine_types.PayloadAttributes) ([]byte, error) {
+	return p.engine.ForkChoiceUpdate(ctx, finalized, safe, head, attributes)
 }
 
 // SupportInsertion forwards to underlying engine
@@ -224,9 +227,19 @@ func (p *ExecutionEnginePool) FrozenBlocks(ctx context.Context) uint64 {
 	return p.engine.FrozenBlocks(ctx)
 }
 
+// HasGapInSnapshots forwards to underlying engine
+func (p *ExecutionEnginePool) HasGapInSnapshots(ctx context.Context) bool {
+	return p.engine.HasGapInSnapshots(ctx)
+}
+
 // GetAssembledBlock forwards to underlying engine
 func (p *ExecutionEnginePool) GetAssembledBlock(ctx context.Context, id []byte) (*cltypes.Eth1Block, *engine_types.BlobsBundleV1, *big.Int, error) {
 	return p.engine.GetAssembledBlock(ctx, id)
+}
+
+// GetBlobs forwards to underlying engine
+func (p *ExecutionEnginePool) GetBlobs(ctx context.Context, versionedHashes []libcommon.Hash) (blobs [][]byte, proofs [][][]byte) {
+	return p.engine.GetBlobs(ctx, versionedHashes)
 }
 
 // Close stops the pool and waits for pending requests
@@ -239,31 +252,3 @@ func (p *ExecutionEnginePool) Close() {
 func (p *ExecutionEnginePool) Stats() (requestCount, cacheHits, cacheMisses uint64) {
 	return p.requestCount.Load(), p.cacheHits.Load(), p.cacheMisses.Load()
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

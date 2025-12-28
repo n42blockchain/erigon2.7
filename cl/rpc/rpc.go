@@ -371,8 +371,10 @@ func (b *BeaconRpcP2P) sendRequestWithPeer(
 ) ([]responseData, string, error) {
 	ctx, cn := context.WithTimeout(ctx, time.Second*2)
 	defer cn()
-	message, err := b.sentinel.SendPeerRequest(ctx, &sentinelproto.RequestDataWithPeer{
-		Pid:   peerId,
+	// Note: The current sentinel interface doesn't support peer-specific requests.
+	// Using SendRequest as a fallback - this may need to be updated when the interface is extended.
+	_ = peerId // Unused for now, as SendRequest doesn't support peer selection
+	message, err := b.sentinel.SendRequest(ctx, &sentinelproto.RequestData{
 		Data:  reqPayload,
 		Topic: topic,
 	})

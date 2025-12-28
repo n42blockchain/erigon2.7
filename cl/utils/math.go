@@ -58,6 +58,22 @@ func IntegerSquareRoot(n uint64) uint64 {
 	return uint64(math.Sqrt(float64(n)))
 }
 
+// Max64 returns the maximum of two uint64 values
+func Max64(a, b uint64) uint64 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+// Min64 returns the minimum of two uint64 values
+func Min64(a, b uint64) uint64 {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 
 
 

@@ -501,6 +501,14 @@ const (
 
 	StatesProcessingProgress = "StatesProcessingProgress"
 
+	// Electra pending operations
+	PendingConsolidations        = "PendingConsolidations"
+	PendingConsolidationsDump    = "PendingConsolidationsDump"
+	PendingDeposits              = "PendingDeposits"
+	PendingDepositsDump          = "PendingDepositsDump"
+	PendingPartialWithdrawals    = "PendingPartialWithdrawals"
+	PendingPartialWithdrawalsDump = "PendingPartialWithdrawalsDump"
+
 	//Diagnostics tables
 	DiagSystemInfo = "DiagSystemInfo"
 	DiagSyncStages = "DiagSyncStages"
