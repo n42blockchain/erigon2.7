@@ -14,7 +14,6 @@ import (
 	hexutil "github.com/erigontech/erigon-lib/common/hexutility"
 	engine_types "github.com/erigontech/erigon/turbo/engineapi/engine_types"
 	types "github.com/erigontech/erigon/core/types"
-	typesproto "github.com/erigontech/erigon-lib/gointerfaces/types"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -86,15 +85,14 @@ func (mr *MockExecutionEngineMockRecorder) FrozenBlocks(ctx interface{}) *gomock
 }
 
 // GetAssembledBlock mocks base method.
-func (m *MockExecutionEngine) GetAssembledBlock(ctx context.Context, id []byte) (*cltypes.Eth1Block, *engine_types.BlobsBundle, *typesproto.RequestsBundle, *big.Int, error) {
+func (m *MockExecutionEngine) GetAssembledBlock(ctx context.Context, id []byte) (*cltypes.Eth1Block, *engine_types.BlobsBundleV1, *big.Int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAssembledBlock", ctx, id)
 	ret0, _ := ret[0].(*cltypes.Eth1Block)
-	ret1, _ := ret[1].(*engine_types.BlobsBundle)
-	ret2, _ := ret[2].(*typesproto.RequestsBundle)
-	ret3, _ := ret[3].(*big.Int)
-	ret4, _ := ret[4].(error)
-	return ret0, ret1, ret2, ret3, ret4
+	ret1, _ := ret[1].(*engine_types.BlobsBundleV1)
+	ret2, _ := ret[2].(*big.Int)
+	ret3, _ := ret[3].(error)
+	return ret0, ret1, ret2, ret3
 }
 
 // GetAssembledBlock indicates an expected call of GetAssembledBlock.

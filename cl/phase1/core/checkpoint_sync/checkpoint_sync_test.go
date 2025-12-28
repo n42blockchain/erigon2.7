@@ -61,7 +61,7 @@ func TestRemoteCheckpointSync(t *testing.T) {
 
 	// Only 1 OK HTTP server, so we must get the expected state
 	clparams.ConfigurableCheckpointsURLs = []string{mockServer.URL}
-	syncer := NewRemoteCheckpointSync(&clparams.MainnetBeaconConfig, chain.MainnetChainID)
+	syncer := NewRemoteCheckpointSync(&clparams.MainnetBeaconConfig, clparams.NetworkType(chain.MainnetChainID))
 	actualState, err := syncer.GetLatestBeaconState(context.Background())
 	assert.True(t, rec)
 	require.NoError(t, err)
@@ -84,7 +84,7 @@ func TestRemoteCheckpointSyncTimeout(t *testing.T) {
 
 	// Only slow HTTP servers, so we must get a timeout
 	clparams.ConfigurableCheckpointsURLs = []string{mockSlowServer.URL, mockSlowServer.URL, mockSlowServer.URL}
-	syncer := &RemoteCheckpointSync{&clparams.MainnetBeaconConfig, chain.MainnetChainID, 50 * time.Millisecond}
+	syncer := &RemoteCheckpointSync{&clparams.MainnetBeaconConfig, clparams.NetworkType(chain.MainnetChainID), 50 * time.Millisecond}
 	currentState, err := syncer.GetLatestBeaconState(ctx)
 	require.Nil(t, currentState)
 	require.True(t, errors.Is(err, context.DeadlineExceeded))
@@ -109,7 +109,7 @@ func TestRemoteCheckpointSyncPossiblyAfterTimeout(t *testing.T) {
 
 	// 3 slow + 1 OK HTTP servers, so we may get some timeout(s) with probability 0.75 but will eventually succeed
 	clparams.ConfigurableCheckpointsURLs = []string{mockSlowServer.URL, mockSlowServer.URL, mockSlowServer.URL, mockServer.URL}
-	syncer := &RemoteCheckpointSync{&clparams.MainnetBeaconConfig, chain.MainnetChainID, 1 * time.Second}
+	syncer := &RemoteCheckpointSync{&clparams.MainnetBeaconConfig, clparams.NetworkType(chain.MainnetChainID), 1 * time.Second}
 	actualState, err := syncer.GetLatestBeaconState(ctx)
 	assert.True(t, rec)
 	require.NoError(t, err)
