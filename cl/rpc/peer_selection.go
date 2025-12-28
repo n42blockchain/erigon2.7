@@ -18,7 +18,7 @@ import (
 	"github.com/erigontech/erigon/cl/utils/eth_clock"
 	"github.com/erigontech/erigon-lib/log/v3"
 	"github.com/erigontech/erigon-lib/types/ssz"
-	"github.com/erigontech/erigon-lib/gointerfaces/sentinel"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 	"github.com/erigontech/erigon/p2p/enode"
 )
 

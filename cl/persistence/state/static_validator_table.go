@@ -85,7 +85,7 @@ type cborStaticValidator struct {
 
 // Serialize encodes the StaticValidator data into CBOR format and writes it to the given writer.
 func (s *StaticValidator) WriteTo(w io.Writer) error {
-	return cbor.Marshal(w, cborStaticValidator{
+	data, err := cbor.Marshal(cborStaticValidator{
 		PublicKeys:            s.publicKeys,
 		WithdrawalCredentials: s.withdrawalCredentials,
 		Slashed:               s.slashed,
@@ -94,12 +94,21 @@ func (s *StaticValidator) WriteTo(w io.Writer) error {
 		ExitEpoch:             s.exitEpoch,
 		WithdrawableEpoch:     s.withdrawableEpoch,
 	})
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(data)
+	return err
 }
 
 // Deserialize decodes CBOR data from the given reader and updates the StaticValidator fields.
 func (s *StaticValidator) ReadFrom(r io.Reader) error {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return err
+	}
 	tmp := &cborStaticValidator{}
-	if err := cbor.Unmarshal(&tmp, r); err != nil {
+	if err := cbor.Unmarshal(data, tmp); err != nil {
 		return err
 	}
 	s.withdrawalCredentials = tmp.WithdrawalCredentials

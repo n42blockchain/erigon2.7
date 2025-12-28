@@ -314,7 +314,7 @@ func VerifyAgainstIdentifiersAndInsertIntoTheBlobStore(ctx context.Context, stor
 				blob := gokzg4844.Blob(sidecar.Blob)
 				commitment := gokzg4844.KZGCommitment(sidecar.KzgCommitment)
 				proof := gokzg4844.KZGProof(sidecar.KzgProof)
-				if err := kzgCtx.VerifyBlobKZGProof(blob, commitment, proof); err != nil {
+				if err := kzgCtx.VerifyBlobKZGProof(&blob, commitment, proof); err != nil {
 					errAtomic.Store(errors.New("sidecar is wrong"))
 					return
 				}
