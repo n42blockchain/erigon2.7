@@ -13,7 +13,9 @@ import (
 	context "context"
 	reflect "reflect"
 
-	solid "github.com/erigontech/erigon/cl/cltypes/solid"
+	clparams "github.com/erigontech/erigon/cl/clparams"
+	services "github.com/erigontech/erigon/cl/phase1/network/services"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -21,6 +23,7 @@ import (
 type MockAttestationService struct {
 	ctrl     *gomock.Controller
 	recorder *MockAttestationServiceMockRecorder
+	isgomock struct{}
 }
 
 // MockAttestationServiceMockRecorder is the mock recorder for MockAttestationService.
@@ -40,18 +43,95 @@ func (m *MockAttestationService) EXPECT() *MockAttestationServiceMockRecorder {
 	return m.recorder
 }
 
-// ProcessMessage mocks base method.
-func (m *MockAttestationService) ProcessMessage(arg0 context.Context, arg1 *uint64, arg2 *solid.Attestation) error {
+// DecodeGossipMessage mocks base method.
+func (m *MockAttestationService) DecodeGossipMessage(data *sentinelproto.GossipData, version clparams.StateVersion) (*services.AttestationForGossip, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ProcessMessage", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "DecodeGossipMessage", data, version)
+	ret0, _ := ret[0].(*services.AttestationForGossip)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DecodeGossipMessage indicates an expected call of DecodeGossipMessage.
+func (mr *MockAttestationServiceMockRecorder) DecodeGossipMessage(data, version any) *MockAttestationServiceDecodeGossipMessageCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DecodeGossipMessage", reflect.TypeOf((*MockAttestationService)(nil).DecodeGossipMessage), data, version)
+	return &MockAttestationServiceDecodeGossipMessageCall{Call: call}
+}
+
+// MockAttestationServiceDecodeGossipMessageCall wrap *gomock.Call
+type MockAttestationServiceDecodeGossipMessageCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockAttestationServiceDecodeGossipMessageCall) Return(arg0 *services.AttestationForGossip, arg1 error) *MockAttestationServiceDecodeGossipMessageCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockAttestationServiceDecodeGossipMessageCall) Do(f func(*sentinelproto.GossipData, clparams.StateVersion) (*services.AttestationForGossip, error)) *MockAttestationServiceDecodeGossipMessageCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockAttestationServiceDecodeGossipMessageCall) DoAndReturn(f func(*sentinelproto.GossipData, clparams.StateVersion) (*services.AttestationForGossip, error)) *MockAttestationServiceDecodeGossipMessageCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// IsMyGossipMessage mocks base method.
+func (m *MockAttestationService) IsMyGossipMessage(name string) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsMyGossipMessage", name)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsMyGossipMessage indicates an expected call of IsMyGossipMessage.
+func (mr *MockAttestationServiceMockRecorder) IsMyGossipMessage(name any) *MockAttestationServiceIsMyGossipMessageCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsMyGossipMessage", reflect.TypeOf((*MockAttestationService)(nil).IsMyGossipMessage), name)
+	return &MockAttestationServiceIsMyGossipMessageCall{Call: call}
+}
+
+// MockAttestationServiceIsMyGossipMessageCall wrap *gomock.Call
+type MockAttestationServiceIsMyGossipMessageCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockAttestationServiceIsMyGossipMessageCall) Return(arg0 bool) *MockAttestationServiceIsMyGossipMessageCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockAttestationServiceIsMyGossipMessageCall) Do(f func(string) bool) *MockAttestationServiceIsMyGossipMessageCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockAttestationServiceIsMyGossipMessageCall) DoAndReturn(f func(string) bool) *MockAttestationServiceIsMyGossipMessageCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// ProcessMessage mocks base method.
+func (m *MockAttestationService) ProcessMessage(ctx context.Context, subnet *uint64, msg *services.AttestationForGossip) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ProcessMessage", ctx, subnet, msg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ProcessMessage indicates an expected call of ProcessMessage.
-func (mr *MockAttestationServiceMockRecorder) ProcessMessage(arg0, arg1, arg2 any) *MockAttestationServiceProcessMessageCall {
+func (mr *MockAttestationServiceMockRecorder) ProcessMessage(ctx, subnet, msg any) *MockAttestationServiceProcessMessageCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessMessage", reflect.TypeOf((*MockAttestationService)(nil).ProcessMessage), arg0, arg1, arg2)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessMessage", reflect.TypeOf((*MockAttestationService)(nil).ProcessMessage), ctx, subnet, msg)
 	return &MockAttestationServiceProcessMessageCall{Call: call}
 }
 
@@ -67,13 +147,40 @@ func (c *MockAttestationServiceProcessMessageCall) Return(arg0 error) *MockAttes
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockAttestationServiceProcessMessageCall) Do(f func(context.Context, *uint64, *solid.Attestation) error) *MockAttestationServiceProcessMessageCall {
+func (c *MockAttestationServiceProcessMessageCall) Do(f func(context.Context, *uint64, *services.AttestationForGossip) error) *MockAttestationServiceProcessMessageCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockAttestationServiceProcessMessageCall) DoAndReturn(f func(context.Context, *uint64, *solid.Attestation) error) *MockAttestationServiceProcessMessageCall {
+func (c *MockAttestationServiceProcessMessageCall) DoAndReturn(f func(context.Context, *uint64, *services.AttestationForGossip) error) *MockAttestationServiceProcessMessageCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

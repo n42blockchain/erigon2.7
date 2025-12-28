@@ -1,21 +1,38 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package network
 
 import (
+	"math"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/erigontech/erigon-lib/log/v3"
 	"golang.org/x/net/context"
-
-	libcommon "github.com/erigontech/erigon-lib/common"
-	"github.com/erigontech/erigon-lib/kv"
 
 	"github.com/erigontech/erigon/cl/cltypes"
 	"github.com/erigontech/erigon/cl/persistence/base_encoding"
 	"github.com/erigontech/erigon/cl/persistence/beacon_indicies"
 	"github.com/erigontech/erigon/cl/phase1/execution_client"
 	"github.com/erigontech/erigon/cl/rpc"
+	libcommon "github.com/erigontech/erigon-lib/common"
+	"github.com/erigontech/erigon-lib/log/v3"
+	"github.com/erigontech/erigon-lib/kv"
+	"github.com/erigontech/erigon/turbo/snapshotsync/freezeblocks"
 )
 
 // Whether the reverse downloader arrived at expected height or condition.
@@ -31,19 +48,21 @@ type BackwardBeaconDownloader struct {
 	finished       atomic.Bool
 	reqInterval    *time.Ticker
 	db             kv.RwDB
+	sn             *freezeblocks.CaplinSnapshots
 	neverSkip      bool
 
 	mu sync.Mutex
 }
 
-func NewBackwardBeaconDownloader(ctx context.Context, rpc *rpc.BeaconRpcP2P, engine execution_client.ExecutionEngine, db kv.RwDB) *BackwardBeaconDownloader {
+func NewBackwardBeaconDownloader(ctx context.Context, rpc *rpc.BeaconRpcP2P, sn *freezeblocks.CaplinSnapshots, engine execution_client.ExecutionEngine, db kv.RwDB) *BackwardBeaconDownloader {
 	return &BackwardBeaconDownloader{
 		ctx:         ctx,
 		rpc:         rpc,
 		db:          db,
-		reqInterval: time.NewTicker(300 * time.Millisecond),
+		reqInterval: time.NewTicker(600 * time.Millisecond),
 		neverSkip:   true,
 		engine:      engine,
+		sn:          sn,
 	}
 }
 
@@ -104,46 +123,47 @@ func (b *BackwardBeaconDownloader) Peers() (uint64, error) {
 // If the callback returns an error or signals that the download should be finished, the function will exit.
 // If the block's root hash does not match the expected root hash, it will be rejected and the function will continue to the next block.
 func (b *BackwardBeaconDownloader) RequestMore(ctx context.Context) error {
-	count := uint64(64)
+	count := uint64(16)
 	start := b.slotToDownload.Load() - count + 1
 	// Overflow? round to 0.
 	if start > b.slotToDownload.Load() {
 		start = 0
 	}
-	var atomicResp atomic.Value
-	atomicResp.Store([]*cltypes.SignedBeaconBlock{})
+
+	var responses []*cltypes.SignedBeaconBlock
+	var received = make(chan []*cltypes.SignedBeaconBlock)
 
 Loop:
 	for {
 		select {
 		case <-b.reqInterval.C:
-			go func() {
-				if len(atomicResp.Load().([]*cltypes.SignedBeaconBlock)) > 0 {
-					return
-				}
-				responses, peerId, err := b.rpc.SendBeaconBlocksByRangeReq(ctx, start, count)
-				if err != nil {
-					return
-				}
-				if responses == nil {
-					return
-				}
-				if len(responses) == 0 {
-					b.rpc.BanPeer(peerId)
-					return
-				}
-				atomicResp.Store(responses)
-			}()
+			if len(received) == 0 {
+				go func() {
+					blocks, peerId, err := b.rpc.SendBeaconBlocksByRangeReq(ctx, start, count)
+					if err != nil {
+						b.rpc.BanPeer(peerId)
+						return
+					}
+					if blocks == nil {
+						b.rpc.BanPeer(peerId)
+						return
+					}
+					if len(blocks) == 0 {
+						b.rpc.BanPeer(peerId)
+						return
+					}
+					if len(received) == 0 {
+						received <- blocks
+					}
+				}()
+			}
 		case <-ctx.Done():
 			return ctx.Err()
-		default:
-			if len(atomicResp.Load().([]*cltypes.SignedBeaconBlock)) > 0 {
-				break Loop
-			}
-			time.Sleep(10 * time.Millisecond)
+		case responses = <-received:
+			break Loop
 		}
 	}
-	responses := atomicResp.Load().([]*cltypes.SignedBeaconBlock)
+
 	// Import new blocks, order is forward so reverse the whole packet
 	for i := len(responses) - 1; i >= 0; i-- {
 		if b.finished.Load() {
@@ -170,6 +190,10 @@ Loop:
 		}
 		// set expected root to the segment parent root
 		b.expectedRoot = segment.Block.ParentRoot
+		if segment.Block.Slot == 0 {
+			b.finished.Store(true)
+			return nil
+		}
 		b.slotToDownload.Store(segment.Block.Slot - 1) // update slot (might be inexact but whatever)
 	}
 	if !b.neverSkip {
@@ -181,8 +205,32 @@ Loop:
 		return err
 	}
 	defer tx.Rollback()
+
+	elFrozenBlocks := uint64(math.MaxUint64)
+	if b.engine != nil && b.engine.SupportInsertion() {
+		elFrozenBlocks = b.engine.FrozenBlocks(ctx)
+	}
+	clFrozenBlocks := uint64(0)
+	if b.sn != nil {
+		clFrozenBlocks = b.sn.SegmentsMax()
+	}
+
+	updateFrozenBlocksTicker := time.NewTicker(5 * time.Second)
+	defer updateFrozenBlocksTicker.Stop()
 	// it will stop if we end finding a gap or if we reach the maxIterations
 	for {
+
+		select {
+		case <-updateFrozenBlocksTicker.C:
+			if b.sn != nil {
+				clFrozenBlocks = b.sn.SegmentsMax()
+			}
+			if b.engine != nil && b.engine.SupportInsertion() {
+				elFrozenBlocks = b.engine.FrozenBlocks(ctx)
+			}
+		default:
+		}
+
 		// check if the expected root is in db
 		slot, err := beacon_indicies.ReadBlockSlotByBlockRoot(tx, b.expectedRoot)
 		if err != nil {
@@ -198,7 +246,14 @@ Loop:
 			if err != nil {
 				return err
 			}
-			if blockHash != (libcommon.Hash{}) {
+			blockNumber, err := beacon_indicies.ReadExecutionBlockNumber(tx, b.expectedRoot)
+			if err != nil {
+				return err
+			}
+			if blockHash == (libcommon.Hash{}) || blockNumber == nil {
+				break
+			}
+			if *blockNumber >= elFrozenBlocks {
 				has, err := b.engine.HasBlock(ctx, blockHash)
 				if err != nil {
 					return err
@@ -207,6 +262,9 @@ Loop:
 					break
 				}
 			}
+		}
+		if *slot <= clFrozenBlocks {
+			break
 		}
 		b.slotToDownload.Store(*slot - 1)
 		if err := beacon_indicies.MarkRootCanonical(b.ctx, tx, *slot, b.expectedRoot); err != nil {
@@ -231,3 +289,30 @@ Loop:
 
 	return tx.Commit()
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

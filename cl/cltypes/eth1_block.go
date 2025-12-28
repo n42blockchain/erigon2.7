@@ -1,3 +1,19 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package cltypes
 
 import (
@@ -5,7 +21,6 @@ import (
 	"fmt"
 	"math/big"
 
-	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/holiman/uint256"
 
 	"github.com/erigontech/erigon/cl/clparams"
@@ -13,26 +28,28 @@ import (
 	"github.com/erigontech/erigon/cl/merkle_tree"
 	ssz2 "github.com/erigontech/erigon/cl/ssz"
 	"github.com/erigontech/erigon/cl/utils"
+	libcommon "github.com/erigontech/erigon-lib/common"
+	"github.com/erigontech/erigon-lib/log/v3"
 	"github.com/erigontech/erigon/consensus/merge"
 	"github.com/erigontech/erigon/core/types"
 )
 
 // ETH1Block represents a block structure CL-side.
 type Eth1Block struct {
-	ParentHash    libcommon.Hash    `json:"parent_hash"`
-	FeeRecipient  libcommon.Address `json:"fee_recipient"`
-	StateRoot     libcommon.Hash    `json:"state_root"`
-	ReceiptsRoot  libcommon.Hash    `json:"receipts_root"`
-	LogsBloom     types.Bloom       `json:"logs_bloom"`
-	PrevRandao    libcommon.Hash    `json:"prev_randao"`
-	BlockNumber   uint64            `json:"block_number,string"`
-	GasLimit      uint64            `json:"gas_limit,string"`
-	GasUsed       uint64            `json:"gas_used,string"`
-	Time          uint64            `json:"timestamp,string"`
-	Extra         *solid.ExtraData  `json:"extra_data"`
-	BaseFeePerGas libcommon.Hash    `json:"base_fee_per_gas"`
+	ParentHash    libcommon.Hash      `json:"parent_hash"`
+	FeeRecipient  libcommon.Address   `json:"fee_recipient"`
+	StateRoot     libcommon.Hash      `json:"state_root"`
+	ReceiptsRoot  libcommon.Hash      `json:"receipts_root"`
+	LogsBloom     types.Bloom      `json:"logs_bloom"`
+	PrevRandao    libcommon.Hash      `json:"prev_randao"`
+	BlockNumber   uint64           `json:"block_number,string"`
+	GasLimit      uint64           `json:"gas_limit,string"`
+	GasUsed       uint64           `json:"gas_used,string"`
+	Time          uint64           `json:"timestamp,string"`
+	Extra         *solid.ExtraData `json:"extra_data"`
+	BaseFeePerGas libcommon.Hash      `json:"base_fee_per_gas"`
 	// Extra fields
-	BlockHash     libcommon.Hash              `json:"block_hash"`
+	BlockHash     libcommon.Hash                 `json:"block_hash"`
 	Transactions  *solid.TransactionsSSZ      `json:"transactions"`
 	Withdrawals   *solid.ListSSZ[*Withdrawal] `json:"withdrawals,omitempty"`
 	BlobGasUsed   uint64                      `json:"blob_gas_used,string"`
@@ -44,7 +61,10 @@ type Eth1Block struct {
 
 // NewEth1Block creates a new Eth1Block.
 func NewEth1Block(version clparams.StateVersion, beaconCfg *clparams.BeaconChainConfig) *Eth1Block {
-	return &Eth1Block{version: version, beaconCfg: beaconCfg}
+	return &Eth1Block{
+		version:   version,
+		beaconCfg: beaconCfg,
+	}
 }
 
 // NewEth1BlockFromHeaderAndBody with given header/body.
@@ -95,19 +115,19 @@ func (*Eth1Block) Static() bool {
 
 func (b *Eth1Block) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		ParentHash    libcommon.Hash              `json:"parent_hash"`
-		FeeRecipient  libcommon.Address           `json:"fee_recipient"`
-		StateRoot     libcommon.Hash              `json:"state_root"`
-		ReceiptsRoot  libcommon.Hash              `json:"receipts_root"`
+		ParentHash    libcommon.Hash                 `json:"parent_hash"`
+		FeeRecipient  libcommon.Address              `json:"fee_recipient"`
+		StateRoot     libcommon.Hash                 `json:"state_root"`
+		ReceiptsRoot  libcommon.Hash                 `json:"receipts_root"`
 		LogsBloom     types.Bloom                 `json:"logs_bloom"`
-		PrevRandao    libcommon.Hash              `json:"prev_randao"`
+		PrevRandao    libcommon.Hash                 `json:"prev_randao"`
 		BlockNumber   uint64                      `json:"block_number,string"`
 		GasLimit      uint64                      `json:"gas_limit,string"`
 		GasUsed       uint64                      `json:"gas_used,string"`
 		Time          uint64                      `json:"timestamp,string"`
 		Extra         *solid.ExtraData            `json:"extra_data"`
 		BaseFeePerGas string                      `json:"base_fee_per_gas"`
-		BlockHash     libcommon.Hash              `json:"block_hash"`
+		BlockHash     libcommon.Hash                 `json:"block_hash"`
 		Transactions  *solid.TransactionsSSZ      `json:"transactions"`
 		Withdrawals   *solid.ListSSZ[*Withdrawal] `json:"withdrawals,omitempty"`
 		BlobGasUsed   uint64                      `json:"blob_gas_used,string"`
@@ -135,21 +155,21 @@ func (b *Eth1Block) MarshalJSON() ([]byte, error) {
 
 func (b *Eth1Block) UnmarshalJSON(data []byte) error {
 	var aux struct {
-		ParentHash    libcommon.Hash              `json:"parent_hash"`
-		FeeRecipient  libcommon.Address           `json:"fee_recipient"`
-		StateRoot     libcommon.Hash              `json:"state_root"`
-		ReceiptsRoot  libcommon.Hash              `json:"receipts_root"`
+		ParentHash    libcommon.Hash                 `json:"parent_hash"`
+		FeeRecipient  libcommon.Address              `json:"fee_recipient"`
+		StateRoot     libcommon.Hash                 `json:"state_root"`
+		ReceiptsRoot  libcommon.Hash                 `json:"receipts_root"`
 		LogsBloom     types.Bloom                 `json:"logs_bloom"`
-		PrevRandao    libcommon.Hash              `json:"prev_randao"`
+		PrevRandao    libcommon.Hash                 `json:"prev_randao"`
 		BlockNumber   uint64                      `json:"block_number,string"`
 		GasLimit      uint64                      `json:"gas_limit,string"`
 		GasUsed       uint64                      `json:"gas_used,string"`
 		Time          uint64                      `json:"timestamp,string"`
 		Extra         *solid.ExtraData            `json:"extra_data"`
 		BaseFeePerGas string                      `json:"base_fee_per_gas"`
-		BlockHash     libcommon.Hash              `json:"block_hash"`
+		BlockHash     libcommon.Hash                 `json:"block_hash"`
 		Transactions  *solid.TransactionsSSZ      `json:"transactions"`
-		Withdrawals   *solid.ListSSZ[*Withdrawal] `json:"withdrawals,omitempty"`
+		Withdrawals   *solid.ListSSZ[*Withdrawal] `json:"withdrawals"`
 		BlobGasUsed   uint64                      `json:"blob_gas_used,string"`
 		ExcessBlobGas uint64                      `json:"excess_blob_gas,string"`
 	}
@@ -285,7 +305,7 @@ func (b *Eth1Block) getSchema() []interface{} {
 }
 
 // RlpHeader returns the equivalent types.Header struct with RLP-based fields.
-func (b *Eth1Block) RlpHeader(parentRoot *libcommon.Hash) (*types.Header, error) {
+func (b *Eth1Block) RlpHeader(parentRoot *libcommon.Hash, executionReqHash libcommon.Hash) (*types.Header, error) {
 	// Reverse the order of the bytes in the BaseFeePerGas array and convert it to a big integer.
 	reversedBaseFeePerGas := libcommon.Copy(b.BaseFeePerGas[:])
 	for i, j := 0, len(reversedBaseFeePerGas)-1; i < j; i, j = i+1, j-1 {
@@ -305,6 +325,7 @@ func (b *Eth1Block) RlpHeader(parentRoot *libcommon.Hash) (*types.Header, error)
 		*withdrawalsHash = types.DeriveSha(types.Withdrawals(withdrawals))
 	}
 	if b.version < clparams.DenebVersion {
+		log.Debug("ParentRoot is nil", "parentRoot", parentRoot, "version", b.version)
 		parentRoot = nil
 	}
 
@@ -317,7 +338,7 @@ func (b *Eth1Block) RlpHeader(parentRoot *libcommon.Hash) (*types.Header, error)
 		ReceiptHash:           b.ReceiptsRoot,
 		Bloom:                 b.LogsBloom,
 		Difficulty:            merge.ProofOfStakeDifficulty,
-		Number:                big.NewInt(int64(b.BlockNumber)),
+		Number:                new(big.Int).SetUint64(b.BlockNumber),
 		GasLimit:              b.GasLimit,
 		GasUsed:               b.GasUsed,
 		Time:                  b.Time,
@@ -336,9 +357,13 @@ func (b *Eth1Block) RlpHeader(parentRoot *libcommon.Hash) (*types.Header, error)
 		header.ExcessBlobGas = &excessBlobGas
 	}
 
+	if b.version >= clparams.ElectraVersion {
+		header.RequestsHash = &executionReqHash
+	}
+
 	// If the header hash does not match the block hash, return an error.
 	if header.Hash() != b.BlockHash {
-		return nil, fmt.Errorf("cannot derive rlp header: mismatching hash: %s != %s", header.Hash(), b.BlockHash)
+		return nil, fmt.Errorf("cannot derive rlp header: mismatching hash: %s != %s, %d", header.Hash(), b.BlockHash, header.Number)
 	}
 
 	return header, nil
@@ -360,3 +385,30 @@ func (b *Eth1Block) Body() *types.RawBody {
 		Withdrawals:  types.Withdrawals(withdrawals),
 	}
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

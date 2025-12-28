@@ -1,3 +1,19 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package merkle_tree
 
 import (
@@ -5,11 +21,10 @@ import (
 
 	"github.com/prysmaticlabs/gohashtree"
 
-	"github.com/erigontech/erigon-lib/common"
+	"github.com/erigontech/erigon/cl/utils"
+	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon-lib/common/length"
 	"github.com/erigontech/erigon-lib/types/ssz"
-
-	"github.com/erigontech/erigon/cl/utils"
 )
 
 // MerkleizeVector uses our optimized routine to hash a list of 32-byte
@@ -52,7 +67,7 @@ func MerkleizeVectorFlat(in []byte, limit uint64) ([32]byte, error) {
 		}
 		elements = elements[:outputLen]
 	}
-	return common.BytesToHash(elements[:length.Hash]), nil
+	return libcommon.BytesToHash(elements[:length.Hash]), nil
 }
 
 // BitlistRootWithLimit computes the HashSSZ merkleization of
@@ -72,6 +87,15 @@ func BitlistRootWithLimit(bits []byte, limit uint64) ([32]byte, error) {
 
 	lengthRoot := Uint64Root(size)
 	return utils.Sha256(base[:], lengthRoot[:]), nil
+}
+
+func BitvectorRootWithLimit(bits []byte, limit uint64) ([32]byte, error) {
+	roots := packBits(bits)
+	root, err := MerkleizeVector(roots, (limit+255)/256)
+	if err != nil {
+		return [32]byte{}, err
+	}
+	return root, nil
 }
 
 func packBits(bytes []byte) [][32]byte {
@@ -125,3 +149,30 @@ func ListObjectSSZRoot[T ssz.HashableSSZ](list []T, limit uint64) ([32]byte, err
 	lenLeaf := Uint64Root(uint64(len(list)))
 	return utils.Sha256(vectorLeaf[:], lenLeaf[:]), nil
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

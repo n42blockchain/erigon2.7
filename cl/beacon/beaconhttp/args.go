@@ -1,14 +1,31 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package beaconhttp
 
 import (
-	"fmt"
+	"errors"
 	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
 
-	"github.com/erigontech/erigon-lib/common"
 	"github.com/go-chi/chi/v5"
+
+	libcommon "github.com/erigontech/erigon-lib/common"
 )
 
 type chainTag int
@@ -24,7 +41,7 @@ var (
 type SegmentID struct {
 	tag  chainTag
 	slot *uint64
-	root *common.Hash
+	root *libcommon.Hash
 }
 
 func (c *SegmentID) Head() bool {
@@ -47,7 +64,7 @@ func (c *SegmentID) GetSlot() *uint64 {
 	return c.slot
 }
 
-func (c *SegmentID) GetRoot() *common.Hash {
+func (c *SegmentID) GetRoot() *libcommon.Hash {
 	return c.root
 }
 
@@ -56,7 +73,7 @@ func EpochFromRequest(r *http.Request) (uint64, error) {
 	regex := regexp.MustCompile(`^\d+$`)
 	epoch := chi.URLParam(r, "epoch")
 	if !regex.MatchString(epoch) {
-		return 0, fmt.Errorf("invalid path variable: {epoch}")
+		return 0, errors.New("invalid path variable: {epoch}")
 	}
 	epochMaybe, err := strconv.ParseUint(epoch, 10, 64)
 	if err != nil {
@@ -78,7 +95,7 @@ func BlockIdFromRequest(r *http.Request) (*SegmentID, error) {
 
 	blockId := chi.URLParam(r, "block_id")
 	if !regex.MatchString(blockId) {
-		return nil, fmt.Errorf("invalid path variable: {block_id}")
+		return nil, errors.New("invalid path variable: {block_id}")
 	}
 
 	if blockId == "head" {
@@ -94,7 +111,7 @@ func BlockIdFromRequest(r *http.Request) (*SegmentID, error) {
 	if err == nil {
 		return &SegmentID{slot: &slotMaybe}, nil
 	}
-	root := common.HexToHash(blockId)
+	root := libcommon.HexToHash(blockId)
 	return &SegmentID{
 		root: &root,
 	}, nil
@@ -105,7 +122,7 @@ func StateIdFromRequest(r *http.Request) (*SegmentID, error) {
 
 	stateId := chi.URLParam(r, "state_id")
 	if !regex.MatchString(stateId) {
-		return nil, fmt.Errorf("invalid path variable: {state_id}")
+		return nil, errors.New("invalid path variable: {state_id}")
 	}
 
 	if stateId == "head" {
@@ -124,33 +141,33 @@ func StateIdFromRequest(r *http.Request) (*SegmentID, error) {
 	if err == nil {
 		return &SegmentID{slot: &slotMaybe}, nil
 	}
-	root := common.HexToHash(stateId)
+	root := libcommon.HexToHash(stateId)
 	return &SegmentID{
 		root: &root,
 	}, nil
 }
 
-func HashFromQueryParams(r *http.Request, name string) (*common.Hash, error) {
+func HashFromQueryParams(r *http.Request, name string) (*libcommon.Hash, error) {
 	hashStr := r.URL.Query().Get(name)
 	if hashStr == "" {
 		return nil, nil
 	}
 	// check if hashstr is an hex string
 	if len(hashStr) != 2+2*32 {
-		return nil, fmt.Errorf("invalid hash length")
+		return nil, errors.New("invalid hash length")
 	}
 	if hashStr[:2] != "0x" {
-		return nil, fmt.Errorf("invalid hash prefix")
+		return nil, errors.New("invalid hash prefix")
 	}
 	notHex, err := regexp.MatchString("[^0-9A-Fa-f]", hashStr[2:])
 	if err != nil {
 		return nil, err
 	}
 	if notHex {
-		return nil, fmt.Errorf("invalid hash characters")
+		return nil, errors.New("invalid hash characters")
 	}
 
-	hash := common.HexToHash(hashStr)
+	hash := libcommon.HexToHash(hashStr)
 	return &hash, nil
 }
 
@@ -179,3 +196,30 @@ func StringListFromQueryParams(r *http.Request, name string) ([]string, error) {
 
 	return regexp.MustCompile(`\s*,\s*`).Split(str, -1), nil
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

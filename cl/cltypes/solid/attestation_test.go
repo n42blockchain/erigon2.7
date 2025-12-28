@@ -10,9 +10,9 @@ import (
 func TestAttestationData(t *testing.T) {
 	slot := uint64(123)
 	validatorIndex := uint64(456)
-	beaconBlockRoot := common.HexToHash("0x63426b1ac6f47473ce3386469f2408f992a0a18c52e343d63b6872be45f4e6f2")
-	source := NewCheckpointFromParameters(common.HexToHash("0x63426b1ac6f47473ce3386469f2408f992a0a18c52e343d63b6872be45f4e6f1"), 123)
-	target := NewCheckpointFromParameters(common.HexToHash("0x63426b1ac6f47473ce3386469f2408f992a0a18c52e343d63b6872be45f4e6f3"), 456)
+	beaconBlockRoot := libcommon.HexToHash("0x63426b1ac6f47473ce3386469f2408f992a0a18c52e343d63b6872be45f4e6f2")
+	source := NewCheckpointFromParameters(libcommon.HexToHash("0x63426b1ac6f47473ce3386469f2408f992a0a18c52e343d63b6872be45f4e6f1"), 123)
+	target := NewCheckpointFromParameters(libcommon.HexToHash("0x63426b1ac6f47473ce3386469f2408f992a0a18c52e343d63b6872be45f4e6f3"), 456)
 
 	attData := NewAttestionDataFromParameters(slot, validatorIndex, beaconBlockRoot, source, target)
 
@@ -91,3 +91,30 @@ func TestAttestation(t *testing.T) {
 	cloned := attestation.Clone()
 	assert.NotEqual(t, nil, cloned.(*Attestation))
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -10,3 +10,30 @@ type BeaconStateReader interface {
 	GetDomain(domainType [4]byte, epoch uint64) ([]byte, error)
 	CommitteeCount(epoch uint64) uint64
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

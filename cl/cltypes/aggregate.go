@@ -1,10 +1,26 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package cltypes
 
 import (
-	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon/cl/cltypes/solid"
 	"github.com/erigontech/erigon/cl/merkle_tree"
 	ssz2 "github.com/erigontech/erigon/cl/ssz"
+	libcommon "github.com/erigontech/erigon-lib/common"
 )
 
 /*
@@ -14,7 +30,7 @@ import (
 type AggregateAndProof struct {
 	AggregatorIndex uint64             `json:"aggregator_index,string"`
 	Aggregate       *solid.Attestation `json:"aggregate"`
-	SelectionProof  libcommon.Bytes96  `json:"selection_proof"`
+	SelectionProof  libcommon.Bytes96     `json:"selection_proof"`
 }
 
 func (a *AggregateAndProof) EncodeSSZ(dst []byte) ([]byte, error) {
@@ -40,7 +56,7 @@ func (a *AggregateAndProof) HashSSZ() ([32]byte, error) {
 
 type SignedAggregateAndProof struct {
 	Message   *AggregateAndProof `json:"message"`
-	Signature libcommon.Bytes96  `json:"signature"`
+	Signature libcommon.Bytes96     `json:"signature"`
 }
 
 func (a *SignedAggregateAndProof) EncodeSSZ(dst []byte) ([]byte, error) {
@@ -69,6 +85,10 @@ type SyncAggregate struct {
 	SyncCommiteeSignature libcommon.Bytes96 `json:"sync_committee_signature"`
 }
 
+func NewSyncAggregate() *SyncAggregate {
+	return &SyncAggregate{}
+}
+
 // return sum of the committee bits
 func (agg *SyncAggregate) Sum() int {
 	ret := 0
@@ -90,7 +110,7 @@ func (agg *SyncAggregate) IsSet(idx uint64) bool {
 }
 
 func (agg *SyncAggregate) EncodeSSZ(buf []byte) ([]byte, error) {
-	return append(buf, append(agg.SyncCommiteeBits[:], agg.SyncCommiteeSignature[:]...)...), nil
+	return ssz2.MarshalSSZ(buf, agg.SyncCommiteeBits[:], agg.SyncCommiteeSignature[:])
 }
 
 func (*SyncAggregate) Static() bool {
@@ -109,3 +129,30 @@ func (agg *SyncAggregate) HashSSZ() ([32]byte, error) {
 	return merkle_tree.HashTreeRoot(agg.SyncCommiteeBits[:], agg.SyncCommiteeSignature[:])
 
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

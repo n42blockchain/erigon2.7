@@ -1,20 +1,38 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package beacon_indicies
 
 import (
 	"context"
 	"testing"
 
-	libcommon "github.com/erigontech/erigon-lib/common"
-	"github.com/erigontech/erigon-lib/kv"
-	"github.com/erigontech/erigon-lib/kv/memdb"
+	"github.com/stretchr/testify/require"
+
 	"github.com/erigontech/erigon/cl/clparams"
 	"github.com/erigontech/erigon/cl/cltypes"
-	"github.com/stretchr/testify/require"
+	libcommon "github.com/erigontech/erigon-lib/common"
+	"github.com/erigontech/erigon-lib/kv"
+	"github.com/erigontech/erigon-lib/kv/dbutils"
+	"github.com/erigontech/erigon-lib/kv/memdb"
 )
 
 func setupTestDB(t *testing.T) kv.RwDB {
 	// Create an in-memory SQLite DB for testing purposes
-	db := memdb.NewTestDB(t)
+	db := memdb.NewTestDB(t, dbcfg.ChainDB)
 	return db
 }
 
@@ -25,7 +43,7 @@ func TestWriteBlockRoot(t *testing.T) {
 	defer tx.Rollback()
 
 	// Mock a block
-	block := cltypes.NewSignedBeaconBlock(&clparams.MainnetBeaconConfig)
+	block := cltypes.NewSignedBeaconBlock(&clparams.MainnetBeaconConfig, clparams.Phase0Version)
 	block.Block.Slot = 56
 	block.EncodingSizeSSZ()
 
@@ -59,7 +77,7 @@ func TestReadParentBlockRoot(t *testing.T) {
 
 	mockParentRoot := libcommon.Hash{1}
 	// Mock a block
-	block := cltypes.NewSignedBeaconBlock(&clparams.MainnetBeaconConfig)
+	block := cltypes.NewSignedBeaconBlock(&clparams.MainnetBeaconConfig, clparams.Phase0Version)
 	block.Block.Slot = 56
 	block.Block.ParentRoot = mockParentRoot
 	block.EncodingSizeSSZ()
@@ -83,7 +101,7 @@ func TestTruncateCanonicalChain(t *testing.T) {
 
 	mockParentRoot := libcommon.Hash{1}
 	// Mock a block
-	block := cltypes.NewSignedBeaconBlock(&clparams.MainnetBeaconConfig)
+	block := cltypes.NewSignedBeaconBlock(&clparams.MainnetBeaconConfig, clparams.Phase0Version)
 	block.Block.Slot = 56
 	block.Block.ParentRoot = mockParentRoot
 	block.EncodingSizeSSZ()
@@ -102,7 +120,7 @@ func TestTruncateCanonicalChain(t *testing.T) {
 
 	canonicalRoot, err = ReadCanonicalBlockRoot(tx, block.Block.Slot)
 	require.NoError(t, err)
-	require.Equal(t, canonicalRoot, libcommon.Hash{})
+	require.Equal(t, libcommon.Hash{}, canonicalRoot)
 }
 
 func TestReadBeaconBlockHeader(t *testing.T) {
@@ -115,7 +133,7 @@ func TestReadBeaconBlockHeader(t *testing.T) {
 	mockSignature := [96]byte{23}
 
 	// Mock a block
-	block := cltypes.NewSignedBeaconBlock(&clparams.MainnetBeaconConfig)
+	block := cltypes.NewSignedBeaconBlock(&clparams.MainnetBeaconConfig, clparams.Phase0Version)
 	block.Block.Slot = 56
 	block.Block.ParentRoot = mockParentRoot
 	block.Signature = mockSignature
@@ -172,3 +190,30 @@ func TestWriteExecutionBlockHash(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, tHash2, tHash3)
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

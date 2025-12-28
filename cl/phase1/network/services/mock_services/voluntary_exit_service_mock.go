@@ -13,7 +13,9 @@ import (
 	context "context"
 	reflect "reflect"
 
-	cltypes "github.com/erigontech/erigon/cl/cltypes"
+	clparams "github.com/erigontech/erigon/cl/clparams"
+	services "github.com/erigontech/erigon/cl/phase1/network/services"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -21,6 +23,7 @@ import (
 type MockVoluntaryExitService struct {
 	ctrl     *gomock.Controller
 	recorder *MockVoluntaryExitServiceMockRecorder
+	isgomock struct{}
 }
 
 // MockVoluntaryExitServiceMockRecorder is the mock recorder for MockVoluntaryExitService.
@@ -40,18 +43,95 @@ func (m *MockVoluntaryExitService) EXPECT() *MockVoluntaryExitServiceMockRecorde
 	return m.recorder
 }
 
-// ProcessMessage mocks base method.
-func (m *MockVoluntaryExitService) ProcessMessage(arg0 context.Context, arg1 *uint64, arg2 *cltypes.SignedVoluntaryExit) error {
+// DecodeGossipMessage mocks base method.
+func (m *MockVoluntaryExitService) DecodeGossipMessage(data *sentinelproto.GossipData, version clparams.StateVersion) (*services.SignedVoluntaryExitForGossip, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ProcessMessage", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "DecodeGossipMessage", data, version)
+	ret0, _ := ret[0].(*services.SignedVoluntaryExitForGossip)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DecodeGossipMessage indicates an expected call of DecodeGossipMessage.
+func (mr *MockVoluntaryExitServiceMockRecorder) DecodeGossipMessage(data, version any) *MockVoluntaryExitServiceDecodeGossipMessageCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DecodeGossipMessage", reflect.TypeOf((*MockVoluntaryExitService)(nil).DecodeGossipMessage), data, version)
+	return &MockVoluntaryExitServiceDecodeGossipMessageCall{Call: call}
+}
+
+// MockVoluntaryExitServiceDecodeGossipMessageCall wrap *gomock.Call
+type MockVoluntaryExitServiceDecodeGossipMessageCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockVoluntaryExitServiceDecodeGossipMessageCall) Return(arg0 *services.SignedVoluntaryExitForGossip, arg1 error) *MockVoluntaryExitServiceDecodeGossipMessageCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockVoluntaryExitServiceDecodeGossipMessageCall) Do(f func(*sentinelproto.GossipData, clparams.StateVersion) (*services.SignedVoluntaryExitForGossip, error)) *MockVoluntaryExitServiceDecodeGossipMessageCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockVoluntaryExitServiceDecodeGossipMessageCall) DoAndReturn(f func(*sentinelproto.GossipData, clparams.StateVersion) (*services.SignedVoluntaryExitForGossip, error)) *MockVoluntaryExitServiceDecodeGossipMessageCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// IsMyGossipMessage mocks base method.
+func (m *MockVoluntaryExitService) IsMyGossipMessage(name string) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsMyGossipMessage", name)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsMyGossipMessage indicates an expected call of IsMyGossipMessage.
+func (mr *MockVoluntaryExitServiceMockRecorder) IsMyGossipMessage(name any) *MockVoluntaryExitServiceIsMyGossipMessageCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsMyGossipMessage", reflect.TypeOf((*MockVoluntaryExitService)(nil).IsMyGossipMessage), name)
+	return &MockVoluntaryExitServiceIsMyGossipMessageCall{Call: call}
+}
+
+// MockVoluntaryExitServiceIsMyGossipMessageCall wrap *gomock.Call
+type MockVoluntaryExitServiceIsMyGossipMessageCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockVoluntaryExitServiceIsMyGossipMessageCall) Return(arg0 bool) *MockVoluntaryExitServiceIsMyGossipMessageCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockVoluntaryExitServiceIsMyGossipMessageCall) Do(f func(string) bool) *MockVoluntaryExitServiceIsMyGossipMessageCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockVoluntaryExitServiceIsMyGossipMessageCall) DoAndReturn(f func(string) bool) *MockVoluntaryExitServiceIsMyGossipMessageCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// ProcessMessage mocks base method.
+func (m *MockVoluntaryExitService) ProcessMessage(ctx context.Context, subnet *uint64, msg *services.SignedVoluntaryExitForGossip) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ProcessMessage", ctx, subnet, msg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ProcessMessage indicates an expected call of ProcessMessage.
-func (mr *MockVoluntaryExitServiceMockRecorder) ProcessMessage(arg0, arg1, arg2 any) *MockVoluntaryExitServiceProcessMessageCall {
+func (mr *MockVoluntaryExitServiceMockRecorder) ProcessMessage(ctx, subnet, msg any) *MockVoluntaryExitServiceProcessMessageCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessMessage", reflect.TypeOf((*MockVoluntaryExitService)(nil).ProcessMessage), arg0, arg1, arg2)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessMessage", reflect.TypeOf((*MockVoluntaryExitService)(nil).ProcessMessage), ctx, subnet, msg)
 	return &MockVoluntaryExitServiceProcessMessageCall{Call: call}
 }
 
@@ -67,13 +147,40 @@ func (c *MockVoluntaryExitServiceProcessMessageCall) Return(arg0 error) *MockVol
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockVoluntaryExitServiceProcessMessageCall) Do(f func(context.Context, *uint64, *cltypes.SignedVoluntaryExit) error) *MockVoluntaryExitServiceProcessMessageCall {
+func (c *MockVoluntaryExitServiceProcessMessageCall) Do(f func(context.Context, *uint64, *services.SignedVoluntaryExitForGossip) error) *MockVoluntaryExitServiceProcessMessageCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockVoluntaryExitServiceProcessMessageCall) DoAndReturn(f func(context.Context, *uint64, *cltypes.SignedVoluntaryExit) error) *MockVoluntaryExitServiceProcessMessageCall {
+func (c *MockVoluntaryExitServiceProcessMessageCall) DoAndReturn(f func(context.Context, *uint64, *services.SignedVoluntaryExitForGossip) error) *MockVoluntaryExitServiceProcessMessageCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

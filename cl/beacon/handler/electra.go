@@ -131,3 +131,30 @@ func (a *ApiHandler) GetEthV1BeaconStatePendingConsolidations(w http.ResponseWri
 	return newBeaconResponse(nil).WithFinalized(false).WithVersion(state.Version()), nil
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

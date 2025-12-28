@@ -1,3 +1,19 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package mock_services
 
 import (
@@ -6,10 +22,11 @@ import (
 
 	"go.uber.org/mock/gomock"
 
-	"github.com/erigontech/erigon-lib/common"
-	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon/cl/cltypes"
 	"github.com/erigontech/erigon/cl/cltypes/solid"
+	"github.com/erigontech/erigon/cl/das"
+	"github.com/erigontech/erigon/cl/das/mock_services"
+	peerdasstatemock "github.com/erigontech/erigon/cl/das/state/mock_services"
 	"github.com/erigontech/erigon/cl/phase1/core/state"
 	"github.com/erigontech/erigon/cl/phase1/execution_client"
 	"github.com/erigontech/erigon/cl/phase1/forkchoice"
@@ -17,39 +34,43 @@ import (
 	"github.com/erigontech/erigon/cl/transition/impl/eth2"
 	"github.com/erigontech/erigon/cl/validator/sync_contribution_pool"
 	syncpoolmock "github.com/erigontech/erigon/cl/validator/sync_contribution_pool/mock_services"
+	libcommon "github.com/erigontech/erigon-lib/common"
 )
 
 // Make mocks with maps and simple setters and getters, panic on methods from ForkChoiceStorageWriter
 
 type ForkChoiceStorageMock struct {
-	Ancestors              map[uint64]common.Hash
+	Ancestors              map[uint64]libcommon.Hash
 	AnchorSlotVal          uint64
 	FinalizedCheckpointVal solid.Checkpoint
 	FinalizedSlotVal       uint64
-	HeadVal                common.Hash
+	HeadVal                libcommon.Hash
 	HeadSlotVal            uint64
 	HighestSeenVal         uint64
 	JustifiedCheckpointVal solid.Checkpoint
 	JustifiedSlotVal       uint64
-	ProposerBoostRootVal   common.Hash
+	ProposerBoostRootVal   libcommon.Hash
 	SlotVal                uint64
 	TimeVal                uint64
 
-	ParticipationVal *solid.BitList
+	ParticipationVal *solid.ParticipationBitList
 
-	StateAtBlockRootVal       map[common.Hash]*state.CachingBeaconState
+	StateAtBlockRootVal       map[libcommon.Hash]*state.CachingBeaconState
 	StateAtSlotVal            map[uint64]*state.CachingBeaconState
 	GetSyncCommitteesVal      map[uint64][2]*solid.SyncCommittee
-	GetFinalityCheckpointsVal map[common.Hash][3]solid.Checkpoint
+	GetFinalityCheckpointsVal map[libcommon.Hash][3]solid.Checkpoint
 	WeightsMock               []forkchoice.ForkNode
-	LightClientBootstraps     map[common.Hash]*cltypes.LightClientBootstrap
+	LightClientBootstraps     map[libcommon.Hash]*cltypes.LightClientBootstrap
 	NewestLCUpdate            *cltypes.LightClientUpdate
 	LCUpdates                 map[uint64]*cltypes.LightClientUpdate
 	SyncContributionPool      sync_contribution_pool.SyncContributionPool
-	Headers                   map[common.Hash]*cltypes.BeaconBlockHeader
+	Headers                   map[libcommon.Hash]*cltypes.BeaconBlockHeader
 	GetBeaconCommitteeMock    func(slot, committeeIndex uint64) ([]uint64, error)
 
 	Pool pool.OperationsPool
+
+	// Mock for PeerDas
+	MockPeerDas *mock_services.MockPeerDas
 }
 
 func makeSyncContributionPoolMock(t *testing.T) sync_contribution_pool.SyncContributionPool {
@@ -57,7 +78,7 @@ func makeSyncContributionPoolMock(t *testing.T) sync_contribution_pool.SyncContr
 	type syncContributionKey struct {
 		slot              uint64
 		subcommitteeIndex uint64
-		beaconBlockRoot   common.Hash
+		beaconBlockRoot   libcommon.Hash
 	}
 	u := map[syncContributionKey]*cltypes.Contribution{}
 	pool := syncpoolmock.NewMockSyncContributionPool(ctrl)
@@ -75,7 +96,7 @@ func makeSyncContributionPoolMock(t *testing.T) sync_contribution_pool.SyncContr
 		AnyTimes()
 	pool.EXPECT().
 		GetSyncContribution(gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(slot uint64, subcommitteeIndex uint64, beaconBlockRoot common.Hash) *cltypes.Contribution {
+		DoAndReturn(func(slot uint64, subcommitteeIndex uint64, beaconBlockRoot libcommon.Hash) *cltypes.Contribution {
 			key := syncContributionKey{
 				slot:              slot,
 				subcommitteeIndex: subcommitteeIndex,
@@ -104,31 +125,79 @@ func makeSyncContributionPoolMock(t *testing.T) sync_contribution_pool.SyncContr
 }
 
 func NewForkChoiceStorageMock(t *testing.T) *ForkChoiceStorageMock {
+	ctrl := gomock.NewController(t)
+	mockPeerDas := mock_services.NewMockPeerDas(ctrl)
+	mockPeerDasStateReader := peerdasstatemock.NewMockPeerDasStateReader(ctrl)
+
+	// Set up default expectations for the mock
+	mockPeerDas.EXPECT().
+		DownloadColumnsAndRecoverBlobs(gomock.Any(), gomock.Any()).
+		Return(nil).
+		AnyTimes()
+	mockPeerDas.EXPECT().
+		IsDataAvailable(gomock.Any(), gomock.Any()).
+		Return(true, nil).
+		AnyTimes()
+	mockPeerDas.EXPECT().
+		Prune(gomock.Any()).
+		Return(nil).
+		AnyTimes()
+	mockPeerDas.EXPECT().
+		UpdateValidatorsCustody(gomock.Any()).
+		AnyTimes()
+	mockPeerDas.EXPECT().
+		TryScheduleRecover(gomock.Any(), gomock.Any()).
+		Return(nil).
+		AnyTimes()
+	mockPeerDas.EXPECT().
+		StateReader().
+		Return(mockPeerDasStateReader).
+		AnyTimes()
+
+	// Set up default expectations for the PeerDasStateReader mock
+	mockPeerDasStateReader.EXPECT().
+		GetEarliestAvailableSlot().
+		Return(uint64(0)).
+		AnyTimes()
+	mockPeerDasStateReader.EXPECT().
+		GetRealCgc().
+		Return(uint64(0)).
+		AnyTimes()
+	mockPeerDasStateReader.EXPECT().
+		GetAdvertisedCgc().
+		Return(uint64(0)).
+		AnyTimes()
+
 	return &ForkChoiceStorageMock{
-		Ancestors:                 make(map[uint64]common.Hash),
+		Ancestors:                 make(map[uint64]libcommon.Hash),
 		AnchorSlotVal:             0,
 		FinalizedCheckpointVal:    solid.Checkpoint{},
 		FinalizedSlotVal:          0,
-		HeadVal:                   common.Hash{},
+		HeadVal:                   libcommon.Hash{},
 		HighestSeenVal:            0,
 		JustifiedCheckpointVal:    solid.Checkpoint{},
 		JustifiedSlotVal:          0,
-		ProposerBoostRootVal:      common.Hash{},
+		ProposerBoostRootVal:      libcommon.Hash{},
 		SlotVal:                   0,
 		TimeVal:                   0,
-		StateAtBlockRootVal:       make(map[common.Hash]*state.CachingBeaconState),
+		StateAtBlockRootVal:       make(map[libcommon.Hash]*state.CachingBeaconState),
 		StateAtSlotVal:            make(map[uint64]*state.CachingBeaconState),
 		GetSyncCommitteesVal:      make(map[uint64][2]*solid.SyncCommittee),
-		GetFinalityCheckpointsVal: make(map[common.Hash][3]solid.Checkpoint),
-		LightClientBootstraps:     make(map[common.Hash]*cltypes.LightClientBootstrap),
+		GetFinalityCheckpointsVal: make(map[libcommon.Hash][3]solid.Checkpoint),
+		LightClientBootstraps:     make(map[libcommon.Hash]*cltypes.LightClientBootstrap),
 		LCUpdates:                 make(map[uint64]*cltypes.LightClientUpdate),
-		Headers:                   make(map[common.Hash]*cltypes.BeaconBlockHeader),
+		Headers:                   make(map[libcommon.Hash]*cltypes.BeaconBlockHeader),
 		GetBeaconCommitteeMock:    nil,
 		SyncContributionPool:      makeSyncContributionPoolMock(t),
+		MockPeerDas:               mockPeerDas,
 	}
 }
 
-func (f *ForkChoiceStorageMock) Ancestor(root common.Hash, slot uint64) common.Hash {
+func (f *ForkChoiceStorageMock) GetPeerDas() das.PeerDas {
+	return f.MockPeerDas
+}
+
+func (f *ForkChoiceStorageMock) Ancestor(root libcommon.Hash, slot uint64) libcommon.Hash {
 	return f.Ancestors[slot]
 }
 
@@ -148,11 +217,11 @@ func (f *ForkChoiceStorageMock) FinalizedSlot() uint64 {
 	return f.FinalizedSlotVal
 }
 
-func (f *ForkChoiceStorageMock) GetEth1Hash(eth2Root common.Hash) common.Hash {
+func (f *ForkChoiceStorageMock) GetEth1Hash(eth2Root libcommon.Hash) libcommon.Hash {
 	panic("implement me")
 }
 
-func (f *ForkChoiceStorageMock) GetHead() (common.Hash, uint64, error) {
+func (f *ForkChoiceStorageMock) GetHead(_ *state.CachingBeaconState) (libcommon.Hash, uint64, error) {
 	return f.HeadVal, f.HeadSlotVal, nil
 }
 
@@ -168,24 +237,25 @@ func (f *ForkChoiceStorageMock) JustifiedSlot() uint64 {
 	return f.JustifiedSlotVal
 }
 
-func (f *ForkChoiceStorageMock) ProposerBoostRoot() common.Hash {
+func (f *ForkChoiceStorageMock) ProposerBoostRoot() libcommon.Hash {
 	return f.ProposerBoostRootVal
 }
 
 func (f *ForkChoiceStorageMock) GetStateAtBlockRoot(
-	blockRoot common.Hash,
+	blockRoot libcommon.Hash,
 	alwaysCopy bool,
 ) (*state.CachingBeaconState, error) {
 	return f.StateAtBlockRootVal[blockRoot], nil
 }
 
 func (f *ForkChoiceStorageMock) GetFinalityCheckpoints(
-	blockRoot common.Hash,
-) (bool, solid.Checkpoint, solid.Checkpoint, solid.Checkpoint) {
-	oneNil := f.GetFinalityCheckpointsVal[blockRoot][0] != nil &&
-		f.GetFinalityCheckpointsVal[blockRoot][1] != nil &&
-		f.GetFinalityCheckpointsVal[blockRoot][2] != nil
-	return oneNil, f.GetFinalityCheckpointsVal[blockRoot][0], f.GetFinalityCheckpointsVal[blockRoot][1], f.GetFinalityCheckpointsVal[blockRoot][2]
+	blockRoot libcommon.Hash,
+) (solid.Checkpoint, solid.Checkpoint, solid.Checkpoint, bool) {
+	oneNil := f.GetFinalityCheckpointsVal[blockRoot][0] != solid.Checkpoint{} &&
+		f.GetFinalityCheckpointsVal[blockRoot][1] != solid.Checkpoint{} &&
+		f.GetFinalityCheckpointsVal[blockRoot][2] != solid.Checkpoint{}
+
+	return f.GetFinalityCheckpointsVal[blockRoot][0], f.GetFinalityCheckpointsVal[blockRoot][1], f.GetFinalityCheckpointsVal[blockRoot][2], oneNil
 }
 
 func (f *ForkChoiceStorageMock) GetSyncCommittees(
@@ -193,13 +263,6 @@ func (f *ForkChoiceStorageMock) GetSyncCommittees(
 ) (*solid.SyncCommittee, *solid.SyncCommittee, bool) {
 	return f.GetSyncCommitteesVal[period][0], f.GetSyncCommitteesVal[period][1], f.GetSyncCommitteesVal[period][0] != nil &&
 		f.GetSyncCommitteesVal[period][1] != nil
-}
-
-func (f *ForkChoiceStorageMock) GetBeaconCommitee(slot, committeeIndex uint64) ([]uint64, error) {
-	if f.GetBeaconCommitteeMock != nil {
-		return f.GetBeaconCommitteeMock(slot, committeeIndex)
-	}
-	return []uint64{1, 2, 3, 4, 5, 6, 7, 8}, nil
 }
 
 func (f *ForkChoiceStorageMock) Slot() uint64 {
@@ -214,7 +277,7 @@ func (f *ForkChoiceStorageMock) OnAttestation(
 	attestation *solid.Attestation,
 	fromBlock, insert bool,
 ) error {
-	f.Pool.AttestationsPool.Insert(attestation.Signature(), attestation)
+	f.Pool.AttestationsPool.Insert(attestation.Signature, attestation)
 	return nil
 }
 
@@ -243,23 +306,23 @@ func (f *ForkChoiceStorageMock) OnTick(time uint64) {
 	panic("implement me")
 }
 
-func (f *ForkChoiceStorageMock) BlockRewards(root common.Hash) (*eth2.BlockRewardsCollector, bool) {
+func (f *ForkChoiceStorageMock) BlockRewards(root libcommon.Hash) (*eth2.BlockRewardsCollector, bool) {
 	panic("implement me")
 }
 
-func (f *ForkChoiceStorageMock) TotalActiveBalance(root common.Hash) (uint64, bool) {
+func (f *ForkChoiceStorageMock) TotalActiveBalance(root libcommon.Hash) (uint64, bool) {
 	panic("implement me")
 }
 
-func (f *ForkChoiceStorageMock) RandaoMixes(blockRoot common.Hash, out solid.HashListSSZ) bool {
+func (f *ForkChoiceStorageMock) RandaoMixes(blockRoot libcommon.Hash, out solid.HashListSSZ) bool {
 	return false
 }
 
-func (f *ForkChoiceStorageMock) LowestAvaiableSlot() uint64 {
+func (f *ForkChoiceStorageMock) LowestAvailableSlot() uint64 {
 	return f.FinalizedSlotVal
 }
 
-func (f *ForkChoiceStorageMock) Partecipation(epoch uint64) (*solid.BitList, bool) {
+func (f *ForkChoiceStorageMock) Participation(epoch uint64) (*solid.ParticipationBitList, bool) {
 	return f.ParticipationVal, f.ParticipationVal != nil
 }
 
@@ -276,7 +339,7 @@ func (f *ForkChoiceStorageMock) SetSynced(synced bool) {
 }
 
 func (f *ForkChoiceStorageMock) GetLightClientBootstrap(
-	blockRoot common.Hash,
+	blockRoot libcommon.Hash,
 ) (*cltypes.LightClientBootstrap, bool) {
 	return f.LightClientBootstraps[blockRoot], f.LightClientBootstraps[blockRoot] != nil
 }
@@ -307,9 +370,9 @@ func (f *ForkChoiceStorageMock) GetInactivitiesScores(
 	panic("implement me")
 }
 
-func (f *ForkChoiceStorageMock) GetPreviousPartecipationIndicies(
+func (f *ForkChoiceStorageMock) GetPreviousParticipationIndicies(
 	blockRoot libcommon.Hash,
-) (*solid.BitList, error) {
+) (*solid.ParticipationBitList, error) {
 	panic("implement me")
 }
 
@@ -319,9 +382,9 @@ func (f *ForkChoiceStorageMock) GetValidatorSet(
 	panic("implement me")
 }
 
-func (f *ForkChoiceStorageMock) GetCurrentPartecipationIndicies(
+func (f *ForkChoiceStorageMock) GetCurrentParticipationIndicies(
 	blockRoot libcommon.Hash,
-) (*solid.BitList, error) {
+) (*solid.ParticipationBitList, error) {
 	panic("implement me")
 }
 
@@ -349,3 +412,54 @@ func (f *ForkChoiceStorageMock) ProcessAttestingIndicies(
 	attestionIndicies []uint64,
 ) {
 }
+
+func (f *ForkChoiceStorageMock) IsRootOptimistic(root libcommon.Hash) bool {
+	return false
+}
+
+func (f *ForkChoiceStorageMock) IsHeadOptimistic() bool {
+	return false
+}
+
+func (f *ForkChoiceStorageMock) GetPendingConsolidations(blockRoot libcommon.Hash) (*solid.ListSSZ[*solid.PendingConsolidation], bool) {
+	return nil, false
+}
+
+func (f *ForkChoiceStorageMock) GetPendingDeposits(blockRoot libcommon.Hash) (*solid.ListSSZ[*solid.PendingDeposit], bool) {
+	return nil, false
+}
+
+func (f *ForkChoiceStorageMock) GetPendingPartialWithdrawals(blockRoot libcommon.Hash) (*solid.ListSSZ[*solid.PendingPartialWithdrawal], bool) {
+	return nil, false
+}
+
+func (f *ForkChoiceStorageMock) GetProposerLookahead(slot uint64) (solid.Uint64VectorSSZ, bool) {
+	return nil, false
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

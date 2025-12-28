@@ -1,3 +1,19 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package pool
 
 import (
@@ -15,9 +31,9 @@ func TestOperationsPool(t *testing.T) {
 	// AttestationsPool
 	pools.AttestationsPool.Insert([96]byte{}, &solid.Attestation{})
 	pools.AttestationsPool.Insert([96]byte{1}, &solid.Attestation{})
-	require.Equal(t, 2, len(pools.AttestationsPool.Raw()))
+	require.Len(t, pools.AttestationsPool.Raw(), 2)
 	require.True(t, pools.AttestationsPool.DeleteIfExist([96]byte{}))
-	require.Equal(t, 1, len(pools.AttestationsPool.Raw()))
+	require.Len(t, pools.AttestationsPool.Raw(), 1)
 	// ProposerSlashingsPool
 	slashing1 := &cltypes.ProposerSlashing{
 		Header1: &cltypes.SignedBeaconBlockHeader{
@@ -58,14 +74,41 @@ func TestOperationsPool(t *testing.T) {
 	pools.AttesterSlashingsPool.Insert(ComputeKeyForAttesterSlashing(attesterSlashing1), attesterSlashing1)
 	pools.AttesterSlashingsPool.Insert(ComputeKeyForAttesterSlashing(attesterSlashing2), attesterSlashing2)
 	require.True(t, pools.AttesterSlashingsPool.DeleteIfExist(ComputeKeyForAttesterSlashing(attesterSlashing2)))
-	require.Equal(t, 1, len(pools.AttesterSlashingsPool.Raw()))
+	require.Len(t, pools.AttesterSlashingsPool.Raw(), 1)
 
 	// BLSToExecutionChangesPool
 	pools.BLSToExecutionChangesPool.Insert([96]byte{}, &cltypes.SignedBLSToExecutionChange{})
 	pools.BLSToExecutionChangesPool.Insert([96]byte{1}, &cltypes.SignedBLSToExecutionChange{})
-	require.Equal(t, 2, len(pools.BLSToExecutionChangesPool.Raw()))
+	require.Len(t, pools.BLSToExecutionChangesPool.Raw(), 2)
 	require.True(t, pools.BLSToExecutionChangesPool.DeleteIfExist([96]byte{}))
-	require.Equal(t, 1, len(pools.BLSToExecutionChangesPool.Raw()))
+	require.Len(t, pools.BLSToExecutionChangesPool.Raw(), 1)
 
-	require.Equal(t, 1, len(pools.ProposerSlashingsPool.Raw()))
+	require.Len(t, pools.ProposerSlashingsPool.Raw(), 1)
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

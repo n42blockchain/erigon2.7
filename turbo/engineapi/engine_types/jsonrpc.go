@@ -67,6 +67,9 @@ type BlobsBundleV1 struct {
 	Blobs       []hexutility.Bytes `json:"blobs"       gencodec:"required"`
 }
 
+// BlobsBundle is an alias for BlobsBundleV1 for CL compatibility
+type BlobsBundle = BlobsBundleV1
+
 type ExecutionPayloadBody struct {
 	Transactions []hexutility.Bytes  `json:"transactions" gencodec:"required"`
 	Withdrawals  []*types.Withdrawal `json:"withdrawals"  gencodec:"required"`

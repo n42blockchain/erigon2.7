@@ -1,3 +1,19 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package sync_contribution_pool
 
 import (
@@ -5,23 +21,24 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/Giulio2002/bls"
-	"github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon/cl/clparams"
 	"github.com/erigontech/erigon/cl/cltypes"
 	"github.com/erigontech/erigon/cl/cltypes/solid"
 	"github.com/erigontech/erigon/cl/phase1/core/state"
 	"github.com/erigontech/erigon/cl/utils"
+	"github.com/erigontech/erigon/cl/utils/bls"
+	libcommon "github.com/erigontech/erigon-lib/common"
+	"github.com/erigontech/erigon-lib/log/v3"
 )
 
 type syncContributionKey struct {
 	slot              uint64
 	subcommitteeIndex uint64
-	beaconBlockRoot   common.Hash
+	beaconBlockRoot   libcommon.Hash
 }
 
 type syncContributionPoolImpl struct {
-	// syncContributionPool is a map of sync contributions, indexed by slot, subcommittee index and block root.
+	// syncContributionPoolForBlocks is a map of sync contributions, indexed by slot, subcommittee index and block root.
 	syncContributionPoolForBlocks     map[syncContributionKey]*cltypes.Contribution // Used for block publishing.
 	syncContributionPoolForAggregates map[syncContributionKey]*cltypes.Contribution // Used for sync committee messages aggregation.
 	beaconCfg                         *clparams.BeaconChainConfig
@@ -70,7 +87,7 @@ func (s *syncContributionPoolImpl) AddSyncContribution(headState *state.CachingB
 	return nil
 }
 
-func (s *syncContributionPoolImpl) GetSyncContribution(slot, subcommitteeIndex uint64, beaconBlockRoot common.Hash) *cltypes.Contribution {
+func (s *syncContributionPoolImpl) GetSyncContribution(slot, subcommitteeIndex uint64, beaconBlockRoot libcommon.Hash) *cltypes.Contribution {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -140,6 +157,7 @@ func (s *syncContributionPoolImpl) AddSyncCommitteeMessage(headState *state.Cach
 		return err
 	}
 
+	signatures := [][]byte{}
 	committee := getSyncCommitteeFromState(headState).GetCommittee()
 	subCommitteeSize := cfg.SyncCommitteeSize / cfg.SyncCommitteeSubnetCount
 	startSubCommittee := subCommittee * subCommitteeSize
@@ -149,14 +167,17 @@ func (s *syncContributionPoolImpl) AddSyncCommitteeMessage(headState *state.Cach
 				return nil
 			}
 			utils.FlipBitOn(contribution.AggregationBits, int(i-startSubCommittee))
+			// Note: it's possible that one validator appears multiple times in the subcommittee.
+			signatures = append(signatures, libcommon.CopyBytes(message.Signature[:]))
 		}
 	}
-
+	if len(signatures) == 0 {
+		log.Warn("Validator not found in sync committee", "validatorIndex", message.ValidatorIndex, "subCommittee", subCommittee, "slot", message.Slot, "beaconBlockRoot", message.BeaconBlockRoot)
+		return errors.New("validator not found in sync committee")
+	}
 	// Compute the aggregated signature.
-	aggregatedSignature, err := bls.AggregateSignatures([][]byte{
-		contribution.Signature[:],
-		message.Signature[:],
-	})
+	signatures = append(signatures, libcommon.CopyBytes(contribution.Signature[:]))
+	aggregatedSignature, err := bls.AggregateSignatures(signatures)
 	if err != nil {
 		return err
 	}
@@ -185,7 +206,7 @@ def process_sync_committee_contributions(block: BeaconBlock,
 	sync_aggregate.sync_committee_signature = bls.Aggregate(signatures)
 	block.body.sync_aggregate = sync_aggregate
 */
-func (s *syncContributionPoolImpl) GetSyncAggregate(slot uint64, beaconBlockRoot common.Hash) (*cltypes.SyncAggregate, error) {
+func (s *syncContributionPoolImpl) GetSyncAggregate(slot uint64, beaconBlockRoot libcommon.Hash) (*cltypes.SyncAggregate, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	// find all contributions for the given beacon block root.
@@ -211,8 +232,8 @@ func (s *syncContributionPoolImpl) GetSyncAggregate(slot uint64, beaconBlockRoot
 		for i := range contribution.AggregationBits {
 			for j := 0; j < 8; j++ {
 				bitIndex := i*8 + j
-				partecipated := utils.IsBitOn(contribution.AggregationBits, bitIndex)
-				if partecipated {
+				participated := utils.IsBitOn(contribution.AggregationBits, bitIndex)
+				if participated {
 					participantIndex := syncSubCommitteeSize*contribution.SubcommitteeIndex + uint64(bitIndex)
 					utils.FlipBitOn(aggregate.SyncCommiteeBits[:], int(participantIndex))
 				}
@@ -235,3 +256,30 @@ func (s *syncContributionPoolImpl) GetSyncAggregate(slot uint64, beaconBlockRoot
 	copy(aggregate.SyncCommiteeSignature[:], aggregateSignature)
 	return aggregate, nil
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

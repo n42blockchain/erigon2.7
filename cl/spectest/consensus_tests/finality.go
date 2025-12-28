@@ -1,3 +1,19 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package consensus_tests
 
 import (
@@ -5,11 +21,11 @@ import (
 	"io/fs"
 	"testing"
 
-	"github.com/erigontech/erigon/cl/transition/machine"
-	"github.com/erigontech/erigon/spectest"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/erigontech/erigon/cl/spectest/spectest"
+	"github.com/erigontech/erigon/cl/transition/machine"
 )
 
 var FinalityFinality = spectest.HandlerFunc(func(t *testing.T, root fs.FS, c spectest.TestCase) (err error) {
@@ -31,12 +47,39 @@ var FinalityFinality = spectest.HandlerFunc(func(t *testing.T, root fs.FS, c spe
 		}
 	}
 	expectedRoot, err := testState.HashSSZ()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	haveRoot, err := expectedState.HashSSZ()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	assert.EqualValues(t, haveRoot, expectedRoot, "state root")
+	assert.EqualValues(t, expectedRoot, haveRoot, "state root")
 
 	return nil
 })
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

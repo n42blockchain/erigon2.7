@@ -1,16 +1,33 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package consensus_tests
 
 import (
 	"fmt"
-	"github.com/erigontech/erigon/cl/transition/machine"
-	"github.com/erigontech/erigon/spectest"
 	"io/fs"
 	"testing"
 
-	"github.com/erigontech/erigon/cl/clparams"
-	"github.com/erigontech/erigon/cl/cltypes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/erigontech/erigon/cl/clparams"
+	"github.com/erigontech/erigon/cl/cltypes"
+	"github.com/erigontech/erigon/cl/spectest/spectest"
+	"github.com/erigontech/erigon/cl/transition/machine"
 )
 
 type TransitionCore struct {
@@ -42,6 +59,8 @@ func (b *TransitionCore) Run(t *testing.T, root fs.FS, c spectest.TestCase) (err
 		startState.BeaconConfig().DenebForkEpoch = meta.ForkEpoch
 	case clparams.ElectraVersion:
 		startState.BeaconConfig().ElectraForkEpoch = meta.ForkEpoch
+	case clparams.FuluVersion:
+		startState.BeaconConfig().FuluForkEpoch = meta.ForkEpoch
 	}
 	startSlot := startState.Slot()
 	blockIndex := 0
@@ -66,9 +85,36 @@ func (b *TransitionCore) Run(t *testing.T, root fs.FS, c spectest.TestCase) (err
 		}
 	}
 	expectedRoot, err := stopState.HashSSZ()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	haveRoot, err := startState.HashSSZ()
-	assert.NoError(t, err)
-	assert.EqualValues(t, haveRoot, expectedRoot, "state root")
+	require.NoError(t, err)
+	assert.EqualValues(t, expectedRoot, haveRoot, "state root")
 	return nil
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

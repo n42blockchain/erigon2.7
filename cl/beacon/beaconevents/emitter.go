@@ -69,3 +69,30 @@ func (e *Emitters) Subscribe(topics []string, cb func(topic string, item any)) (
 		delete(e.cbs, subid)
 	}, nil
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

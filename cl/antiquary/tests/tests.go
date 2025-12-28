@@ -1,3 +1,19 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package tests
 
 import (
@@ -7,16 +23,28 @@ import (
 	"strconv"
 	"testing"
 
-	libcommon "github.com/erigontech/erigon-lib/common"
-	"github.com/erigontech/erigon-lib/kv"
+	"github.com/stretchr/testify/require"
+
 	"github.com/erigontech/erigon/cl/clparams"
 	"github.com/erigontech/erigon/cl/cltypes"
 	"github.com/erigontech/erigon/cl/persistence/beacon_indicies"
-	state_accessors "github.com/erigontech/erigon/cl/persistence/state"
 	"github.com/erigontech/erigon/cl/phase1/core/state"
 	"github.com/erigontech/erigon/cl/utils"
-	"github.com/stretchr/testify/require"
+	libcommon "github.com/erigontech/erigon-lib/common"
+	"github.com/erigontech/erigon-lib/kv"
 )
+
+//go:embed test_data/electra/blocks_0.ssz_snappy
+var electra_blocks_0_ssz_snappy []byte
+
+//go:embed test_data/electra/blocks_1.ssz_snappy
+var electra_blocks_1_ssz_snappy []byte
+
+//go:embed test_data/electra/pre.ssz_snappy
+var electra_pre_state_ssz_snappy []byte
+
+//go:embed test_data/electra/post.ssz_snappy
+var electra_post_state_ssz_snappy []byte
 
 //go:embed test_data/capella/blocks_0.ssz_snappy
 var capella_blocks_0_ssz_snappy []byte
@@ -106,15 +134,38 @@ func LoadChain(blocks []*cltypes.SignedBeaconBlock, s *state.CachingBeaconState,
 		require.NoError(t, beacon_indicies.WriteBeaconBlockAndIndicies(context.Background(), tx, block, true))
 		require.NoError(t, beacon_indicies.WriteHighestFinalized(tx, block.Block.Slot+64))
 	}
-	require.NoError(t, state_accessors.InitializeStaticTables(tx, s))
 
 	require.NoError(t, tx.Commit())
 	return m
 }
 
+func GetElectraRandom() ([]*cltypes.SignedBeaconBlock, *state.CachingBeaconState, *state.CachingBeaconState) {
+	block1 := cltypes.NewSignedBeaconBlock(&clparams.MainnetBeaconConfig, clparams.ElectraVersion)
+	block2 := cltypes.NewSignedBeaconBlock(&clparams.MainnetBeaconConfig, clparams.ElectraVersion)
+
+	// Lets do te
+	if err := utils.DecodeSSZSnappy(block1, electra_blocks_0_ssz_snappy, int(clparams.ElectraVersion)); err != nil {
+		panic(err)
+	}
+	if err := utils.DecodeSSZSnappy(block2, electra_blocks_1_ssz_snappy, int(clparams.ElectraVersion)); err != nil {
+		panic(err)
+	}
+
+	preState := state.New(&clparams.MainnetBeaconConfig)
+	if err := utils.DecodeSSZSnappy(preState, electra_pre_state_ssz_snappy, int(clparams.ElectraVersion)); err != nil {
+		panic(err)
+
+	}
+	postState := state.New(&clparams.MainnetBeaconConfig)
+	if err := utils.DecodeSSZSnappy(postState, electra_post_state_ssz_snappy, int(clparams.ElectraVersion)); err != nil {
+		panic(err)
+	}
+	return []*cltypes.SignedBeaconBlock{block1, block2}, preState, postState
+}
+
 func GetCapellaRandom() ([]*cltypes.SignedBeaconBlock, *state.CachingBeaconState, *state.CachingBeaconState) {
-	block1 := cltypes.NewSignedBeaconBlock(&clparams.MainnetBeaconConfig)
-	block2 := cltypes.NewSignedBeaconBlock(&clparams.MainnetBeaconConfig)
+	block1 := cltypes.NewSignedBeaconBlock(&clparams.MainnetBeaconConfig, clparams.CapellaVersion)
+	block2 := cltypes.NewSignedBeaconBlock(&clparams.MainnetBeaconConfig, clparams.CapellaVersion)
 
 	// Lets do te
 	if err := utils.DecodeSSZSnappy(block1, capella_blocks_0_ssz_snappy, int(clparams.CapellaVersion)); err != nil {
@@ -137,8 +188,8 @@ func GetCapellaRandom() ([]*cltypes.SignedBeaconBlock, *state.CachingBeaconState
 }
 
 func GetPhase0Random() ([]*cltypes.SignedBeaconBlock, *state.CachingBeaconState, *state.CachingBeaconState) {
-	block1 := cltypes.NewSignedBeaconBlock(&clparams.MainnetBeaconConfig)
-	block2 := cltypes.NewSignedBeaconBlock(&clparams.MainnetBeaconConfig)
+	block1 := cltypes.NewSignedBeaconBlock(&clparams.MainnetBeaconConfig, clparams.Phase0Version)
+	block2 := cltypes.NewSignedBeaconBlock(&clparams.MainnetBeaconConfig, clparams.Phase0Version)
 
 	// Lets do te
 	if err := utils.DecodeSSZSnappy(block1, phase0_blocks_0_ssz_snappy, int(clparams.Phase0Version)); err != nil {
@@ -161,12 +212,11 @@ func GetPhase0Random() ([]*cltypes.SignedBeaconBlock, *state.CachingBeaconState,
 
 func GetBellatrixRandom() ([]*cltypes.SignedBeaconBlock, *state.CachingBeaconState, *state.CachingBeaconState) {
 	ret := make([]*cltypes.SignedBeaconBlock, 0, 96)
-
 	// format for blocks is blocks_{i}.ssz_snappy where i is the index of the block, starting from 0 to 95 included.
 	for i := 0; i < 96; i++ {
-		block := cltypes.NewSignedBeaconBlock(&clparams.MainnetBeaconConfig)
+		block := cltypes.NewSignedBeaconBlock(&clparams.MainnetBeaconConfig, clparams.BellatrixVersion)
 		// Lets do te
-		b, err := bellatrixFS.ReadFile("test_data/bellatrix/blocks_" + strconv.FormatInt(int64(i), 10) + ".ssz_snappy")
+		b, err := bellatrixFS.ReadFile("test_data/bellatrix/blocks_" + strconv.Itoa(i) + ".ssz_snappy")
 		if err != nil {
 			panic(err)
 		}
@@ -194,3 +244,30 @@ func GetBellatrixRandom() ([]*cltypes.SignedBeaconBlock, *state.CachingBeaconSta
 	return ret, preState, postState
 
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,3 +1,19 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package handlers
 
 import (
@@ -14,7 +30,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/stretchr/testify/require"
 
-	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon/cl/antiquary/tests"
 	"github.com/erigontech/erigon/cl/clparams"
 	"github.com/erigontech/erigon/cl/cltypes"
@@ -23,6 +38,7 @@ import (
 	"github.com/erigontech/erigon/cl/sentinel/communication/ssz_snappy"
 	"github.com/erigontech/erigon/cl/sentinel/peers"
 	"github.com/erigontech/erigon/cl/utils"
+	libcommon "github.com/erigontech/erigon-lib/common"
 )
 
 func TestBlocksByRootHandler(t *testing.T) {
@@ -42,7 +58,7 @@ func TestBlocksByRootHandler(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	peersPool := peers.NewPool()
+	peersPool := peers.NewPool(host)
 	_, indiciesDB := setupStore(t)
 	store := tests.NewMockBlockReader()
 
@@ -67,7 +83,7 @@ func TestBlocksByRootHandler(t *testing.T) {
 		nil,
 		beaconCfg,
 		ethClock,
-		nil, &mock_services.ForkChoiceStorageMock{}, nil, true,
+		nil, &mock_services.ForkChoiceStorageMock{}, nil, nil, nil, true,
 	)
 	c.Start()
 	req := &cltypes.BeaconBlocksByRangeRequest{
@@ -125,7 +141,7 @@ func TestBlocksByRootHandler(t *testing.T) {
 		version, err := ethClock.StateVersionByForkDigest(utils.Uint32ToBytes4(respForkDigest))
 		require.NoError(t, err)
 
-		block := cltypes.NewSignedBeaconBlock(&clparams.MainnetBeaconConfig)
+		block := cltypes.NewSignedBeaconBlock(&clparams.MainnetBeaconConfig, version)
 		if err = block.DecodeSSZ(raw, int(version)); err != nil {
 			require.NoError(t, err)
 			return
@@ -146,3 +162,30 @@ func TestBlocksByRootHandler(t *testing.T) {
 	defer indiciesDB.Close()
 	defer tx.Rollback()
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

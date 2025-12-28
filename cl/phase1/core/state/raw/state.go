@@ -1,14 +1,32 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package raw
 
 import (
 	"encoding/json"
 	"strconv"
 	"sync"
+	"sync/atomic"
 
-	"github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon/cl/clparams"
 	"github.com/erigontech/erigon/cl/cltypes"
 	"github.com/erigontech/erigon/cl/cltypes/solid"
+	libcommon "github.com/erigontech/erigon-lib/common"
+	"github.com/erigontech/erigon-lib/common/length"
 )
 
 const (
@@ -16,12 +34,15 @@ const (
 	StateRootsLength = 8192
 	RandoMixesLength = 65536
 	SlashingsLength  = 8192
+
+	// slot offset in the state = genesis time + genesis validators root
+	SlotOffsetSSZ = 8 + length.Hash
 )
 
 type BeaconState struct {
 	// State fields
 	genesisTime                uint64
-	genesisValidatorsRoot      common.Hash
+	genesisValidatorsRoot      libcommon.Hash
 	slot                       uint64
 	fork                       *cltypes.Fork
 	latestBlockHeader          *cltypes.BeaconBlockHeader
@@ -35,8 +56,8 @@ type BeaconState struct {
 	balances                   solid.Uint64ListSSZ
 	randaoMixes                solid.HashVectorSSZ
 	slashings                  solid.Uint64VectorSSZ
-	previousEpochParticipation *solid.BitList
-	currentEpochParticipation  *solid.BitList
+	previousEpochParticipation *solid.ParticipationBitList
+	currentEpochParticipation  *solid.ParticipationBitList
 	justificationBits          cltypes.JustificationBits
 	// Altair
 	previousJustifiedCheckpoint solid.Checkpoint
@@ -54,6 +75,7 @@ type BeaconState struct {
 	// Phase0: genesis fork. these 2 fields replace participation bits.
 	previousEpochAttestations *solid.ListSSZ[*solid.PendingAttestation]
 	currentEpochAttestations  *solid.ListSSZ[*solid.PendingAttestation]
+
 	// Electra
 	depositRequestsStartIndex     uint64
 	depositBalanceToConsume       uint64
@@ -61,13 +83,16 @@ type BeaconState struct {
 	earliestExitEpoch             uint64
 	consolidationBalanceToConsume uint64
 	earliestConsolidationEpoch    uint64
-	pendingDeposits               *solid.ListSSZ[*cltypes.PendingDeposit]
-	pendingPartialWithdrawals     *solid.ListSSZ[*cltypes.PendingPartialWithdrawal]
-	pendingConsolidations         *solid.ListSSZ[*cltypes.PendingConsolidation]
+	pendingDeposits               *solid.ListSSZ[*solid.PendingDeposit]
+	pendingPartialWithdrawals     *solid.ListSSZ[*solid.PendingPartialWithdrawal]
+	pendingConsolidations         *solid.ListSSZ[*solid.PendingConsolidation]
+
+	// Fulu
+	proposerLookahead solid.Uint64VectorSSZ // Vector[ValidatorIndex, (MIN_SEED_LOOKAHEAD + 1) * SLOTS_PER_EPOCH]
 
 	//  leaves for computing hashes
-	leaves        []byte                  // Pre-computed leaves.
-	touchedLeaves map[StateLeafIndex]bool // Maps each leaf to whether they were touched or not.
+	leaves        []byte          // Pre-computed leaves.
+	touchedLeaves []atomic.Uint32 // Maps each leaf to whether they were touched or not.
 
 	// cl version
 	version      clparams.StateVersion // State version
@@ -88,36 +113,34 @@ func New(cfg *clparams.BeaconChainConfig) *BeaconState {
 		currentSyncCommittee:         &solid.SyncCommittee{},
 		nextSyncCommittee:            &solid.SyncCommittee{},
 		latestExecutionPayloadHeader: &cltypes.Eth1Header{},
-		//inactivityScores: solid.NewSimpleUint64Slice(int(cfg.ValidatorRegistryLimit)),
-		inactivityScores:            solid.NewUint64ListSSZ(int(cfg.ValidatorRegistryLimit)),
-		balances:                    solid.NewUint64ListSSZ(int(cfg.ValidatorRegistryLimit)),
-		previousEpochParticipation:  solid.NewBitList(0, int(cfg.ValidatorRegistryLimit)),
-		currentEpochParticipation:   solid.NewBitList(0, int(cfg.ValidatorRegistryLimit)),
-		slashings:                   solid.NewUint64VectorSSZ(SlashingsLength),
-		currentEpochAttestations:    solid.NewDynamicListSSZ[*solid.PendingAttestation](int(cfg.CurrentEpochAttestationsLength())),
-		previousEpochAttestations:   solid.NewDynamicListSSZ[*solid.PendingAttestation](int(cfg.PreviousEpochAttestationsLength())),
-		historicalRoots:             solid.NewHashList(int(cfg.HistoricalRootsLimit)),
-		blockRoots:                  solid.NewHashVector(int(cfg.SlotsPerHistoricalRoot)),
-		stateRoots:                  solid.NewHashVector(int(cfg.SlotsPerHistoricalRoot)),
-		randaoMixes:                 solid.NewHashVector(int(cfg.EpochsPerHistoricalVector)),
-		validators:                  solid.NewValidatorSet(int(cfg.ValidatorRegistryLimit)),
-		previousJustifiedCheckpoint: solid.NewCheckpoint(),
-		currentJustifiedCheckpoint:  solid.NewCheckpoint(),
-		finalizedCheckpoint:         solid.NewCheckpoint(),
-		leaves:                      make([]byte, 32*32),
-		// Electra fields
-		pendingDeposits:           solid.NewStaticListSSZ[*cltypes.PendingDeposit](int(cfg.PendingDepositsLimit), 192),
-		pendingPartialWithdrawals: solid.NewStaticListSSZ[*cltypes.PendingPartialWithdrawal](int(cfg.PendingPartialWithdrawalsLimit), 24),
-		pendingConsolidations:     solid.NewStaticListSSZ[*cltypes.PendingConsolidation](int(cfg.PendingConsolidationsLimit), 16),
+		inactivityScores:             solid.NewUint64ListSSZ(int(cfg.ValidatorRegistryLimit)),
+		balances:                     solid.NewUint64ListSSZ(int(cfg.ValidatorRegistryLimit)),
+		previousEpochParticipation:   solid.NewParticipationBitList(0, int(cfg.ValidatorRegistryLimit)),
+		currentEpochParticipation:    solid.NewParticipationBitList(0, int(cfg.ValidatorRegistryLimit)),
+		slashings:                    solid.NewUint64VectorSSZ(SlashingsLength),
+		currentEpochAttestations:     solid.NewDynamicListSSZ[*solid.PendingAttestation](int(cfg.CurrentEpochAttestationsLength())),
+		previousEpochAttestations:    solid.NewDynamicListSSZ[*solid.PendingAttestation](int(cfg.PreviousEpochAttestationsLength())),
+		historicalRoots:              solid.NewHashList(int(cfg.HistoricalRootsLimit)),
+		blockRoots:                   solid.NewHashVector(int(cfg.SlotsPerHistoricalRoot)),
+		stateRoots:                   solid.NewHashVector(int(cfg.SlotsPerHistoricalRoot)),
+		randaoMixes:                  solid.NewHashVector(int(cfg.EpochsPerHistoricalVector)),
+		validators:                   solid.NewValidatorSet(int(cfg.ValidatorRegistryLimit)),
+		leaves:                       make([]byte, StateLeafSizeLatest*32),
+		pendingDeposits:              solid.NewPendingDepositList(cfg),
+		pendingPartialWithdrawals:    solid.NewPendingWithdrawalList(cfg),
+		pendingConsolidations:        solid.NewPendingConsolidationList(cfg),
+		proposerLookahead:            solid.NewUint64VectorSSZ(int((cfg.MinSeedLookahead + 1) * cfg.SlotsPerEpoch)),
 	}
 	state.init()
 	return state
 }
 
+func (b *BeaconState) SetValidatorSet(validatorSet *solid.ValidatorSet) {
+	b.validators = validatorSet
+}
+
 func (b *BeaconState) init() error {
-	if b.touchedLeaves == nil {
-		b.touchedLeaves = make(map[StateLeafIndex]bool)
-	}
+	b.touchedLeaves = make([]atomic.Uint32, StateLeafSizeLatest)
 	return nil
 }
 
@@ -174,6 +197,9 @@ func (b *BeaconState) MarshalJSON() ([]byte, error) {
 		obj["pending_partial_withdrawals"] = b.pendingPartialWithdrawals
 		obj["pending_consolidations"] = b.pendingConsolidations
 	}
+	if b.version >= clparams.FuluVersion {
+		obj["proposer_lookahead"] = b.proposerLookahead
+	}
 	return json.Marshal(obj)
 }
 
@@ -215,7 +241,7 @@ func (b *BeaconState) RawCurrentEpochParticipation() []byte {
 	return b.currentEpochParticipation.Bytes()
 }
 
-func (b *BeaconState) HistoricalRoot(index int) common.Hash {
+func (b *BeaconState) HistoricalRoot(index int) libcommon.Hash {
 	return b.historicalRoots.Get(index)
 }
 
@@ -226,3 +252,74 @@ func (b *BeaconState) HistoricalSummary(index int) *cltypes.HistoricalSummary {
 func (b *BeaconState) RawSlashings() []byte {
 	return b.slashings.Bytes()
 }
+
+func (b *BeaconState) EarliestExitEpoch() uint64 {
+	return b.earliestExitEpoch
+}
+
+func (b *BeaconState) ExitBalanceToConsume() uint64 {
+	return b.exitBalanceToConsume
+}
+
+func (b *BeaconState) GetDepositBalanceToConsume() uint64 {
+	return b.depositBalanceToConsume
+}
+
+func (b *BeaconState) GetPendingDeposits() *solid.ListSSZ[*solid.PendingDeposit] {
+	return b.pendingDeposits
+}
+
+func (b *BeaconState) GetDepositRequestsStartIndex() uint64 {
+	return b.depositRequestsStartIndex
+}
+
+func (b *BeaconState) GetPendingConsolidations() *solid.ListSSZ[*solid.PendingConsolidation] {
+	return b.pendingConsolidations
+}
+
+func (b *BeaconState) GetEarlistConsolidationEpoch() uint64 {
+	return b.earliestConsolidationEpoch
+}
+
+func (b *BeaconState) GetEarlistExitEpoch() uint64 {
+	return b.earliestExitEpoch
+}
+
+func (b *BeaconState) GetExitBalanceToConsume() uint64 {
+	return b.exitBalanceToConsume
+}
+
+func (b *BeaconState) GetConsolidationBalanceToConsume() uint64 {
+	return b.consolidationBalanceToConsume
+}
+
+func (b *BeaconState) GetProposerLookahead() solid.Uint64VectorSSZ {
+	return b.proposerLookahead
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

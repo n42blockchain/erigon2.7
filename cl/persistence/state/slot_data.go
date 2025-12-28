@@ -1,3 +1,19 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package state_accessors
 
 import (
@@ -24,6 +40,13 @@ type SlotData struct {
 	// Capella
 	NextWithdrawalIndex          uint64
 	NextWithdrawalValidatorIndex uint64
+	// Electra
+	DepositRequestsStartIndex     uint64
+	DepositBalanceToConsume       uint64
+	ExitBalanceToConsume          uint64
+	EarliestExitEpoch             uint64
+	ConsolidationBalanceToConsume uint64
+	EarliestConsolidationEpoch    uint64
 
 	// BlockRewards for proposer
 	AttestationsRewards  uint64
@@ -45,7 +68,14 @@ func SlotDataFromBeaconState(s *state.CachingBeaconState) *SlotData {
 		Eth1DepositIndex:             s.Eth1DepositIndex(),
 		NextWithdrawalIndex:          s.NextWithdrawalIndex(),
 		NextWithdrawalValidatorIndex: s.NextWithdrawalValidatorIndex(),
-		Fork:                         s.Fork(),
+		// Electra
+		DepositRequestsStartIndex:     s.DepositRequestsStartIndex(),
+		DepositBalanceToConsume:       s.DepositBalanceToConsume(),
+		ExitBalanceToConsume:          s.ExitBalanceToConsume(),
+		EarliestExitEpoch:             s.EarliestExitEpoch(),
+		ConsolidationBalanceToConsume: s.ConsolidationBalanceToConsume(),
+		EarliestConsolidationEpoch:    s.EarliestConsolidationEpoch(),
+		Fork:                          s.Fork(),
 	}
 }
 
@@ -71,7 +101,7 @@ func (m *SlotData) WriteTo(w io.Writer) error {
 }
 
 // Deserialize deserializes the state from a byte slice with zstd compression.
-func (m *SlotData) ReadFrom(r io.Reader) error {
+func (m *SlotData) ReadFrom(r io.Reader, cfg *clparams.BeaconChainConfig) error {
 	m.Eth1Data = &cltypes.Eth1Data{}
 	m.Fork = &cltypes.Fork{}
 	var err error
@@ -106,5 +136,43 @@ func (m *SlotData) getSchema() []interface{} {
 	if m.Version >= clparams.CapellaVersion {
 		schema = append(schema, &m.NextWithdrawalIndex, &m.NextWithdrawalValidatorIndex)
 	}
+
+	if m.Version >= clparams.ElectraVersion {
+		schema = append(schema,
+			&m.DepositRequestsStartIndex,
+			&m.DepositBalanceToConsume,
+			&m.ExitBalanceToConsume,
+			&m.EarliestExitEpoch,
+			&m.ConsolidationBalanceToConsume,
+			&m.EarliestConsolidationEpoch,
+		)
+	}
 	return schema
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

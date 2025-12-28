@@ -1,14 +1,30 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package handler
 
 import (
-	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"runtime"
 	"strconv"
 
-	"github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 	"github.com/erigontech/erigon/cl/beacon/beaconhttp"
+	"github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 )
 
 /*
@@ -30,7 +46,7 @@ type peer struct {
 func (a *ApiHandler) GetEthV1NodeHealth(w http.ResponseWriter, r *http.Request) {
 	syncingStatus, err := beaconhttp.Uint64FromQueryParams(r, "syncing_status")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		beaconhttp.NewEndpointError(http.StatusBadRequest, err).WriteTo(w)
 		return
 	}
 	syncingCode := http.StatusOK
@@ -44,37 +60,29 @@ func (a *ApiHandler) GetEthV1NodeHealth(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusOK)
 }
 
-func (a *ApiHandler) GetEthV1NodeVersion(w http.ResponseWriter, r *http.Request) {
+func (a *ApiHandler) GetEthV1NodeVersion(w http.ResponseWriter, r *http.Request) (*beaconhttp.BeaconResponse, error) {
 	// Get OS and Arch
-	if err := json.NewEncoder(w).Encode(map[string]interface{}{
-		"data": map[string]interface{}{
-			"version": fmt.Sprintf("Caplin/%s %s/%s", a.version, runtime.GOOS, runtime.GOARCH),
-		},
-	}); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+	return newBeaconResponse(map[string]interface{}{
+		"version": fmt.Sprintf("Caplin/%s %s/%s", a.version, runtime.GOOS, runtime.GOARCH),
+	}), nil
 }
 
-func (a *ApiHandler) GetEthV1NodePeerCount(w http.ResponseWriter, r *http.Request) {
-	ret, err := a.sentinel.GetPeers(r.Context(), &sentinel.EmptyMessage{})
+func (a *ApiHandler) GetEthV1NodePeerCount(w http.ResponseWriter, r *http.Request) (*beaconhttp.BeaconResponse, error) {
+	ret, err := a.sentinel.GetPeers(r.Context(), &sentinelproto.EmptyMessage{})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return nil, beaconhttp.NewEndpointError(http.StatusInternalServerError, err)
 	}
+
 	// all fields should be converted to string
-	if err := json.NewEncoder(w).Encode(map[string]interface{}{
-		"data": map[string]interface{}{
-			"connected":     strconv.FormatUint(ret.Connected, 10),
-			"disconnected":  strconv.FormatUint(ret.Disconnected, 10),
-			"connecting":    strconv.FormatUint(ret.Connecting, 10),
-			"disconnecting": strconv.FormatUint(ret.Disconnecting, 10),
-		},
-	}); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+	return newBeaconResponse(map[string]interface{}{
+		"connected":     strconv.FormatUint(ret.Connected, 10),
+		"disconnected":  strconv.FormatUint(ret.Disconnected, 10),
+		"connecting":    strconv.FormatUint(ret.Connecting, 10),
+		"disconnecting": strconv.FormatUint(ret.Disconnecting, 10),
+	}), nil
 }
 
-func (a *ApiHandler) GetEthV1NodePeersInfos(w http.ResponseWriter, r *http.Request) {
+func (a *ApiHandler) GetEthV1NodePeersInfos(w http.ResponseWriter, r *http.Request) (*beaconhttp.BeaconResponse, error) {
 	state := r.URL.Query().Get("state")
 	direction := r.URL.Query().Get("direction")
 
@@ -86,16 +94,18 @@ func (a *ApiHandler) GetEthV1NodePeersInfos(w http.ResponseWriter, r *http.Reque
 		directionIn = &direction
 	}
 
-	ret, err := a.sentinel.PeersInfo(r.Context(), &sentinel.PeersInfoRequest{
+	ret, err := a.sentinel.PeersInfo(r.Context(), &sentinelproto.PeersInfoRequest{
 		Direction: directionIn,
 		State:     stateIn,
 	})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return nil, beaconhttp.NewEndpointError(http.StatusInternalServerError, err)
 	}
 	peers := make([]peer, 0, len(ret.Peers))
 	for i := range ret.Peers {
+		if ret.Peers[i].Enr == "" {
+			continue
+		}
 		peers = append(peers, peer{
 			PeerID:             ret.Peers[i].Pid,
 			State:              ret.Peers[i].State,
@@ -105,80 +115,94 @@ func (a *ApiHandler) GetEthV1NodePeersInfos(w http.ResponseWriter, r *http.Reque
 			AgentVersion:       ret.Peers[i].AgentVersion,
 		})
 	}
-	if err := json.NewEncoder(w).Encode(map[string]interface{}{
-		"data": peers,
-	}); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+
+	return newBeaconResponse(peers), nil
 }
 
-func (a *ApiHandler) GetEthV1NodePeerInfos(w http.ResponseWriter, r *http.Request) {
+func (a *ApiHandler) GetEthV1NodePeerInfos(w http.ResponseWriter, r *http.Request) (*beaconhttp.BeaconResponse, error) {
 	pid, err := beaconhttp.StringFromRequest(r, "peer_id")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+		return nil, beaconhttp.NewEndpointError(http.StatusBadRequest, err)
 	}
-	ret, err := a.sentinel.PeersInfo(r.Context(), &sentinel.PeersInfoRequest{})
+	ret, err := a.sentinel.PeersInfo(r.Context(), &sentinelproto.PeersInfoRequest{})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return nil, beaconhttp.NewEndpointError(http.StatusInternalServerError, err)
 	}
 	// find the peer with matching enr
 	for _, p := range ret.Peers {
 		if p.Pid == pid {
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{
-				"data": peer{
-					PeerID:             p.Pid,
-					State:              p.State,
-					Enr:                p.Enr,
-					LastSeenP2PAddress: p.Address,
-					Direction:          p.Direction,
-					AgentVersion:       p.AgentVersion,
-				},
-			}); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+			if p.Enr == "" {
+				continue
 			}
-			return
+			return newBeaconResponse(peer{
+				PeerID:             p.Pid,
+				State:              p.State,
+				Enr:                p.Enr,
+				LastSeenP2PAddress: p.Address,
+				Direction:          p.Direction,
+				AgentVersion:       p.AgentVersion,
+			}), nil
 		}
 	}
-	http.Error(w, "peer not found", http.StatusNotFound)
+
+	return nil, beaconhttp.NewEndpointError(http.StatusNotFound, errors.New("peer not found"))
 }
 
-func (a *ApiHandler) GetEthV1NodeIdentity(w http.ResponseWriter, r *http.Request) {
-	id, err := a.sentinel.Identity(r.Context(), &sentinel.EmptyMessage{})
+func (a *ApiHandler) GetEthV1NodeIdentity(w http.ResponseWriter, r *http.Request) (*beaconhttp.BeaconResponse, error) {
+	id, err := a.sentinel.Identity(r.Context(), &sentinelproto.EmptyMessage{})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return nil, beaconhttp.NewEndpointError(http.StatusInternalServerError, err)
 	}
-	if err := json.NewEncoder(w).Encode(map[string]interface{}{
-		"data": map[string]interface{}{
-			"peer_id":             id.Pid,
-			"enr":                 id.Enr,
-			"p2p_addresses":       id.P2PAddresses,
-			"discovery_addresses": id.DiscoveryAddresses,
-			"metadata": map[string]interface{}{
-				"seq":      strconv.FormatUint(id.Metadata.Seq, 10),
-				"attnets":  id.Metadata.Attnets,
-				"syncnets": id.Metadata.Syncnets,
-			},
+
+	return newBeaconResponse(map[string]interface{}{
+		"peer_id":             id.Pid,
+		"enr":                 id.Enr,
+		"p2p_addresses":       id.P2PAddresses,
+		"discovery_addresses": id.DiscoveryAddresses,
+		"metadata": map[string]interface{}{
+			"seq":      strconv.FormatUint(id.Metadata.Seq, 10),
+			"attnets":  id.Metadata.Attnets,
+			"syncnets": id.Metadata.Syncnets,
 		},
-	}); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+	}), nil
 }
 
-func (a *ApiHandler) GetEthV1NodeSyncing(w http.ResponseWriter, r *http.Request) {
+func (a *ApiHandler) GetEthV1NodeSyncing(w http.ResponseWriter, r *http.Request) (*beaconhttp.BeaconResponse, error) {
 	currentSlot := a.ethClock.GetCurrentSlot()
 
-	if err := json.NewEncoder(w).Encode(map[string]interface{}{
-		"data": map[string]interface{}{
+	return newBeaconResponse(
+		map[string]interface{}{
 			"head_slot":     strconv.FormatUint(a.syncedData.HeadSlot(), 10),
 			"sync_distance": strconv.FormatUint(currentSlot-a.syncedData.HeadSlot(), 10),
 			"is_syncing":    a.syncedData.Syncing(),
 			"is_optimistic": false, // needs to change
 			"el_offline":    false,
-		},
-	}); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+		}), nil
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

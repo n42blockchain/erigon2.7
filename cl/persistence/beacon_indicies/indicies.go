@@ -1,3 +1,19 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package beacon_indicies
 
 import (
@@ -6,15 +22,15 @@ import (
 	"fmt"
 	"sync"
 
-	libcommon "github.com/erigontech/erigon-lib/common"
-	"github.com/erigontech/erigon-lib/kv"
-	"github.com/erigontech/erigon-lib/kv/dbutils"
+	"github.com/klauspost/compress/zstd"
+
 	"github.com/erigontech/erigon/cl/clparams"
 	"github.com/erigontech/erigon/cl/cltypes"
 	"github.com/erigontech/erigon/cl/persistence/base_encoding"
 	"github.com/erigontech/erigon/cl/persistence/format/snapshot_format"
-	"github.com/klauspost/compress/zstd"
-	_ "modernc.org/sqlite"
+	libcommon "github.com/erigontech/erigon-lib/common"
+	"github.com/erigontech/erigon-lib/kv"
+	"github.com/erigontech/erigon-lib/kv/dbutils"
 )
 
 // make a buffer pool
@@ -33,6 +49,11 @@ var zstdWriterPool = &sync.Pool{
 		}
 		return encoder
 	},
+}
+
+func putWriter(v *zstd.Encoder) {
+	v.Reset(nil)
+	zstdWriterPool.Put(v)
 }
 
 func WriteHighestFinalized(tx kv.RwTx, slot uint64) error {
@@ -194,6 +215,9 @@ func WriteBeaconBlockHeaderAndIndicies(ctx context.Context, tx kv.RwTx, signedHe
 	if err := WriteParentBlockRoot(ctx, tx, blockRoot, signedHeader.Header.ParentRoot); err != nil {
 		return err
 	}
+	if err := AddBlockRootToParentRootsIndex(tx, signedHeader.Header.ParentRoot, blockRoot); err != nil {
+		return err
+	}
 	if forceCanonical {
 		if err := MarkRootCanonical(ctx, tx, signedHeader.Header.Slot, blockRoot); err != nil {
 			return err
@@ -231,8 +255,9 @@ func PruneSignedHeaders(tx kv.RwTx, from uint64) error {
 	if err != nil {
 		return err
 	}
+	defer cursor.Close()
 	for k, _, err := cursor.Seek(base_encoding.Encode64ToBytes4(from)); err == nil && k != nil; k, _, err = cursor.Prev() {
-		if err != nil {
+		if err != nil { //nolint:govet
 			return err
 		}
 		if err := cursor.DeleteCurrent(); err != nil {
@@ -247,6 +272,7 @@ func RangeBlockRoots(ctx context.Context, tx kv.Tx, fromSlot, toSlot uint64, fn 
 	if err != nil {
 		return err
 	}
+	defer cursor.Close()
 	for k, v, err := cursor.Seek(base_encoding.Encode64ToBytes4(fromSlot)); err == nil && k != nil && base_encoding.Decode64FromBytes4(k) <= toSlot; k, v, err = cursor.Next() {
 		if !fn(base_encoding.Decode64FromBytes4(k), libcommon.BytesToHash(v)) {
 			break
@@ -260,6 +286,7 @@ func PruneBlockRoots(ctx context.Context, tx kv.RwTx, fromSlot, toSlot uint64) e
 	if err != nil {
 		return err
 	}
+	defer cursor.Close()
 	for k, _, err := cursor.Seek(base_encoding.Encode64ToBytes4(fromSlot)); err == nil && k != nil && base_encoding.Decode64FromBytes4(k) <= toSlot; k, _, err = cursor.Next() {
 		if err := cursor.DeleteCurrent(); err != nil {
 			return err
@@ -275,6 +302,7 @@ func ReadBeaconBlockRootsInSlotRange(ctx context.Context, tx kv.Tx, fromSlot, co
 	if err != nil {
 		return nil, nil, err
 	}
+	defer cursor.Close()
 	currentCount := uint64(0)
 	for k, v, err := cursor.Seek(base_encoding.Encode64ToBytes4(fromSlot)); err == nil && k != nil && currentCount != count; k, v, err = cursor.Next() {
 		currentCount++
@@ -293,7 +321,7 @@ func WriteBeaconBlock(ctx context.Context, tx kv.RwTx, block *cltypes.SignedBeac
 	buf := bufferPool.Get().(*bytes.Buffer)
 	defer bufferPool.Put(buf)
 	encoder := zstdWriterPool.Get().(*zstd.Encoder)
-	defer zstdWriterPool.Put(encoder)
+	defer putWriter(encoder)
 	buf.Reset()
 	encoder.Reset(buf)
 	_, err = snapshot_format.WriteBlockForSnapshot(encoder, block, nil)
@@ -352,6 +380,7 @@ func PruneBlocks(ctx context.Context, tx kv.RwTx, to uint64) error {
 	if err != nil {
 		return err
 	}
+	defer cursor.Close()
 	for k, _, err := cursor.First(); err == nil && k != nil; k, _, err = cursor.Prev() {
 		if len(k) != 40 {
 			continue
@@ -389,3 +418,63 @@ func ReadSignedHeaderByBlockRoot(ctx context.Context, tx kv.Tx, blockRoot libcom
 	}
 	return h, canonical == blockRoot, nil
 }
+
+func ReadBlockRootsByParentRoot(tx kv.Tx, parentRoot libcommon.Hash) ([]libcommon.Hash, error) {
+	roots, err := tx.GetOne(kv.ParentRootToBlockRoots, parentRoot[:])
+	if err != nil {
+		return nil, err
+	}
+	if len(roots) == 0 {
+		return nil, nil
+	}
+	blockRoots := make([]libcommon.Hash, 0, len(roots)/32)
+	for i := 0; i < len(roots); i += 32 {
+		var blockRoot libcommon.Hash
+		copy(blockRoot[:], roots[i:i+32])
+		blockRoots = append(blockRoots, blockRoot)
+	}
+	return blockRoots, nil
+}
+
+func AddBlockRootToParentRootsIndex(tx kv.RwTx, parentRoot, blockRoot libcommon.Hash) error {
+	roots, err := tx.GetOne(kv.ParentRootToBlockRoots, parentRoot[:])
+	if err != nil {
+		return err
+	}
+	// check if it is already there
+	for i := 0; i < len(roots); i += 32 {
+		if bytes.Equal(roots[i:i+32], blockRoot[:]) {
+			return nil
+		}
+	}
+
+	roots = append(libcommon.Copy(roots), blockRoot[:]...)
+	return tx.Put(kv.ParentRootToBlockRoots, parentRoot[:], roots)
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

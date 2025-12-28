@@ -1,13 +1,30 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package solid
 
 import (
 	"encoding/json"
+	"errors"
 	"math/bits"
 
-	"github.com/erigontech/erigon-lib/common/hexutility"
-	"github.com/erigontech/erigon-lib/types/clonable"
 	"github.com/erigontech/erigon/cl/merkle_tree"
-	"github.com/erigontech/erigon/cl/utils"
+	"github.com/erigontech/erigon-lib/types/clonable"
+	hexutil "github.com/erigontech/erigon-lib/common/hexutility"
+	"github.com/erigontech/erigon-lib/log/v3"
 )
 
 // BitList is like a dynamic binary string. It's like a flipbook of 1s and 0s!
@@ -19,8 +36,6 @@ type BitList struct {
 	c int
 	// current length of the bitlist
 	l int
-
-	hashBuf
 }
 
 // NewBitList creates a brand new BitList, just like when Zordon created the Power Rangers!
@@ -40,6 +55,13 @@ func BitlistFromBytes(xs []byte, c int) *BitList {
 		l: len(xs),
 		c: c,
 	}
+}
+
+func (u *BitList) GetBitAt(i int) bool {
+	if i >= u.Bits() {
+		return false
+	}
+	return u.u[i/8]&(1<<(uint(i)%8)) != 0
 }
 
 func (u *BitList) Bytes() []byte {
@@ -105,6 +127,46 @@ func (u *BitList) Set(index int, v byte) {
 	u.u[index] = v
 }
 
+// removeMsb removes the most significant bit from the list, but doesn't change the length l.
+func (u *BitList) removeMsb() {
+	for i := len(u.u) - 1; i >= 0; i-- {
+		if u.u[i] != 0 {
+			// find last bit, make a mask and clear it
+			u.u[i] &= ^(1 << uint(bits.Len8(u.u[i])-1))
+			break
+		}
+	}
+}
+
+// addMsb adds a most significant bit to the list, but doesn't change the length l.
+func (u *BitList) addMsb() int {
+	byteLen := len(u.u)
+	found := false
+	for i := len(u.u) - 1; i >= 0; i-- {
+		if u.u[i] != 0 {
+			msb := bits.Len8(u.u[i])
+			if msb == 8 {
+				if i == len(u.u)-1 {
+					u.u = append(u.u, 0)
+				}
+				byteLen++
+				u.u[i+1] |= 1
+			} else {
+				u.u[i] |= 1 << uint(msb)
+			}
+			found = true
+			break
+		}
+		byteLen--
+	}
+	if !found {
+		u.u[0] = 1
+		byteLen = 1
+	}
+	u.l = byteLen
+	return byteLen
+}
+
 // Length gives us the length of the bitlist, just like a roll call tells us how many Rangers there are.
 func (u *BitList) Length() int {
 	return u.l
@@ -116,42 +178,7 @@ func (u *BitList) Cap() int {
 }
 
 func (u *BitList) HashSSZ() ([32]byte, error) {
-	depth := GetDepth((uint64(u.c) + 31) / 32)
-	baseRoot := [32]byte{}
-	if u.l == 0 {
-		copy(baseRoot[:], merkle_tree.ZeroHashes[depth][:])
-	} else {
-		err := u.getBaseHash(baseRoot[:], depth)
-		if err != nil {
-			return baseRoot, err
-		}
-	}
-	lengthRoot := merkle_tree.Uint64Root(uint64(u.l))
-	return utils.Sha256(baseRoot[:], lengthRoot[:]), nil
-}
-
-func (arr *BitList) getBaseHash(xs []byte, depth uint8) error {
-	elements := arr.u
-	offset := 32*(arr.l/32) + 32
-	if len(arr.u) <= offset {
-		elements = append(elements, make([]byte, offset-len(arr.u)+1)...)
-	}
-	elements = elements[:offset]
-	for i := uint8(0); i < depth; i++ {
-		// Sequential
-		layerLen := len(elements)
-		if layerLen%64 == 32 {
-			elements = append(elements, merkle_tree.ZeroHashes[i][:]...)
-		}
-		outputLen := len(elements) / 2
-		arr.makeBuf(outputLen)
-		if err := merkle_tree.HashByteSlice(arr.buf, elements); err != nil {
-			return err
-		}
-		elements = arr.buf
-	}
-	copy(xs, elements[:32])
-	return nil
+	return merkle_tree.BitlistRootWithLimit(u.u[:u.l], uint64(u.c))
 }
 
 // EncodeSSZ appends the underlying byte slice of the BitList to the destination byte slice.
@@ -187,7 +214,15 @@ func (u *BitList) Bits() int {
 		return 0
 	}
 	// The most significant bit is present in the last byte in the array.
-	last := u.u[u.l-1]
+	var last byte
+	var byteLen int
+	for i := len(u.u) - 1; i >= 0; i-- {
+		if u.u[i] != 0 {
+			last = u.u[i]
+			byteLen = i + 1
+			break
+		}
+	}
 
 	// Determine the position of the most significant bit.
 	msb := bits.Len8(last)
@@ -198,7 +233,7 @@ func (u *BitList) Bits() int {
 	// The absolute position of the most significant bit will be the number of
 	// bits in the preceding bytes plus the position of the most significant
 	// bit. Subtract this value by 1 to determine the length of the bitlist.
-	return 8*(u.l-1) + msb - 1
+	return 8*(byteLen-1) + msb - 1
 }
 
 func (u *BitList) MarshalJSON() ([]byte, error) {
@@ -206,13 +241,90 @@ func (u *BitList) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return json.Marshal(hexutility.Bytes(enc))
+	return json.Marshal(hexutil.Bytes(enc))
 }
 
 func (u *BitList) UnmarshalJSON(input []byte) error {
-	var hex hexutility.Bytes
+	var hex hexutil.Bytes
 	if err := json.Unmarshal(input, &hex); err != nil {
 		return err
 	}
 	return u.DecodeSSZ(hex, 0)
 }
+
+func (u *BitList) Merge(other *BitList) (*BitList, error) {
+	if u.Bits() != other.Bits() {
+		log.Warn("bitlist union: different length", "u", u.Bits(), "other", other.Bits())
+		return nil, errors.New("bitlist union: different length")
+	}
+	// copy by the longer one
+	var ret, unionFrom *BitList
+	ret = other.Copy()
+	unionFrom = u
+	for i := 0; i < len(unionFrom.u); i++ {
+		ret.u[i] |= unionFrom.u[i]
+	}
+	return ret, nil
+}
+
+// BitSlice maintains a slice of bits with underlying byte slice.
+// This is just a auxiliary struct for merging BitList.
+type BitSlice struct {
+	container []byte
+	length    int
+}
+
+func NewBitSlice() *BitSlice {
+	return &BitSlice{
+		container: make([]byte, 0),
+		length:    0,
+	}
+}
+
+// AppendBit appends one bit to the BitSlice.
+func (b *BitSlice) AppendBit(bit bool) {
+	if b.length%8 == 0 {
+		b.container = append(b.container, 0)
+	}
+	if bit {
+		b.container[b.length/8] |= 1 << uint(b.length%8)
+	}
+	b.length++
+}
+
+// Bytes returns the underlying byte slice of the BitSlice.
+func (b *BitSlice) Bytes() []byte {
+	return b.container
+}
+
+// Length returns the length of the BitSlice.
+func (b *BitSlice) Length() int {
+	return b.length
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

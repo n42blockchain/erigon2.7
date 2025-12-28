@@ -65,3 +65,30 @@ func (b *BeaconRpcSource) GetRange(ctx context.Context, _ kv.Tx, from uint64, co
 func (b *BeaconRpcSource) PurgeRange(ctx context.Context, _ kv.Tx, from uint64, count uint64) error {
 	return nil
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

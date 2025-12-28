@@ -1,3 +1,19 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package consensus_tests
 
 import (
@@ -5,15 +21,14 @@ import (
 	"os"
 	"testing"
 
-	"github.com/erigontech/erigon/spectest"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/erigontech/erigon/cl/abstract"
 	"github.com/erigontech/erigon/cl/clparams"
 	"github.com/erigontech/erigon/cl/phase1/core/state"
+	"github.com/erigontech/erigon/cl/spectest/spectest"
 	"github.com/erigontech/erigon/cl/transition/impl/eth2/statechange"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type EpochProcessing struct {
@@ -50,22 +65,18 @@ func (b *EpochProcessing) Run(t *testing.T, root fs.FS, c spectest.TestCase) (er
 	expectedRoot, err := expectedState.HashSSZ()
 	require.NoError(t, err)
 
-	assert.EqualValues(t, expectedRoot, haveRoot)
+	assert.Equal(t, expectedRoot, haveRoot)
 	return nil
 }
 
-var effectiveBalancesUpdateTest = NewEpochProcessing(func(s abstract.BeaconState) error {
-	return statechange.ProcessEffectiveBalanceUpdates(s)
-})
+var effectiveBalancesUpdateTest = NewEpochProcessing(statechange.ProcessEffectiveBalanceUpdates)
 
 var eth1DataResetTest = NewEpochProcessing(func(s abstract.BeaconState) error {
 	statechange.ProcessEth1DataReset(s)
 	return nil
 })
 
-var historicalRootsUpdateTest = NewEpochProcessing(func(s abstract.BeaconState) error {
-	return statechange.ProcessHistoricalRootsUpdate(s)
-})
+var historicalRootsUpdateTest = NewEpochProcessing(statechange.ProcessHistoricalRootsUpdate)
 
 var inactivityUpdateTest = NewEpochProcessing(func(s abstract.BeaconState) error {
 	var unslashedIndiciesSet [][]bool
@@ -83,18 +94,14 @@ var participationFlagUpdatesTest = NewEpochProcessing(func(s abstract.BeaconStat
 	statechange.ProcessParticipationFlagUpdates(s)
 	return nil
 })
-var participationRecordUpdatesTest = NewEpochProcessing(func(s abstract.BeaconState) error {
-	return statechange.ProcessParticipationRecordUpdates(s)
-})
+var participationRecordUpdatesTest = NewEpochProcessing(statechange.ProcessParticipationRecordUpdates)
 
 var randaoMixesTest = NewEpochProcessing(func(s abstract.BeaconState) error {
 	statechange.ProcessRandaoMixesReset(s)
 	return nil
 })
 
-var registryUpdatesTest = NewEpochProcessing(func(s abstract.BeaconState) error {
-	return statechange.ProcessRegistryUpdates(s)
-})
+var registryUpdatesTest = NewEpochProcessing(statechange.ProcessRegistryUpdates)
 
 var rewardsAndPenaltiesTest = NewEpochProcessing(func(s abstract.BeaconState) error {
 	var unslashedIndiciesSet [][]bool
@@ -104,9 +111,7 @@ var rewardsAndPenaltiesTest = NewEpochProcessing(func(s abstract.BeaconState) er
 	return statechange.ProcessRewardsAndPenalties(s, state.EligibleValidatorsIndicies(s), unslashedIndiciesSet)
 })
 
-var slashingsTest = NewEpochProcessing(func(s abstract.BeaconState) error {
-	return statechange.ProcessSlashings(s)
-})
+var slashingsTest = NewEpochProcessing(statechange.ProcessSlashings)
 
 var slashingsResetTest = NewEpochProcessing(func(s abstract.BeaconState) error {
 	statechange.ProcessSlashingsReset(s)
@@ -117,3 +122,45 @@ var recordsResetTest = NewEpochProcessing(func(s abstract.BeaconState) error {
 	statechange.ProcessParticipationRecordUpdates(s)
 	return nil
 })
+
+var pendingDepositTest = NewEpochProcessing(func(s abstract.BeaconState) error {
+	statechange.ProcessPendingDeposits(s)
+	return nil
+})
+
+var PendingConsolidationTest = NewEpochProcessing(func(s abstract.BeaconState) error {
+	statechange.ProcessPendingConsolidations(s)
+	return nil
+})
+
+var ProposerLookaheadTest = NewEpochProcessing(func(s abstract.BeaconState) error {
+	statechange.ProcessProposerLookahead(s)
+	return nil
+})
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

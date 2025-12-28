@@ -1,42 +1,58 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package solid
 
 import (
 	"testing"
 
-	"github.com/erigontech/erigon-lib/common"
+	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Mock data
 var (
-	mockRoot  = common.HexToHash("0x01")
+	mockRoot  = libcommon.HexToHash("0x01")
 	mockEpoch = uint64(12345)
 )
 
 func TestNewDynamicListSSZ(t *testing.T) {
 	limit := 10
-	dynamicList := NewDynamicListSSZ[Checkpoint](limit)
+	dynamicList := NewDynamicListSSZ[Validator](limit)
 
 	assert.Equal(t, 0, dynamicList.Len())
-	assert.Equal(t, false, dynamicList.Static())
+	assert.False(t, dynamicList.Static())
 }
 
 func TestNewStaticListSSZ(t *testing.T) {
 	limit := 10
 	bytesPerElement := 40
-	staticList := NewStaticListSSZ[Checkpoint](limit, bytesPerElement)
+	staticList := NewStaticListSSZ[Validator](limit, bytesPerElement)
 
 	assert.Equal(t, 0, staticList.Len())
-	assert.Equal(t, false, staticList.Static())
+	assert.False(t, staticList.Static())
 }
 
 func TestListSSZAppendAndClear(t *testing.T) {
 	limit := 10
-	list := NewDynamicListSSZ[Checkpoint](limit)
+	list := NewDynamicListSSZ[Validator](limit)
 
 	// create a new checkpoint
-	checkpoint := NewCheckpointFromParameters(mockRoot, mockEpoch)
-	list.Append(checkpoint)
+	list.Append(NewValidator())
 
 	assert.Equal(t, 1, list.Len())
 
@@ -46,30 +62,30 @@ func TestListSSZAppendAndClear(t *testing.T) {
 
 func TestListSSZClone(t *testing.T) {
 	limit := 10
-	list := NewDynamicListSSZ[Checkpoint](limit)
+	list := NewDynamicListSSZ[Validator](limit)
 
 	// create a new checkpoint
-	checkpoint := NewCheckpointFromParameters(mockRoot, mockEpoch)
+	checkpoint := NewValidator()
 	list.Append(checkpoint)
 
-	clone := list.Clone().(*ListSSZ[Checkpoint])
+	clone := list.Clone().(*ListSSZ[Validator])
 	assert.NotEqual(t, list.Len(), clone.Len())
 }
 
 func TestListSSZEncodeDecodeSSZ(t *testing.T) {
 	limit := 10
-	list := NewDynamicListSSZ[Checkpoint](limit)
+	list := NewDynamicListSSZ[Validator](limit)
 
 	// create a new checkpoint
-	checkpoint := NewCheckpointFromParameters(mockRoot, mockEpoch)
+	checkpoint := NewValidator()
 	list.Append(checkpoint)
 
 	encoded, err := list.EncodeSSZ(nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	decodedList := NewDynamicListSSZ[Checkpoint](limit)
+	decodedList := NewDynamicListSSZ[Validator](limit)
 	err = decodedList.DecodeSSZ(encoded, 0)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	assert.Equal(t, list.Len(), decodedList.Len())
 }
@@ -117,10 +133,10 @@ func TestUint64VectorSSZ(t *testing.T) {
 
 	// Test EncodeSSZ and DecodeSSZ
 	encodedData, err := arr.EncodeSSZ(nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	decodedArr := NewUint64VectorSSZ(size)
 	err = decodedArr.DecodeSSZ(encodedData, 0)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, arr.Length(), decodedArr.Length())
 	assert.Equal(t, arr.Get(0), decodedArr.Get(0))
 	assert.Equal(t, arr.Get(1), decodedArr.Get(1))
@@ -130,3 +146,30 @@ func TestUint64VectorSSZ(t *testing.T) {
 	encodingSize := arr.EncodingSizeSSZ()
 	assert.Equal(t, expectedEncodingSize, encodingSize)
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

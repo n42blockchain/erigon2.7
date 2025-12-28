@@ -13,7 +13,9 @@ import (
 	context "context"
 	reflect "reflect"
 
-	cltypes "github.com/erigontech/erigon/cl/cltypes"
+	clparams "github.com/erigontech/erigon/cl/clparams"
+	services "github.com/erigontech/erigon/cl/phase1/network/services"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -21,6 +23,7 @@ import (
 type MockSyncContributionService struct {
 	ctrl     *gomock.Controller
 	recorder *MockSyncContributionServiceMockRecorder
+	isgomock struct{}
 }
 
 // MockSyncContributionServiceMockRecorder is the mock recorder for MockSyncContributionService.
@@ -40,18 +43,95 @@ func (m *MockSyncContributionService) EXPECT() *MockSyncContributionServiceMockR
 	return m.recorder
 }
 
-// ProcessMessage mocks base method.
-func (m *MockSyncContributionService) ProcessMessage(arg0 context.Context, arg1 *uint64, arg2 *cltypes.SignedContributionAndProof) error {
+// DecodeGossipMessage mocks base method.
+func (m *MockSyncContributionService) DecodeGossipMessage(data *sentinelproto.GossipData, version clparams.StateVersion) (*services.SignedContributionAndProofForGossip, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ProcessMessage", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "DecodeGossipMessage", data, version)
+	ret0, _ := ret[0].(*services.SignedContributionAndProofForGossip)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DecodeGossipMessage indicates an expected call of DecodeGossipMessage.
+func (mr *MockSyncContributionServiceMockRecorder) DecodeGossipMessage(data, version any) *MockSyncContributionServiceDecodeGossipMessageCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DecodeGossipMessage", reflect.TypeOf((*MockSyncContributionService)(nil).DecodeGossipMessage), data, version)
+	return &MockSyncContributionServiceDecodeGossipMessageCall{Call: call}
+}
+
+// MockSyncContributionServiceDecodeGossipMessageCall wrap *gomock.Call
+type MockSyncContributionServiceDecodeGossipMessageCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockSyncContributionServiceDecodeGossipMessageCall) Return(arg0 *services.SignedContributionAndProofForGossip, arg1 error) *MockSyncContributionServiceDecodeGossipMessageCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockSyncContributionServiceDecodeGossipMessageCall) Do(f func(*sentinelproto.GossipData, clparams.StateVersion) (*services.SignedContributionAndProofForGossip, error)) *MockSyncContributionServiceDecodeGossipMessageCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockSyncContributionServiceDecodeGossipMessageCall) DoAndReturn(f func(*sentinelproto.GossipData, clparams.StateVersion) (*services.SignedContributionAndProofForGossip, error)) *MockSyncContributionServiceDecodeGossipMessageCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// IsMyGossipMessage mocks base method.
+func (m *MockSyncContributionService) IsMyGossipMessage(name string) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsMyGossipMessage", name)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsMyGossipMessage indicates an expected call of IsMyGossipMessage.
+func (mr *MockSyncContributionServiceMockRecorder) IsMyGossipMessage(name any) *MockSyncContributionServiceIsMyGossipMessageCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsMyGossipMessage", reflect.TypeOf((*MockSyncContributionService)(nil).IsMyGossipMessage), name)
+	return &MockSyncContributionServiceIsMyGossipMessageCall{Call: call}
+}
+
+// MockSyncContributionServiceIsMyGossipMessageCall wrap *gomock.Call
+type MockSyncContributionServiceIsMyGossipMessageCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockSyncContributionServiceIsMyGossipMessageCall) Return(arg0 bool) *MockSyncContributionServiceIsMyGossipMessageCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockSyncContributionServiceIsMyGossipMessageCall) Do(f func(string) bool) *MockSyncContributionServiceIsMyGossipMessageCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockSyncContributionServiceIsMyGossipMessageCall) DoAndReturn(f func(string) bool) *MockSyncContributionServiceIsMyGossipMessageCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// ProcessMessage mocks base method.
+func (m *MockSyncContributionService) ProcessMessage(ctx context.Context, subnet *uint64, msg *services.SignedContributionAndProofForGossip) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ProcessMessage", ctx, subnet, msg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ProcessMessage indicates an expected call of ProcessMessage.
-func (mr *MockSyncContributionServiceMockRecorder) ProcessMessage(arg0, arg1, arg2 any) *MockSyncContributionServiceProcessMessageCall {
+func (mr *MockSyncContributionServiceMockRecorder) ProcessMessage(ctx, subnet, msg any) *MockSyncContributionServiceProcessMessageCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessMessage", reflect.TypeOf((*MockSyncContributionService)(nil).ProcessMessage), arg0, arg1, arg2)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessMessage", reflect.TypeOf((*MockSyncContributionService)(nil).ProcessMessage), ctx, subnet, msg)
 	return &MockSyncContributionServiceProcessMessageCall{Call: call}
 }
 
@@ -67,13 +147,40 @@ func (c *MockSyncContributionServiceProcessMessageCall) Return(arg0 error) *Mock
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockSyncContributionServiceProcessMessageCall) Do(f func(context.Context, *uint64, *cltypes.SignedContributionAndProof) error) *MockSyncContributionServiceProcessMessageCall {
+func (c *MockSyncContributionServiceProcessMessageCall) Do(f func(context.Context, *uint64, *services.SignedContributionAndProofForGossip) error) *MockSyncContributionServiceProcessMessageCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockSyncContributionServiceProcessMessageCall) DoAndReturn(f func(context.Context, *uint64, *cltypes.SignedContributionAndProof) error) *MockSyncContributionServiceProcessMessageCall {
+func (c *MockSyncContributionServiceProcessMessageCall) DoAndReturn(f func(context.Context, *uint64, *services.SignedContributionAndProofForGossip) error) *MockSyncContributionServiceProcessMessageCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -37,6 +37,8 @@ var (
 	DownloaderOnlyBlocks = EnvBool("DOWNLOADER_ONLY_BLOCKS", false)
 	saveHeapProfile      = EnvBool("SAVE_HEAP_PROFILE", false)
 	heapProfileFilePath  = EnvString("HEAP_PROFILE_FILE_PATH", "")
+	// CaplinSyncedDataMangerDeadlockDetection enables deadlock detection in Caplin synced data manager
+	CaplinSyncedDataMangerDeadlockDetection = EnvBool("CAPLIN_DEADLOCK_DETECTION", false)
 )
 
 var StagesOnlyBlocks = EnvBool("STAGES_ONLY_BLOCKS", false)

@@ -1,3 +1,19 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package handler
 
 import (
@@ -6,27 +22,39 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	libcommon "github.com/erigontech/erigon-lib/common"
-	"github.com/erigontech/erigon-lib/log/v3"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
+	"github.com/erigontech/erigon/cl/beacon/synced_data"
+	sync_mock_services "github.com/erigontech/erigon/cl/beacon/synced_data/mock_services"
 	"github.com/erigontech/erigon/cl/clparams"
 	"github.com/erigontech/erigon/cl/cltypes"
 	"github.com/erigontech/erigon/cl/cltypes/solid"
-	"github.com/stretchr/testify/require"
+	"github.com/erigontech/erigon/cl/phase1/core/state"
+	"github.com/erigontech/erigon/cl/phase1/core/state/raw"
+	libcommon "github.com/erigontech/erigon-lib/common"
+	"github.com/erigontech/erigon-lib/log/v3"
 )
 
 func TestPoolAttesterSlashings(t *testing.T) {
 	attesterSlashing := &cltypes.AttesterSlashing{
 		Attestation_1: &cltypes.IndexedAttestation{
 			AttestingIndices: solid.NewRawUint64List(2048, []uint64{2, 3, 4, 5, 6}),
-			Data:             solid.NewAttestationData(),
+			Data:             &solid.AttestationData{},
 		},
 		Attestation_2: &cltypes.IndexedAttestation{
 			AttestingIndices: solid.NewRawUint64List(2048, []uint64{2, 3, 4, 1, 6}),
-			Data:             solid.NewAttestationData(),
+			Data:             &solid.AttestationData{},
 		},
 	}
 	// find server
-	_, _, _, _, _, handler, _, _, _, _ := setupTestingHandler(t, clparams.Phase0Version, log.Root())
+	_, _, _, _, _, handler, _, syncedDataMgr, _, _ := setupTestingHandler(t, clparams.Phase0Version, log.Root(), false)
+	mockBeaconState := &state.CachingBeaconState{BeaconState: raw.New(&clparams.BeaconChainConfig{})}
+	mockBeaconState.SetVersion(clparams.DenebVersion)
+	syncedDataMgr.(*sync_mock_services.MockSyncedData).EXPECT().ViewHeadState(gomock.Any()).DoAndReturn(func(vhsf synced_data.ViewHeadStateFn) error {
+		vhsf(mockBeaconState)
+		return nil
+	}).AnyTimes()
 
 	server := httptest.NewServer(handler.mux)
 	defer server.Close()
@@ -49,14 +77,14 @@ func TestPoolAttesterSlashings(t *testing.T) {
 		Data []*cltypes.AttesterSlashing `json:"data"`
 	}{
 		Data: []*cltypes.AttesterSlashing{
-			cltypes.NewAttesterSlashing(),
+			cltypes.NewAttesterSlashing(clparams.DenebVersion),
 		},
 	}
 
 	err = json.NewDecoder(resp.Body).Decode(&out)
 	require.NoError(t, err)
 
-	require.Equal(t, 1, len(out.Data))
+	require.Len(t, out.Data, 1)
 	require.Equal(t, attesterSlashing, out.Data[0])
 }
 
@@ -76,8 +104,13 @@ func TestPoolProposerSlashings(t *testing.T) {
 		},
 	}
 	// find server
-	_, _, _, _, _, handler, _, _, _, _ := setupTestingHandler(t, clparams.Phase0Version, log.Root())
-
+	_, _, _, _, _, handler, _, syncedDataMgr, _, _ := setupTestingHandler(t, clparams.Phase0Version, log.Root(), false)
+	mockBeaconState := &state.CachingBeaconState{BeaconState: raw.New(&clparams.BeaconChainConfig{})}
+	mockBeaconState.SetVersion(clparams.DenebVersion)
+	syncedDataMgr.(*sync_mock_services.MockSyncedData).EXPECT().ViewHeadState(gomock.Any()).DoAndReturn(func(vhsf synced_data.ViewHeadStateFn) error {
+		vhsf(mockBeaconState)
+		return nil
+	}).AnyTimes()
 	server := httptest.NewServer(handler.mux)
 	defer server.Close()
 	// json
@@ -105,7 +138,7 @@ func TestPoolProposerSlashings(t *testing.T) {
 	err = json.NewDecoder(resp.Body).Decode(&out)
 	require.NoError(t, err)
 
-	require.Equal(t, 1, len(out.Data))
+	require.Len(t, out.Data, 1)
 	require.Equal(t, proposerSlashing, out.Data[0])
 }
 
@@ -117,8 +150,13 @@ func TestPoolVoluntaryExits(t *testing.T) {
 		},
 	}
 	// find server
-	_, _, _, _, _, handler, _, _, _, _ := setupTestingHandler(t, clparams.Phase0Version, log.Root())
-
+	_, _, _, _, _, handler, _, syncedDataMgr, _, _ := setupTestingHandler(t, clparams.Phase0Version, log.Root(), false)
+	mockBeaconState := &state.CachingBeaconState{BeaconState: raw.New(&clparams.BeaconChainConfig{})}
+	mockBeaconState.SetVersion(clparams.DenebVersion)
+	syncedDataMgr.(*sync_mock_services.MockSyncedData).EXPECT().ViewHeadState(gomock.Any()).DoAndReturn(func(vhsf synced_data.ViewHeadStateFn) error {
+		vhsf(mockBeaconState)
+		return nil
+	}).AnyTimes()
 	server := httptest.NewServer(handler.mux)
 	defer server.Close()
 	// json
@@ -145,7 +183,7 @@ func TestPoolVoluntaryExits(t *testing.T) {
 	err = json.NewDecoder(resp.Body).Decode(&out)
 	require.NoError(t, err)
 
-	require.Equal(t, 1, len(out.Data))
+	require.Len(t, out.Data, 1)
 	require.Equal(t, voluntaryExit, out.Data[0])
 }
 
@@ -164,7 +202,13 @@ func TestPoolBlsToExecutionChainges(t *testing.T) {
 		},
 	}
 	// find server
-	_, _, _, _, _, handler, _, _, _, _ := setupTestingHandler(t, clparams.Phase0Version, log.Root())
+	_, _, _, _, _, handler, _, syncedDataMgr, _, _ := setupTestingHandler(t, clparams.Phase0Version, log.Root(), false)
+	mockBeaconState := &state.CachingBeaconState{BeaconState: raw.New(&clparams.BeaconChainConfig{})}
+	mockBeaconState.SetVersion(clparams.DenebVersion)
+	syncedDataMgr.(*sync_mock_services.MockSyncedData).EXPECT().ViewHeadState(gomock.Any()).DoAndReturn(func(vhsf synced_data.ViewHeadStateFn) error {
+		vhsf(mockBeaconState)
+		return nil
+	}).AnyTimes()
 
 	server := httptest.NewServer(handler.mux)
 	defer server.Close()
@@ -192,7 +236,7 @@ func TestPoolBlsToExecutionChainges(t *testing.T) {
 	err = json.NewDecoder(resp.Body).Decode(&out)
 	require.NoError(t, err)
 
-	require.Equal(t, 2, len(out.Data))
+	require.Len(t, out.Data, 2)
 	require.Equal(t, msg[0], out.Data[0])
 	require.Equal(t, msg[1], out.Data[1])
 }
@@ -201,19 +245,34 @@ func TestPoolAggregatesAndProofs(t *testing.T) {
 	msg := []*cltypes.SignedAggregateAndProof{
 		{
 			Message: &cltypes.AggregateAndProof{
-				Aggregate: solid.NewAttestionFromParameters([]byte{1, 2}, solid.NewAttestationData(), libcommon.Bytes96{3, 45, 6}),
+				Aggregate: &solid.Attestation{
+					AggregationBits: solid.BitlistFromBytes([]byte{1, 2}, 2048),
+					Data:            &solid.AttestationData{},
+					Signature:       libcommon.Bytes96{3, 45, 6},
+				},
 			},
 			Signature: libcommon.Bytes96{2},
 		},
 		{
 			Message: &cltypes.AggregateAndProof{
-				Aggregate: solid.NewAttestionFromParameters([]byte{1, 2, 5, 6}, solid.NewAttestationData(), libcommon.Bytes96{3, 0, 6}),
+				//Aggregate: solid.NewAttestionFromParameters([]byte{1, 2, 5, 6}, solid.NewAttestationData(), libcommon.Bytes96{3, 0, 6}),
+				Aggregate: &solid.Attestation{
+					AggregationBits: solid.BitlistFromBytes([]byte{1, 2, 5, 6}, 2048),
+					Data:            &solid.AttestationData{},
+					Signature:       libcommon.Bytes96{3, 0, 6},
+				},
 			},
 			Signature: libcommon.Bytes96{2, 3, 5},
 		},
 	}
 	// find server
-	_, _, _, _, _, handler, _, _, _, _ := setupTestingHandler(t, clparams.Phase0Version, log.Root())
+	_, _, _, _, _, handler, _, syncedDataMgr, _, _ := setupTestingHandler(t, clparams.Phase0Version, log.Root(), false)
+	mockBeaconState := &state.CachingBeaconState{BeaconState: raw.New(&clparams.BeaconChainConfig{})}
+	mockBeaconState.SetVersion(clparams.DenebVersion)
+	syncedDataMgr.(*sync_mock_services.MockSyncedData).EXPECT().ViewHeadState(gomock.Any()).DoAndReturn(func(vhsf synced_data.ViewHeadStateFn) error {
+		vhsf(mockBeaconState)
+		return nil
+	}).AnyTimes()
 
 	server := httptest.NewServer(handler.mux)
 	defer server.Close()
@@ -241,7 +300,7 @@ func TestPoolAggregatesAndProofs(t *testing.T) {
 	err = json.NewDecoder(resp.Body).Decode(&out)
 	require.NoError(t, err)
 
-	require.Equal(t, 2, len(out.Data))
+	require.Len(t, out.Data, 2)
 	require.Equal(t, msg[0].Message.Aggregate, out.Data[0])
 	require.Equal(t, msg[1].Message.Aggregate, out.Data[1])
 }
@@ -254,7 +313,7 @@ func TestPoolSyncCommittees(t *testing.T) {
 			ValidatorIndex:  3,
 		},
 	}
-	_, _, _, s, _, handler, _, sd, _, _ := setupTestingHandler(t, clparams.BellatrixVersion, log.Root())
+	_, _, _, s, _, handler, _, sd, _, _ := setupTestingHandler(t, clparams.BellatrixVersion, log.Root(), true)
 
 	sd.OnHeadState(s)
 	server := httptest.NewServer(handler.mux)
@@ -281,12 +340,12 @@ func TestPoolSyncCommittees(t *testing.T) {
 	err = json.NewDecoder(resp.Body).Decode(&out)
 	require.NoError(t, err)
 
-	require.Equal(t, out.Data, &cltypes.Contribution{
+	require.Equal(t, &cltypes.Contribution{
 		Slot:              1,
 		BeaconBlockRoot:   libcommon.Hash{1, 2, 3, 4, 5, 6, 7, 8},
 		SubcommitteeIndex: 0,
 		AggregationBits:   make([]byte, cltypes.SyncCommitteeAggregationBitsSize),
-	})
+	}, out.Data)
 }
 
 func TestPoolSyncContributionAndProofs(t *testing.T) {
@@ -303,7 +362,7 @@ func TestPoolSyncContributionAndProofs(t *testing.T) {
 			},
 		},
 	}
-	_, _, _, s, _, handler, _, sd, _, _ := setupTestingHandler(t, clparams.BellatrixVersion, log.Root())
+	_, _, _, s, _, handler, _, sd, _, _ := setupTestingHandler(t, clparams.BellatrixVersion, log.Root(), true)
 
 	sd.OnHeadState(s)
 	server := httptest.NewServer(handler.mux)
@@ -330,10 +389,37 @@ func TestPoolSyncContributionAndProofs(t *testing.T) {
 	err = json.NewDecoder(resp.Body).Decode(&out)
 	require.NoError(t, err)
 
-	require.Equal(t, out.Data, &cltypes.Contribution{
+	require.Equal(t, &cltypes.Contribution{
 		Slot:              1,
 		BeaconBlockRoot:   libcommon.Hash{1, 2, 3, 4, 5, 6, 7, 8},
 		SubcommitteeIndex: 0,
 		AggregationBits:   aggrBits,
-	})
+	}, out.Data)
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

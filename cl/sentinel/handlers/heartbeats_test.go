@@ -1,26 +1,46 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package handlers
 
 import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
+	"net/http"
 	"testing"
 
-	"github.com/erigontech/erigon-lib/log/v3"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
-	libcommon "github.com/erigontech/erigon-lib/common"
-	"github.com/erigontech/erigon-lib/crypto"
 	"github.com/erigontech/erigon/cl/clparams"
 	"github.com/erigontech/erigon/cl/cltypes"
-	"github.com/erigontech/erigon/cl/phase1/forkchoice/mock_services"
+	peerdasstatemock "github.com/erigontech/erigon/cl/das/state/mock_services"
+	forkchoicemock "github.com/erigontech/erigon/cl/phase1/forkchoice/mock_services"
 	"github.com/erigontech/erigon/cl/sentinel/communication"
 	"github.com/erigontech/erigon/cl/sentinel/communication/ssz_snappy"
 	"github.com/erigontech/erigon/cl/sentinel/handshake"
 	"github.com/erigontech/erigon/cl/sentinel/peers"
+	libcommon "github.com/erigontech/erigon-lib/common"
+	"github.com/erigontech/erigon-lib/crypto"
+	"github.com/erigontech/erigon-lib/log/v3"
+	"github.com/erigontech/erigon-lib/chain"
 	"github.com/erigontech/erigon/p2p/enode"
 	"github.com/erigontech/erigon/p2p/enr"
 )
@@ -66,10 +86,10 @@ func TestPing(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	peersPool := peers.NewPool()
+	peersPool := peers.NewPool(host)
 	beaconDB, indiciesDB := setupStore(t)
 
-	f := mock_services.NewForkChoiceStorageMock(t)
+	f := forkchoicemock.NewForkChoiceStorageMock(t)
 	ethClock := getEthClock(t)
 
 	_, beaconCfg := clparams.GetConfigsByNetwork(1)
@@ -83,7 +103,7 @@ func TestPing(t *testing.T) {
 		testLocalNode(),
 		beaconCfg,
 		ethClock,
-		nil, f, nil, true,
+		nil, f, nil, nil, nil, true,
 	)
 	c.Start()
 
@@ -121,10 +141,10 @@ func TestGoodbye(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	peersPool := peers.NewPool()
+	peersPool := peers.NewPool(host)
 	beaconDB, indiciesDB := setupStore(t)
 
-	f := mock_services.NewForkChoiceStorageMock(t)
+	f := forkchoicemock.NewForkChoiceStorageMock(t)
 	ethClock := getEthClock(t)
 	_, beaconCfg := clparams.GetConfigsByNetwork(1)
 	c := NewConsensusHandlers(
@@ -137,7 +157,7 @@ func TestGoodbye(t *testing.T) {
 		testLocalNode(),
 		beaconCfg,
 		ethClock,
-		nil, f, nil, true,
+		nil, f, nil, nil, nil, true,
 	)
 	c.Start()
 
@@ -181,12 +201,12 @@ func TestMetadataV2(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	peersPool := peers.NewPool()
+	peersPool := peers.NewPool(host)
 	beaconDB, indiciesDB := setupStore(t)
 
-	f := mock_services.NewForkChoiceStorageMock(t)
+	f := forkchoicemock.NewForkChoiceStorageMock(t)
 	ethClock := getEthClock(t)
-	nc := clparams.NetworkConfigs[clparams.MainnetNetwork]
+	nc := clparams.NetworkConfigs[chain.MainnetChainID]
 	_, beaconCfg := clparams.GetConfigsByNetwork(1)
 	c := NewConsensusHandlers(
 		ctx,
@@ -198,7 +218,7 @@ func TestMetadataV2(t *testing.T) {
 		testLocalNode(),
 		beaconCfg,
 		ethClock,
-		nil, f, nil, true,
+		nil, f, nil, nil, nil, true,
 	)
 	c.Start()
 
@@ -239,12 +259,12 @@ func TestMetadataV1(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	peersPool := peers.NewPool()
+	peersPool := peers.NewPool(host)
 	beaconDB, indiciesDB := setupStore(t)
 
-	f := mock_services.NewForkChoiceStorageMock(t)
+	f := forkchoicemock.NewForkChoiceStorageMock(t)
 
-	nc := clparams.NetworkConfigs[clparams.MainnetNetwork]
+	nc := clparams.NetworkConfigs[chain.MainnetChainID]
 	ethClock := getEthClock(t)
 	_, beaconCfg := clparams.GetConfigsByNetwork(1)
 	c := NewConsensusHandlers(
@@ -257,7 +277,7 @@ func TestMetadataV1(t *testing.T) {
 		testLocalNode(),
 		beaconCfg,
 		ethClock,
-		nil, f, nil, true,
+		nil, f, nil, nil, nil, true,
 	)
 	c.Start()
 
@@ -297,12 +317,34 @@ func TestStatus(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	peersPool := peers.NewPool()
+	peersPool := peers.NewPool(host)
 	beaconDB, indiciesDB := setupStore(t)
 
-	f := mock_services.NewForkChoiceStorageMock(t)
+	f := forkchoicemock.NewForkChoiceStorageMock(t)
 
-	hs := handshake.New(ctx, getEthClock(t), &clparams.MainnetBeaconConfig, nil)
+	// Create mock for PeerDasStateReader
+	ctrl := gomock.NewController(t)
+	mockPeerDasStateReader := peerdasstatemock.NewMockPeerDasStateReader(ctrl)
+	mockPeerDasStateReader.EXPECT().
+		GetEarliestAvailableSlot().
+		Return(uint64(0)).
+		AnyTimes()
+	mockPeerDasStateReader.EXPECT().
+		GetRealCgc().
+		Return(uint64(0)).
+		AnyTimes()
+	mockPeerDasStateReader.EXPECT().
+		GetAdvertisedCgc().
+		Return(uint64(0)).
+		AnyTimes()
+
+	// Create a simple HTTP handler for the handshake
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Simple handler that returns success
+		w.WriteHeader(http.StatusOK)
+	})
+
+	hs := handshake.New(ctx, getEthClock(t), &clparams.MainnetBeaconConfig, handler, mockPeerDasStateReader)
 	s := &cltypes.Status{
 		FinalizedRoot:  libcommon.Hash{1, 2, 4},
 		HeadRoot:       libcommon.Hash{1, 2, 4},
@@ -310,7 +352,7 @@ func TestStatus(t *testing.T) {
 		HeadSlot:       1,
 	}
 	hs.SetStatus(s)
-	nc := clparams.NetworkConfigs[clparams.MainnetNetwork]
+	nc := clparams.NetworkConfigs[chain.MainnetChainID]
 	_, beaconCfg := clparams.GetConfigsByNetwork(1)
 	c := NewConsensusHandlers(
 		ctx,
@@ -322,7 +364,7 @@ func TestStatus(t *testing.T) {
 		testLocalNode(),
 		beaconCfg,
 		getEthClock(t),
-		hs, f, nil, true,
+		hs, f, nil, nil, mockPeerDasStateReader, true,
 	)
 	c.Start()
 
@@ -344,3 +386,30 @@ func TestStatus(t *testing.T) {
 
 	require.Equal(t, s, p)
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

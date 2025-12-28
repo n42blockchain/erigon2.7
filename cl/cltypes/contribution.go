@@ -1,12 +1,28 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package cltypes
 
 import (
-	libcommon "github.com/erigontech/erigon-lib/common"
-	"github.com/erigontech/erigon-lib/common/hexutility"
-	"github.com/erigontech/erigon-lib/common/length"
-	"github.com/erigontech/erigon-lib/types/clonable"
 	"github.com/erigontech/erigon/cl/merkle_tree"
 	ssz2 "github.com/erigontech/erigon/cl/ssz"
+	libcommon "github.com/erigontech/erigon-lib/common"
+	"github.com/erigontech/erigon-lib/types/clonable"
+	hexutil "github.com/erigontech/erigon-lib/common/hexutility"
+	"github.com/erigontech/erigon-lib/common/length"
 )
 
 var _ ssz2.SizedObjectSSZ = (*ContributionAndProof)(nil)
@@ -17,8 +33,8 @@ var _ ssz2.SizedObjectSSZ = (*Contribution)(nil)
  * to be aggregated and the BLS signature of the attestation.
  */
 type ContributionAndProof struct {
-	AggregatorIndex uint64            `json:"aggregator_index,string"`
-	Contribution    *Contribution     `json:"contribution"`
+	AggregatorIndex uint64         `json:"aggregator_index,string"`
+	Contribution    *Contribution  `json:"contribution"`
 	SelectionProof  libcommon.Bytes96 `json:"selection_proof"`
 }
 
@@ -45,7 +61,7 @@ func (a *ContributionAndProof) HashSSZ() ([32]byte, error) {
 
 type SignedContributionAndProof struct {
 	Message   *ContributionAndProof `json:"message"`
-	Signature libcommon.Bytes96     `json:"signature"`
+	Signature libcommon.Bytes96        `json:"signature"`
 }
 
 func (a *SignedContributionAndProof) EncodeSSZ(dst []byte) ([]byte, error) {
@@ -70,17 +86,17 @@ func (a *SignedContributionAndProof) HashSSZ() ([32]byte, error) {
 var SyncCommitteeAggregationBitsSize = 16
 
 type Contribution struct {
-	Slot              uint64            `json:"slot,string"`
+	Slot              uint64         `json:"slot,string"`
 	BeaconBlockRoot   libcommon.Hash    `json:"beacon_block_root"`
-	SubcommitteeIndex uint64            `json:"subcommittee_index,string"`
-	AggregationBits   hexutility.Bytes  `json:"aggregation_bits"`
+	SubcommitteeIndex uint64         `json:"subcommittee_index,string"`
+	AggregationBits   hexutil.Bytes  `json:"aggregation_bits"`
 	Signature         libcommon.Bytes96 `json:"signature"`
 }
 
 type ContributionKey struct {
-	Slot              uint64         `json:"slot,string"`
+	Slot              uint64      `json:"slot,string"`
 	BeaconBlockRoot   libcommon.Hash `json:"beacon_block_root"`
-	SubcommitteeIndex uint64         `json:"subcommittee_index,string"`
+	SubcommitteeIndex uint64      `json:"subcommittee_index,string"`
 }
 
 func (a *Contribution) EncodeSSZ(dst []byte) ([]byte, error) {
@@ -164,9 +180,9 @@ func (agg *SyncContribution) HashSSZ() ([32]byte, error) {
 }
 
 type SyncCommitteeMessage struct {
-	Slot            uint64            `json:"slot,string"`
+	Slot            uint64         `json:"slot,string"`
 	BeaconBlockRoot libcommon.Hash    `json:"beacon_block_root"`
-	ValidatorIndex  uint64            `json:"validator_index,string"`
+	ValidatorIndex  uint64         `json:"validator_index,string"`
 	Signature       libcommon.Bytes96 `json:"signature"`
 }
 
@@ -193,3 +209,30 @@ func (a *SyncCommitteeMessage) Static() bool {
 func (*SyncCommitteeMessage) Clone() clonable.Clonable {
 	return &SyncCommitteeMessage{}
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

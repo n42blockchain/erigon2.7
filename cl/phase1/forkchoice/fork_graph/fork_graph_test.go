@@ -1,3 +1,19 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package fork_graph
 
 import (
@@ -5,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/erigontech/erigon/cl/beacon/beacon_router_configuration"
+	"github.com/erigontech/erigon/cl/beacon/beaconevents"
 	"github.com/erigontech/erigon/cl/phase1/core/state"
 	"github.com/spf13/afero"
 
@@ -24,28 +41,57 @@ var block2 []byte
 var anchor []byte
 
 func TestForkGraphInDisk(t *testing.T) {
-	blockA, blockB, blockC := cltypes.NewSignedBeaconBlock(&clparams.MainnetBeaconConfig),
-		cltypes.NewSignedBeaconBlock(&clparams.MainnetBeaconConfig), cltypes.NewSignedBeaconBlock(&clparams.MainnetBeaconConfig)
+	blockA, blockB, blockC := cltypes.NewSignedBeaconBlock(&clparams.MainnetBeaconConfig, clparams.DenebVersion),
+		cltypes.NewSignedBeaconBlock(&clparams.MainnetBeaconConfig, clparams.DenebVersion),
+		cltypes.NewSignedBeaconBlock(&clparams.MainnetBeaconConfig, clparams.DenebVersion)
 	anchorState := state.New(&clparams.MainnetBeaconConfig)
 	require.NoError(t, utils.DecodeSSZSnappy(blockA, block1, int(clparams.Phase0Version)))
 	require.NoError(t, utils.DecodeSSZSnappy(blockB, block2, int(clparams.Phase0Version)))
 	require.NoError(t, utils.DecodeSSZSnappy(blockC, block2, int(clparams.Phase0Version)))
 	require.NoError(t, utils.DecodeSSZSnappy(anchorState, anchor, int(clparams.Phase0Version)))
-	graph := NewForkGraphDisk(anchorState, afero.NewMemMapFs(), beacon_router_configuration.RouterConfiguration{})
+	emitter := beaconevents.NewEventEmitter()
+	graph := NewForkGraphDisk(anchorState, nil, afero.NewMemMapFs(), beacon_router_configuration.RouterConfiguration{}, emitter)
 	_, status, err := graph.AddChainSegment(blockA, true)
 	require.NoError(t, err)
-	require.Equal(t, status, Success)
+	require.Equal(t, Success, status)
 	// Now make blockC a bad block
 	blockC.Block.ProposerIndex = 81214459 // some invalid thing
 	_, status, err = graph.AddChainSegment(blockC, true)
 	require.Error(t, err)
-	require.Equal(t, status, InvalidBlock)
+	require.Equal(t, InvalidBlock, status)
 	// Save current state hash
 	_, status, err = graph.AddChainSegment(blockB, true)
 	require.NoError(t, err)
-	require.Equal(t, status, Success)
+	require.Equal(t, Success, status)
 	// Try again with same should yield success
 	_, status, err = graph.AddChainSegment(blockB, true)
 	require.NoError(t, err)
-	require.Equal(t, status, PreValidated)
+	require.Equal(t, PreValidated, status)
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

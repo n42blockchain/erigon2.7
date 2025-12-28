@@ -1,10 +1,26 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package handlers
 
 import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"fmt"
+	"errors"
 	"io"
 	"math"
 	"testing"
@@ -16,11 +32,8 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
 
-	libcommon "github.com/erigontech/erigon-lib/common"
-	"github.com/erigontech/erigon-lib/kv/memdb"
 	"github.com/erigontech/erigon/cl/antiquary/tests"
 	"github.com/erigontech/erigon/cl/clparams"
-	"github.com/erigontech/erigon/cl/clparams/initial_state"
 	"github.com/erigontech/erigon/cl/cltypes"
 	"github.com/erigontech/erigon/cl/cltypes/solid"
 	"github.com/erigontech/erigon/cl/persistence/blob_storage"
@@ -29,14 +42,10 @@ import (
 	"github.com/erigontech/erigon/cl/sentinel/communication/ssz_snappy"
 	"github.com/erigontech/erigon/cl/sentinel/peers"
 	"github.com/erigontech/erigon/cl/utils"
-	"github.com/erigontech/erigon/cl/utils/eth_clock"
+	libcommon "github.com/erigontech/erigon-lib/common"
+	"github.com/erigontech/erigon-lib/kv/dbutils"
+	"github.com/erigontech/erigon-lib/kv/memdb"
 )
-
-func getEthClock(t *testing.T) eth_clock.EthereumClock {
-	s, err := initial_state.GetGenesisState(clparams.MainnetNetwork)
-	require.NoError(t, err)
-	return eth_clock.NewEthereumClock(s.GenesisTime(), s.GenesisValidatorsRoot(), s.BeaconConfig())
-}
 
 func getTestBlobSidecars(blockHeader *cltypes.SignedBeaconBlockHeader) []*cltypes.BlobSidecar {
 	out := []*cltypes.BlobSidecar{}
@@ -71,8 +80,9 @@ func TestBlobsByRangeHandler(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	peersPool := peers.NewPool()
-	blobDb := memdb.NewTestDB(t)
+	peersPool := peers.NewPool(host)
+	blobDb := memdb.NewTestDB(t, dbcfg.ChainDB)
+
 	_, indiciesDB := setupStore(t)
 	store := tests.NewMockBlockReader()
 
@@ -102,7 +112,7 @@ func TestBlobsByRangeHandler(t *testing.T) {
 		nil,
 		beaconCfg,
 		ethClock,
-		nil, &mock_services.ForkChoiceStorageMock{}, blobStorage, true,
+		nil, &mock_services.ForkChoiceStorageMock{}, blobStorage, nil, nil, true,
 	)
 	c.Start()
 	req := &cltypes.BlobsByRangeRequest{
@@ -150,7 +160,7 @@ func TestBlobsByRangeHandler(t *testing.T) {
 		// Fork digests
 		respForkDigest := binary.BigEndian.Uint32(forkDigest)
 		if respForkDigest == 0 {
-			require.NoError(t, fmt.Errorf("null fork digest"))
+			require.NoError(t, errors.New("null fork digest"))
 		}
 		version, err := ethClock.StateVersionByForkDigest(utils.Uint32ToBytes4(respForkDigest))
 		if err != nil {
@@ -192,8 +202,8 @@ func TestBlobsByIdentifiersHandler(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	peersPool := peers.NewPool()
-	blobDb := memdb.NewTestDB(t)
+	peersPool := peers.NewPool(host)
+	blobDb := memdb.NewTestDB(t, dbcfg.ChainDB)
 	_, indiciesDB := setupStore(t)
 	store := tests.NewMockBlockReader()
 
@@ -223,7 +233,7 @@ func TestBlobsByIdentifiersHandler(t *testing.T) {
 		nil,
 		beaconCfg,
 		ethClock,
-		nil, &mock_services.ForkChoiceStorageMock{}, blobStorage, true,
+		nil, &mock_services.ForkChoiceStorageMock{}, blobStorage, nil, nil, true,
 	)
 	c.Start()
 	req := solid.NewStaticListSSZ[*cltypes.BlobIdentifier](40269, 40)
@@ -272,7 +282,7 @@ func TestBlobsByIdentifiersHandler(t *testing.T) {
 		// Fork digests
 		respForkDigest := binary.BigEndian.Uint32(forkDigest)
 		if respForkDigest == 0 {
-			require.NoError(t, fmt.Errorf("null fork digest"))
+			require.NoError(t, errors.New("null fork digest"))
 		}
 		version, err := ethClock.StateVersionByForkDigest(utils.Uint32ToBytes4(respForkDigest))
 		if err != nil {
@@ -296,3 +306,30 @@ func TestBlobsByIdentifiersHandler(t *testing.T) {
 	defer indiciesDB.Close()
 	defer tx.Rollback()
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

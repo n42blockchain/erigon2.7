@@ -1,13 +1,30 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package abstract
 
 import (
-	"github.com/erigontech/erigon-lib/common"
-	"github.com/erigontech/erigon-lib/types/clonable"
 	"github.com/erigontech/erigon/cl/clparams"
 	"github.com/erigontech/erigon/cl/cltypes"
 	"github.com/erigontech/erigon/cl/cltypes/solid"
+	libcommon "github.com/erigontech/erigon-lib/common"
+	"github.com/erigontech/erigon-lib/types/clonable"
 )
 
+//go:generate mockgen -typed=true -destination=./mock_services/beacon_state_mock.go -package=mock_services . BeaconState
 type BeaconState interface {
 	BeaconStateBasic
 	BeaconStateExtension
@@ -19,6 +36,8 @@ type BeaconStateUpgradable interface {
 	UpgradeToBellatrix() error
 	UpgradeToCapella() error
 	UpgradeToDeneb() error
+	UpgradeToElectra() error
+	UpgradeToFulu() error
 }
 
 type BeaconStateExtension interface {
@@ -28,19 +47,29 @@ type BeaconStateExtension interface {
 	GetTotalActiveBalance() uint64
 	ComputeCommittee(indicies []uint64, slot uint64, index, count uint64) ([]uint64, error)
 	GetBeaconProposerIndex() (uint64, error)
+	GetBeaconProposerIndices(epoch uint64) ([]uint64, error)
 	BaseRewardPerIncrement() uint64
 	BaseReward(index uint64) (uint64, error)
 	SyncRewards() (proposerReward, participantReward uint64, err error)
 	CommitteeCount(epoch uint64) uint64
-	GetAttestationParticipationFlagIndicies(data solid.AttestationData, inclusionDelay uint64, skipAssert bool) ([]uint8, error)
+	GetAttestationParticipationFlagIndicies(data *solid.AttestationData, inclusionDelay uint64, skipAssert bool) ([]uint8, error)
 	GetBeaconCommitee(slot, committeeIndex uint64) ([]uint64, error)
 	ComputeNextSyncCommittee() (*solid.SyncCommittee, error)
-	GetAttestingIndicies(attestation solid.AttestationData, aggregationBits []byte, checkBitsLength bool) ([]uint64, error)
+	GetAttestingIndicies(attestation *solid.Attestation, checkBitsLength bool) ([]uint64, error)
 	GetValidatorChurnLimit() uint64
 	ValidatorIndexByPubkey(key [48]byte) (uint64, bool)
-	PreviousStateRoot() common.Hash
-	SetPreviousStateRoot(root common.Hash)
+	PreviousStateRoot() libcommon.Hash
+	SetPreviousStateRoot(root libcommon.Hash)
 	GetValidatorActivationChurnLimit() uint64
+	GetPendingPartialWithdrawals() *solid.ListSSZ[*solid.PendingPartialWithdrawal]
+	GetDepositBalanceToConsume() uint64
+	GetPendingDeposits() *solid.ListSSZ[*solid.PendingDeposit]
+	GetDepositRequestsStartIndex() uint64
+	GetPendingConsolidations() *solid.ListSSZ[*solid.PendingConsolidation]
+	GetEarlistConsolidationEpoch() uint64
+	ComputeExitEpochAndUpdateChurn(exitBalance uint64) uint64
+	GetConsolidationBalanceToConsume() uint64
+	GetProposerLookahead() solid.Uint64VectorSSZ
 }
 
 type BeaconStateBasic interface {
@@ -61,14 +90,15 @@ type BeaconStateSSZ interface {
 	HashSSZ() (out [32]byte, err error)
 }
 
+//go:generate mockgen -typed=true -destination=./mock_services/beacon_state_mutator_mock.go -package=mock_services . BeaconStateMutator
 type BeaconStateMutator interface {
 	SetVersion(version clparams.StateVersion)
 	SetSlot(slot uint64)
 	SetFork(fork *cltypes.Fork)
 	SetLatestBlockHeader(header *cltypes.BeaconBlockHeader)
-	SetBlockRootAt(index int, root common.Hash)
-	SetStateRootAt(index int, root common.Hash)
-	SetWithdrawalCredentialForValidatorAtIndex(index int, creds common.Hash)
+	SetBlockRootAt(index int, root libcommon.Hash)
+	SetStateRootAt(index int, root libcommon.Hash)
+	SetWithdrawalCredentialForValidatorAtIndex(index int, creds libcommon.Hash)
 	SetExitEpochForValidatorAtIndex(index int, epoch uint64)
 	SetWithdrawableEpochForValidatorAtIndex(index int, epoch uint64) error
 	SetEffectiveBalanceForValidatorAtIndex(index int, balance uint64)
@@ -86,7 +116,7 @@ type BeaconStateMutator interface {
 	SetValidatorIsPreviousMatchingTargetAttester(index int, value bool) error
 	SetValidatorIsPreviousMatchingHeadAttester(index int, value bool) error
 	SetValidatorBalance(index int, balance uint64) error
-	SetRandaoMixAt(index int, mix common.Hash)
+	SetRandaoMixAt(index int, mix libcommon.Hash)
 	SetSlashingSegmentAt(index int, segment uint64)
 	SetEpochParticipationForValidatorIndex(isCurrentEpoch bool, index int, flags cltypes.ParticipationFlags)
 	SetValidatorAtIndex(index int, validator solid.Validator)
@@ -105,11 +135,19 @@ type BeaconStateMutator interface {
 	SetCurrentEpochParticipationFlags(flags []cltypes.ParticipationFlags)
 	SetPreviousEpochParticipationFlags(flags []cltypes.ParticipationFlags)
 	SetPreviousEpochAttestations(attestations *solid.ListSSZ[*solid.PendingAttestation])
+	SetPendingPartialWithdrawals(*solid.ListSSZ[*solid.PendingPartialWithdrawal])
+	SetPendingDeposits(*solid.ListSSZ[*solid.PendingDeposit])
+	SetDepositBalanceToConsume(uint64)
+	SetPendingConsolidations(consolidations *solid.ListSSZ[*solid.PendingConsolidation])
+	SetDepositRequestsStartIndex(uint64)
+	SetConsolidationBalanceToConsume(uint64)
+	SetEarlistConsolidationEpoch(uint64)
+	SetProposerLookahead(proposerLookahead solid.Uint64VectorSSZ)
 
 	AddEth1DataVote(vote *cltypes.Eth1Data)
 	AddValidator(validator solid.Validator, balance uint64)
 	AddHistoricalSummary(summary *cltypes.HistoricalSummary)
-	AddHistoricalRoot(root common.Hash)
+	AddHistoricalRoot(root libcommon.Hash)
 	AddInactivityScore(score uint64)
 	AddCurrentEpochParticipationFlags(flags cltypes.ParticipationFlags)
 	AddPreviousEpochParticipationFlags(flags cltypes.ParticipationFlags)
@@ -118,6 +156,9 @@ type BeaconStateMutator interface {
 	AddPreviousEpochAttestation(attestation *solid.PendingAttestation)
 
 	AppendValidator(in solid.Validator)
+	AppendPendingDeposit(deposit *solid.PendingDeposit)
+	AppendPendingPartialWithdrawal(withdrawal *solid.PendingPartialWithdrawal)
+	AppendPendingConsolidation(consolidation *solid.PendingConsolidation)
 
 	ResetEth1DataVotes()
 	ResetEpochParticipation()
@@ -145,7 +186,7 @@ type BeaconStateExtra interface {
 	GetRandaoMixes(epoch uint64) [32]byte
 	GetRandaoMix(index int) [32]byte
 	EpochParticipationForValidatorIndex(isCurrentEpoch bool, index int) cltypes.ParticipationFlags
-	GetBlockRootAtSlot(slot uint64) (common.Hash, error)
+	GetBlockRootAtSlot(slot uint64) (libcommon.Hash, error)
 	GetDomain(domainType [4]byte, epoch uint64) ([]byte, error)
 }
 
@@ -153,7 +194,7 @@ type BeaconStateMinimal interface {
 	BeaconConfig() *clparams.BeaconChainConfig
 	Version() clparams.StateVersion
 	GenesisTime() uint64
-	GenesisValidatorsRoot() common.Hash
+	GenesisValidatorsRoot() libcommon.Hash
 	Slot() uint64
 	PreviousSlot() uint64
 	Fork() *cltypes.Fork
@@ -164,7 +205,7 @@ type BeaconStateMinimal interface {
 	Eth1DataVotes() *solid.ListSSZ[*cltypes.Eth1Data]
 	Eth1DepositIndex() uint64
 	ValidatorSet() *solid.ValidatorSet
-	PreviousEpochParticipation() *solid.BitList
+	PreviousEpochParticipation() *solid.ParticipationBitList
 
 	ForEachValidator(fn func(v solid.Validator, idx int, total int) bool)
 	ValidatorForValidatorIndex(index int) (solid.Validator, error)
@@ -172,7 +213,7 @@ type BeaconStateMinimal interface {
 	ForEachSlashingSegment(fn func(idx int, v uint64, total int) bool)
 	SlashingSegmentAt(pos int) uint64
 
-	EpochParticipation(currentEpoch bool) *solid.BitList
+	EpochParticipation(currentEpoch bool) *solid.ParticipationBitList
 	JustificationBits() cltypes.JustificationBits
 
 	PreviousJustifiedCheckpoint() solid.Checkpoint
@@ -192,8 +233,42 @@ type BeaconStateMinimal interface {
 	PreviousEpochAttestationsLength() int
 }
 
-// TODO figure this out
-type BeaconStateCopying interface {
-	//CopyInto(dst *raw.BeaconState) error
-	//Copy() (*raw.BeaconState, error)
+// BeaconStateReader is an interface for reading the beacon state.
+//
+//go:generate mockgen -typed=true -destination=./mock_services/beacon_state_reader_mock.go -package=mock_services . BeaconStateReader
+type BeaconStateReader interface {
+	ValidatorPublicKey(index int) (libcommon.Bytes48, error)
+	GetDomain(domainType [4]byte, epoch uint64) ([]byte, error)
+	CommitteeCount(epoch uint64) uint64
+	ValidatorForValidatorIndex(index int) (solid.Validator, error)
+	Version() clparams.StateVersion
+	GenesisValidatorsRoot() libcommon.Hash
+	GetBeaconProposerIndexForSlot(slot uint64) (uint64, error)
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

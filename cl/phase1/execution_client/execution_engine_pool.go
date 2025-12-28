@@ -240,3 +240,30 @@ func (p *ExecutionEnginePool) Stats() (requestCount, cacheHits, cacheMisses uint
 	return p.requestCount.Load(), p.cacheHits.Load(), p.cacheMisses.Load()
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

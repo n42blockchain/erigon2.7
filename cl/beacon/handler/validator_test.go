@@ -1,3 +1,19 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package handler
 
 import (
@@ -7,14 +23,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	libcommon "github.com/erigontech/erigon-lib/common"
+	"github.com/stretchr/testify/suite"
+	"go.uber.org/mock/gomock"
+
 	mockaggregation "github.com/erigontech/erigon/cl/aggregation/mock_services"
 	"github.com/erigontech/erigon/cl/beacon/beacon_router_configuration"
 	"github.com/erigontech/erigon/cl/cltypes/solid"
 	"github.com/erigontech/erigon/cl/pool"
-	"github.com/erigontech/erigon/common"
-	"github.com/stretchr/testify/suite"
-	"go.uber.org/mock/gomock"
+	libcommon "github.com/erigontech/erigon-lib/common"
 )
 
 type validatorTestSuite struct {
@@ -49,6 +65,7 @@ func (t *validatorTestSuite) SetupTest() {
 		nil,
 		nil,
 		nil,
+		nil,
 		t.mockAggrPool,
 		nil,
 		nil,
@@ -56,6 +73,10 @@ func (t *validatorTestSuite) SetupTest() {
 		nil,
 		nil,
 		nil,
+		nil,
+		nil,
+		nil,
+		false,
 		nil,
 	)
 	t.gomockCtrl = gomockCtrl
@@ -92,18 +113,28 @@ func (t *validatorTestSuite) TestGetEthV1ValidatorAggregateAttestation() {
 			method: http.MethodGet,
 			url:    "/eth/v1/validator/aggregate_attestation?attestation_data_root=" + mockDataRoot + "&slot=1",
 			mock: func() {
-				ret := *solid.NewAttestionFromParameters(
-					[]byte{},
-					solid.NewAttestionDataFromParameters(
-						123456,
-						1,
-						libcommon.HexToHash(mockDataRoot),
-						solid.NewCheckpointFromParameters(libcommon.Hash{}, 1),
-						solid.NewCheckpointFromParameters(libcommon.Hash{}, 1),
-					),
-					[96]byte{},
-				)
-				t.mockAggrPool.EXPECT().GetAggregatationByRoot(libcommon.HexToHash(mockDataRoot)).Return(&ret).Times(1)
+				// ret := *solid.NewAttestionFromParameters(
+				// 	[]byte{},
+				// 	solid.NewAttestionDataFromParameters(
+				// 		123456,
+				// 		1,
+				// 		libcommon.HexToHash(mockDataRoot),
+				// 		solid.NewCheckpointFromParameters(libcommon.Hash{}, 1),
+				// 		solid.NewCheckpointFromParameters(libcommon.Hash{}, 1),
+				// 	),
+				// 	[96]byte{},
+				// )
+				ret := &solid.Attestation{
+					AggregationBits: solid.NewBitList(0, 2048),
+					Data: &solid.AttestationData{
+						Slot:            123456,
+						CommitteeIndex:  1,
+						BeaconBlockRoot: libcommon.HexToHash(mockDataRoot),
+						Source:          solid.Checkpoint{Epoch: 1},
+						Target:          solid.Checkpoint{Epoch: 1},
+					},
+				}
+				t.mockAggrPool.EXPECT().GetAggregatationByRoot(libcommon.HexToHash(mockDataRoot)).Return(ret).Times(1)
 			},
 			expCode: http.StatusBadRequest,
 			expBody: map[string]any{
@@ -116,24 +147,35 @@ func (t *validatorTestSuite) TestGetEthV1ValidatorAggregateAttestation() {
 			method: http.MethodGet,
 			url:    "/eth/v1/validator/aggregate_attestation?attestation_data_root=" + mockDataRoot + "&slot=1",
 			mock: func() {
-				ret := *solid.NewAttestionFromParameters(
-					[]byte{0b00111111, 0b00000011, 0, 0},
-					solid.NewAttestionDataFromParameters(
-						1,
-						1,
-						libcommon.HexToHash(mockDataRoot),
-						solid.NewCheckpointFromParameters(libcommon.Hash{}, 1),
-						solid.NewCheckpointFromParameters(libcommon.Hash{}, 1),
-					),
-					[96]byte{0, 1, 2, 3, 4, 5},
-				)
-				t.mockAggrPool.EXPECT().GetAggregatationByRoot(libcommon.HexToHash(mockDataRoot)).Return(&ret).Times(1)
+				// ret := *solid.NewAttestionFromParameters(
+				// 	[]byte{0b00111111, 0b00000011, 0, 0},
+				// 	solid.NewAttestionDataFromParameters(
+				// 		1,
+				// 		1,
+				// 		libcommon.HexToHash(mockDataRoot),
+				// 		solid.NewCheckpointFromParameters(libcommon.Hash{}, 1),
+				// 		solid.NewCheckpointFromParameters(libcommon.Hash{}, 1),
+				// 	),
+				// 	[96]byte{0, 1, 2, 3, 4, 5},
+				// )
+				ret := &solid.Attestation{
+					AggregationBits: solid.BitlistFromBytes([]byte{0b00111111, 0b00000011, 0, 0}, 2048),
+					Data: &solid.AttestationData{
+						Slot:            1,
+						CommitteeIndex:  1,
+						BeaconBlockRoot: libcommon.HexToHash(mockDataRoot),
+						Source:          solid.Checkpoint{Epoch: 1},
+						Target:          solid.Checkpoint{Epoch: 1},
+					},
+					Signature: [96]byte{0, 1, 2, 3, 4, 5},
+				}
+				t.mockAggrPool.EXPECT().GetAggregatationByRoot(libcommon.HexToHash(mockDataRoot)).Return(ret).Times(1)
 			},
 			expCode: http.StatusOK,
 			expBody: map[string]any{
 				"data": map[string]any{
-					"aggregation_bits": "0x" + common.Bytes2Hex([]byte{0b00111111, 0b00000011, 0, 0}),
-					"signature":        "0x" + common.Bytes2Hex([][96]byte{{0, 1, 2, 3, 4, 5}}[0][:]),
+					"aggregation_bits": "0x" + libcommon.Bytes2Hex([]byte{0b00111111, 0b00000011, 0, 0}),
+					"signature":        "0x" + libcommon.Bytes2Hex([][96]byte{{0, 1, 2, 3, 4, 5}}[0][:]),
 					"data": map[string]any{
 						"slot":              "1",
 						"index":             "1",
@@ -173,3 +215,30 @@ func (t *validatorTestSuite) TestGetEthV1ValidatorAggregateAttestation() {
 func TestValidator(t *testing.T) {
 	suite.Run(t, new(validatorTestSuite))
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

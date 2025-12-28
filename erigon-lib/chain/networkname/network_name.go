@@ -13,6 +13,7 @@ const (
 	GnosisChainName         = "gnosis"
 	BorE2ETestChain2ValName = "bor-e2e-test-2Val"
 	ChiadoChainName         = "chiado"
+	HoodiChainName          = "hoodi"
 )
 
 var All = []string{

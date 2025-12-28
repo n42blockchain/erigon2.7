@@ -1,15 +1,18 @@
-/*
-   Copyright 2022 Erigon-Lightclient contributors
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
-       http://www.apache.org/licenses/LICENSE-2.0
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
-*/
+// Copyright 2022 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
 
 package ssz_snappy
 
@@ -17,15 +20,17 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
 
 	"github.com/c2h5oh/datasize"
-	"github.com/erigontech/erigon-lib/types/ssz"
+	"github.com/golang/snappy"
+
 	"github.com/erigontech/erigon/cl/clparams"
 	"github.com/erigontech/erigon/cl/utils/eth_clock"
-	"github.com/golang/snappy"
+	"github.com/erigontech/erigon-lib/types/ssz"
 )
 
 var writerPool = sync.Pool{
@@ -84,12 +89,13 @@ func DecodeAndReadNoForkDigest(r io.Reader, val ssz.EncodableSSZ, version clpara
 		return fmt.Errorf("unable to read varint from message prefix: %v", err)
 	}
 	if encodedLn > uint64(16*datasize.MB) {
-		return fmt.Errorf("payload too big")
+		return errors.New("payload too big")
 	}
 
 	sr := snappy.NewReader(r)
 	raw := make([]byte, encodedLn)
 	if _, err := io.ReadFull(sr, raw); err != nil {
+		// fetch struct name of val
 		return fmt.Errorf("unable to readPacket: %w", err)
 	}
 
@@ -111,12 +117,16 @@ func ReadUvarint(r io.Reader) (x, n uint64, err error) {
 		b := uint64(currByte[0])
 		x |= (b & 0x7F) << shift
 		if (b & 0x80) == 0 {
+			// Check for overflow on the last byte
+			if shift == 63 && b > 1 {
+				return 0, n, errors.New("varint overflows a 64-bit integer")
+			}
 			return x, n, nil
 		}
 	}
 
 	// The number is too large to represent in a 64-bit value.
-	return 0, n, nil
+	return 0, n, errors.New("varint overflows a 64-bit integer")
 }
 
 func DecodeListSSZ(data []byte, count uint64, list []ssz.EncodableSSZ, b *clparams.BeaconChainConfig, ethClock eth_clock.EthereumClock) error {
@@ -136,7 +146,7 @@ func DecodeListSSZ(data []byte, count uint64, list []ssz.EncodableSSZ, b *clpara
 	// Read varint for length of message.
 	encodedLn, bytesCount, err := ReadUvarint(r)
 	if err != nil {
-		return fmt.Errorf("unable to read varint from message prefix: %v", err)
+		return fmt.Errorf("failed to decode listSSZ. Unable to read varint: %v", err)
 	}
 	pos := 4 + bytesCount
 	if len(list) != int(count) {
@@ -161,3 +171,30 @@ func DecodeListSSZ(data []byte, count uint64, list []ssz.EncodableSSZ, b *clpara
 
 	return nil
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

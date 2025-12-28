@@ -1,3 +1,19 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package blob_storage
 
 import (
@@ -7,28 +23,34 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"os"
 	"strconv"
 	"sync"
 	"sync/atomic"
 
-	gokzg4844 "github.com/crate-crypto/go-kzg-4844"
-	libcommon "github.com/erigontech/erigon-lib/common"
-	"github.com/erigontech/erigon-lib/crypto/kzg"
-	"github.com/erigontech/erigon-lib/kv"
+	goethkzg "github.com/crate-crypto/go-eth-kzg"
+	"github.com/spf13/afero"
+
 	"github.com/erigontech/erigon/cl/clparams"
 	"github.com/erigontech/erigon/cl/cltypes"
 	"github.com/erigontech/erigon/cl/cltypes/solid"
 	"github.com/erigontech/erigon/cl/sentinel/communication/ssz_snappy"
 	"github.com/erigontech/erigon/cl/utils/eth_clock"
-	"github.com/spf13/afero"
+	libcommon "github.com/erigontech/erigon-lib/common"
+	"github.com/erigontech/erigon-lib/crypto/kzg"
+	"github.com/erigontech/erigon-lib/kv"
 )
 
-const subdivisionSlot = 10_000
+const (
+	subdivisionSlot = 10_000
+)
 
+//go:generate mockgen -typed=true -destination=./mock_services/blob_storage_mock.go -package=mock_services . BlobStorage
 type BlobStorage interface {
 	WriteBlobSidecars(ctx context.Context, blockRoot libcommon.Hash, blobSidecars []*cltypes.BlobSidecar) error
 	RemoveBlobSidecars(ctx context.Context, slot uint64, blockRoot libcommon.Hash) error
 	ReadBlobSidecars(ctx context.Context, slot uint64, blockRoot libcommon.Hash) (out []*cltypes.BlobSidecar, found bool, err error)
+	BlobSidecarExists(ctx context.Context, slot uint64, blockRoot libcommon.Hash, idx uint64) (bool, error)
 	WriteStream(w io.Writer, slot uint64, blockRoot libcommon.Hash, idx uint64) error // Used for P2P networking
 	KzgCommitmentsCount(ctx context.Context, blockRoot libcommon.Hash) (uint32, error)
 	Prune() error
@@ -144,16 +166,27 @@ func (bs *BlobStore) Prune() error {
 	currentSlot -= bs.slotsKept
 	currentSlot = (currentSlot / subdivisionSlot) * subdivisionSlot
 	var startPrune uint64
-	if currentSlot >= 1_000_000 {
-		startPrune = currentSlot - 1_000_000
+	minSlotsForBlobSidecarRequest := bs.beaconChainConfig.MinSlotsForBlobsSidecarsRequest()
+	if currentSlot >= minSlotsForBlobSidecarRequest {
+		startPrune = currentSlot - minSlotsForBlobSidecarRequest
 	}
 	// delete all the folders that are older than slotsKept
 	for i := startPrune; i < currentSlot; i += subdivisionSlot {
-		bs.fs.RemoveAll(strconv.FormatUint(i, 10))
+		bs.fs.RemoveAll(strconv.FormatUint(i/subdivisionSlot, 10))
 	}
 	return nil
 }
 
+func (bs *BlobStore) BlobSidecarExists(ctx context.Context, slot uint64, blockRoot libcommon.Hash, idx uint64) (bool, error) {
+	_, filePath := blobSidecarFilePath(slot, idx, blockRoot)
+	_, err := bs.fs.Stat(filePath)
+	if os.IsNotExist(err) {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+	return true, nil
+}
 func (bs *BlobStore) WriteStream(w io.Writer, slot uint64, blockRoot libcommon.Hash, idx uint64) error {
 	_, filePath := blobSidecarFilePath(slot, idx, blockRoot)
 	file, err := bs.fs.Open(filePath)
@@ -200,8 +233,8 @@ func (bs *BlobStore) RemoveBlobSidecars(ctx context.Context, slot uint64, blockR
 		if err := bs.fs.Remove(filePath); err != nil {
 			return err
 		}
-		tx.Delete(kv.BlockRootToKzgCommitments, blockRoot[:])
 	}
+	tx.Delete(kv.BlockRootToKzgCommitments, blockRoot[:])
 	return tx.Commit()
 }
 
@@ -220,7 +253,7 @@ func VerifyAgainstIdentifiersAndInsertIntoTheBlobStore(ctx context.Context, stor
 		return 0, 0, nil
 	}
 	if len(sidecars) > identifiers.Len() {
-		return 0, 0, fmt.Errorf("sidecars length is greater than identifiers length")
+		return 0, 0, errors.New("sidecars length is greater than identifiers length")
 	}
 	prevBlockRoot := identifiers.Get(0).BlockRoot
 	totalProcessed := 0
@@ -245,11 +278,11 @@ func VerifyAgainstIdentifiersAndInsertIntoTheBlobStore(ctx context.Context, stor
 		}
 
 		if !cltypes.VerifyCommitmentInclusionProof(sidecar.KzgCommitment, sidecar.CommitmentInclusionProof, sidecar.Index, clparams.DenebVersion, sidecar.SignedBlockHeader.Header.BodyRoot) {
-			return 0, 0, fmt.Errorf("could not verify blob's inclusion proof")
+			return 0, 0, errors.New("could not verify blob's inclusion proof")
 		}
 		if verifySignatureFn != nil {
 			// verify the signature of the sidecar head, we leave this step up to the caller to define
-			if verifySignatureFn(sidecar.SignedBlockHeader); err != nil {
+			if err := verifySignatureFn(sidecar.SignedBlockHeader); err != nil {
 				return 0, 0, err
 			}
 		}
@@ -276,20 +309,20 @@ func VerifyAgainstIdentifiersAndInsertIntoTheBlobStore(ctx context.Context, stor
 		wg.Add(1)
 		go func(sds *sidecarsPayload) {
 			defer wg.Done()
-			blobs := make([]gokzg4844.Blob, len(sds.sidecars))
+			blobs := make([]*goethkzg.Blob, len(sds.sidecars))
 			for i, sidecar := range sds.sidecars {
-				blobs[i] = gokzg4844.Blob(sidecar.Blob)
+				blobs[i] = (*goethkzg.Blob)(&sidecar.Blob)
 			}
-			kzgCommitments := make([]gokzg4844.KZGCommitment, len(sds.sidecars))
+			kzgCommitments := make([]goethkzg.KZGCommitment, len(sds.sidecars))
 			for i, sidecar := range sds.sidecars {
-				kzgCommitments[i] = gokzg4844.KZGCommitment(sidecar.KzgCommitment)
+				kzgCommitments[i] = goethkzg.KZGCommitment(sidecar.KzgCommitment)
 			}
-			kzgProofs := make([]gokzg4844.KZGProof, len(sds.sidecars))
+			kzgProofs := make([]goethkzg.KZGProof, len(sds.sidecars))
 			for i, sidecar := range sds.sidecars {
-				kzgProofs[i] = gokzg4844.KZGProof(sidecar.KzgProof)
+				kzgProofs[i] = goethkzg.KZGProof(sidecar.KzgProof)
 			}
 			if err := kzgCtx.VerifyBlobKZGProofBatch(blobs, kzgCommitments, kzgProofs); err != nil {
-				errAtomic.Store(fmt.Errorf("sidecar is wrong"))
+				errAtomic.Store(errors.New("sidecar is wrong"))
 				return
 			}
 			if err := storage.WriteBlobSidecars(ctx, sds.blockRoot, sds.sidecars); err != nil {
@@ -306,3 +339,30 @@ func VerifyAgainstIdentifiersAndInsertIntoTheBlobStore(ctx context.Context, stor
 	}
 	return lastProcessed, inserted.Load(), nil
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

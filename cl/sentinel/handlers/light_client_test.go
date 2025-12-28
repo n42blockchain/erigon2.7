@@ -1,3 +1,19 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package handlers
 
 import (
@@ -14,8 +30,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/stretchr/testify/require"
 
-	"github.com/erigontech/erigon-lib/common"
-	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon/cl/clparams"
 	"github.com/erigontech/erigon/cl/cltypes"
 	"github.com/erigontech/erigon/cl/cltypes/solid"
@@ -24,6 +38,11 @@ import (
 	"github.com/erigontech/erigon/cl/sentinel/communication/ssz_snappy"
 	"github.com/erigontech/erigon/cl/sentinel/peers"
 	"github.com/erigontech/erigon/cl/utils"
+	libcommon "github.com/erigontech/erigon-lib/common"
+)
+
+var (
+	altairSlot = clparams.MainnetBeaconConfig.AltairForkEpoch*clparams.MainnetBeaconConfig.SlotsPerEpoch + 1
 )
 
 func TestLightClientOptimistic(t *testing.T) {
@@ -43,7 +62,7 @@ func TestLightClientOptimistic(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	peersPool := peers.NewPool()
+	peersPool := peers.NewPool(host)
 	beaconDB, indiciesDB := setupStore(t)
 
 	f := mock_services.NewForkChoiceStorageMock(t)
@@ -58,6 +77,7 @@ func TestLightClientOptimistic(t *testing.T) {
 		FinalityBranch:          solid.NewHashVector(8),
 		NextSyncCommitteeBranch: solid.NewHashVector(8),
 	}
+	f.NewestLCUpdate.AttestedHeader.Beacon.Slot = altairSlot
 
 	ethClock := getEthClock(t)
 	_, beaconCfg := clparams.GetConfigsByNetwork(1)
@@ -71,7 +91,7 @@ func TestLightClientOptimistic(t *testing.T) {
 		nil,
 		beaconCfg,
 		ethClock,
-		nil, f, nil, true,
+		nil, f, nil, nil, nil, true,
 	)
 	c.Start()
 
@@ -91,9 +111,9 @@ func TestLightClientOptimistic(t *testing.T) {
 	err = ssz_snappy.DecodeAndRead(stream, optimistic, &clparams.MainnetBeaconConfig, ethClock)
 	require.NoError(t, err)
 
-	require.Equal(t, optimistic.AttestedHeader, f.NewestLCUpdate.AttestedHeader)
-	require.Equal(t, optimistic.SignatureSlot, f.NewestLCUpdate.SignatureSlot)
-	require.Equal(t, optimistic.SyncAggregate, f.NewestLCUpdate.SyncAggregate)
+	require.Equal(t, f.NewestLCUpdate.AttestedHeader, optimistic.AttestedHeader)
+	require.Equal(t, f.NewestLCUpdate.SignatureSlot, optimistic.SignatureSlot)
+	require.Equal(t, f.NewestLCUpdate.SyncAggregate, optimistic.SyncAggregate)
 }
 
 func TestLightClientFinality(t *testing.T) {
@@ -113,21 +133,21 @@ func TestLightClientFinality(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	peersPool := peers.NewPool()
+	peersPool := peers.NewPool(host)
 	beaconDB, indiciesDB := setupStore(t)
 
 	f := mock_services.NewForkChoiceStorageMock(t)
 
 	f.NewestLCUpdate = &cltypes.LightClientUpdate{
-		AttestedHeader:    cltypes.NewLightClientHeader(clparams.AltairVersion),
-		NextSyncCommittee: &solid.SyncCommittee{},
-		SignatureSlot:     1234,
-		SyncAggregate:     &cltypes.SyncAggregate{},
-		FinalizedHeader:   cltypes.NewLightClientHeader(clparams.AltairVersion),
-		// 8 is fine as this is a test
+		AttestedHeader:          cltypes.NewLightClientHeader(clparams.AltairVersion),
+		NextSyncCommittee:       &solid.SyncCommittee{},
+		SignatureSlot:           altairSlot,
+		SyncAggregate:           &cltypes.SyncAggregate{},
+		FinalizedHeader:         cltypes.NewLightClientHeader(clparams.AltairVersion),
 		FinalityBranch:          solid.NewHashVector(cltypes.FinalizedBranchSize),
 		NextSyncCommitteeBranch: solid.NewHashVector(cltypes.SyncCommitteeBranchSize),
 	}
+	f.NewestLCUpdate.AttestedHeader.Beacon.Slot = altairSlot
 	ethClock := getEthClock(t)
 
 	_, beaconCfg := clparams.GetConfigsByNetwork(1)
@@ -141,7 +161,7 @@ func TestLightClientFinality(t *testing.T) {
 		nil,
 		beaconCfg,
 		ethClock,
-		nil, f, nil, true,
+		nil, f, nil, nil, nil, true,
 	)
 	c.Start()
 
@@ -186,27 +206,28 @@ func TestLightClientBootstrap(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	peersPool := peers.NewPool()
+	peersPool := peers.NewPool(host)
 	beaconDB, indiciesDB := setupStore(t)
 
 	f := mock_services.NewForkChoiceStorageMock(t)
 
 	f.NewestLCUpdate = &cltypes.LightClientUpdate{
-		AttestedHeader:    cltypes.NewLightClientHeader(clparams.AltairVersion),
-		NextSyncCommittee: &solid.SyncCommittee{},
-		SignatureSlot:     1234,
-		SyncAggregate:     &cltypes.SyncAggregate{},
-		FinalizedHeader:   cltypes.NewLightClientHeader(clparams.AltairVersion),
-		// 8 is fine as this is a test
+		AttestedHeader:          cltypes.NewLightClientHeader(clparams.AltairVersion),
+		NextSyncCommittee:       &solid.SyncCommittee{},
+		SignatureSlot:           altairSlot,
+		SyncAggregate:           &cltypes.SyncAggregate{},
+		FinalizedHeader:         cltypes.NewLightClientHeader(clparams.AltairVersion),
 		FinalityBranch:          solid.NewHashVector(cltypes.FinalizedBranchSize),
 		NextSyncCommitteeBranch: solid.NewHashVector(cltypes.SyncCommitteeBranchSize),
 	}
-	reqRoot := common.Hash{1, 2, 3}
+	f.NewestLCUpdate.AttestedHeader.Beacon.Slot = altairSlot
+	reqRoot := libcommon.Hash{1, 2, 3}
 	f.LightClientBootstraps[reqRoot] = &cltypes.LightClientBootstrap{
 		Header:                     cltypes.NewLightClientHeader(clparams.AltairVersion),
 		CurrentSyncCommittee:       &solid.SyncCommittee{1, 2, 3, 5, 6},
 		CurrentSyncCommitteeBranch: solid.NewHashVector(cltypes.SyncCommitteeBranchSize),
 	}
+	f.LightClientBootstraps[reqRoot].Header.Beacon.Slot = altairSlot
 	_, beaconCfg := clparams.GetConfigsByNetwork(1)
 	c := NewConsensusHandlers(
 		ctx,
@@ -218,7 +239,7 @@ func TestLightClientBootstrap(t *testing.T) {
 		nil,
 		beaconCfg,
 		ethClock,
-		nil, f, nil, true,
+		nil, f, nil, nil, nil, true,
 	)
 	c.Start()
 
@@ -246,9 +267,9 @@ func TestLightClientBootstrap(t *testing.T) {
 	require.NoError(t, err)
 
 	expected := f.LightClientBootstraps[reqRoot]
-	require.Equal(t, got.Header, expected.Header)
-	require.Equal(t, got.CurrentSyncCommittee, expected.CurrentSyncCommittee)
-	require.Equal(t, got.CurrentSyncCommitteeBranch, expected.CurrentSyncCommitteeBranch)
+	require.Equal(t, expected.Header, got.Header)
+	require.Equal(t, expected.CurrentSyncCommittee, got.CurrentSyncCommittee)
+	require.Equal(t, expected.CurrentSyncCommitteeBranch, got.CurrentSyncCommitteeBranch)
 }
 
 func TestLightClientUpdates(t *testing.T) {
@@ -268,22 +289,22 @@ func TestLightClientUpdates(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	peersPool := peers.NewPool()
+	peersPool := peers.NewPool(host)
 	beaconDB, indiciesDB := setupStore(t)
 
 	f := mock_services.NewForkChoiceStorageMock(t)
 	ethClock := getEthClock(t)
 
 	up := &cltypes.LightClientUpdate{
-		AttestedHeader:    cltypes.NewLightClientHeader(clparams.AltairVersion),
-		NextSyncCommittee: &solid.SyncCommittee{},
-		SignatureSlot:     1234,
-		SyncAggregate:     &cltypes.SyncAggregate{},
-		FinalizedHeader:   cltypes.NewLightClientHeader(clparams.AltairVersion),
-		// 8 is fine as this is a test
+		AttestedHeader:          cltypes.NewLightClientHeader(clparams.AltairVersion),
+		NextSyncCommittee:       &solid.SyncCommittee{},
+		SignatureSlot:           altairSlot,
+		SyncAggregate:           &cltypes.SyncAggregate{},
+		FinalizedHeader:         cltypes.NewLightClientHeader(clparams.AltairVersion),
 		FinalityBranch:          solid.NewHashVector(cltypes.FinalizedBranchSize),
 		NextSyncCommitteeBranch: solid.NewHashVector(cltypes.SyncCommitteeBranchSize),
 	}
+	up.AttestedHeader.Beacon.Slot = altairSlot
 	// just some stupid randomization
 	for i := 1; i < 5; i++ {
 		upC := *up
@@ -301,7 +322,7 @@ func TestLightClientUpdates(t *testing.T) {
 		nil,
 		beaconCfg,
 		ethClock,
-		nil, f, nil, true,
+		nil, f, nil, nil, nil, true,
 	)
 	c.Start()
 
@@ -367,7 +388,7 @@ func TestLightClientUpdates(t *testing.T) {
 			require.NoError(t, err)
 			return
 		}
-		require.Equal(t, update, f.LCUpdates[uint64(currentPeriod)])
+		require.Equal(t, f.LCUpdates[uint64(currentPeriod)], update)
 		currentPeriod++
 
 		stream.Read(make([]byte, 1))
@@ -379,3 +400,30 @@ func TestLightClientUpdates(t *testing.T) {
 	}
 
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -27,6 +27,15 @@ import (
 	"github.com/erigontech/erigon-lib/common/fixedgas"
 )
 
+// Chain IDs for different networks
+const (
+	MainnetChainID uint64 = 1
+	SepoliaChainID uint64 = 11155111
+	GnosisChainID  uint64 = 100
+	ChiadoChainID  uint64 = 10200
+	HoodiChainID   uint64 = 560048
+)
+
 // Config is the core config which determines the blockchain settings.
 //
 // Config is stored in the database on a per block basis. This means

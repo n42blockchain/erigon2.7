@@ -1,11 +1,28 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package solid
 
 import (
 	"testing"
 
-	"github.com/erigontech/erigon-lib/common"
-	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	libcommon "github.com/erigontech/erigon-lib/common"
 )
 
 func TestHashVector(t *testing.T) {
@@ -18,25 +35,25 @@ func TestHashVector(t *testing.T) {
 	assert.Equal(t, vectorSize, hashVector.Length())
 
 	// Test Set and Get
-	hash := common.Hash{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20}
+	hash := libcommon.Hash{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20}
 	hashVector.Set(0, hash)
 	assert.Equal(t, hash, hashVector.Get(0))
 
 	// Test Encoding and Decoding
 	buf, err := hashVector.EncodeSSZ(nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	newHashVector := NewHashVector(vectorSize)
 	err = newHashVector.DecodeSSZ(buf, 0)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, hashVector, newHashVector)
 
 	// Test HashSSZ
 	hash, err = hashVector.HashSSZ()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, hash)
 
 	// Test Clone
-	assert.NotEqual(t, hashVector.Clone(), nil)
+	assert.NotNil(t, hashVector.Clone())
 }
 
 func TestByteBasedUint64Slice(t *testing.T) {
@@ -55,15 +72,15 @@ func TestByteBasedUint64Slice(t *testing.T) {
 
 	// Test Encoding and Decoding
 	buf, err := uint64Slice.EncodeSSZ(nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	newUint64Slice := NewUint64Slice(sliceSize)
 	err = newUint64Slice.DecodeSSZ(buf, 0)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, uint64Slice, newUint64Slice)
 
 	// Test HashSSZ
 	hash, err := uint64Slice.HashVectorSSZ()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, hash)
 
 	// Test Pop
@@ -79,7 +96,7 @@ func TestNewHashList(t *testing.T) {
 
 func TestHashListAppend(t *testing.T) {
 	h := NewHashList(10)
-	hash := common.Hash{1, 2, 3}
+	hash := libcommon.Hash{1, 2, 3}
 	h.Append(hash)
 	assert.Equal(t, 1, h.Length(), "HashList length should be 1 after appending a value")
 	assert.Equal(t, hash, h.Get(0), "Value in HashList should match the appended value")
@@ -87,8 +104,8 @@ func TestHashListAppend(t *testing.T) {
 
 func TestHashListSetGet(t *testing.T) {
 	h := NewHashList(10)
-	hash := common.Hash{1, 2, 3}
-	hashNew := common.Hash{4, 5, 6}
+	hash := libcommon.Hash{1, 2, 3}
+	hashNew := libcommon.Hash{4, 5, 6}
 	h.Append(hash)
 	h.Set(0, hashNew)
 	assert.Equal(t, hashNew, h.Get(0), "Value in HashList should match the set value")
@@ -96,7 +113,7 @@ func TestHashListSetGet(t *testing.T) {
 
 func TestHashListClear(t *testing.T) {
 	h := NewHashList(10)
-	hash := common.Hash{1, 2, 3}
+	hash := libcommon.Hash{1, 2, 3}
 	h.Append(hash)
 	h.Clear()
 	assert.Equal(t, 0, h.Length(), "HashList should be empty after clear")
@@ -104,15 +121,15 @@ func TestHashListClear(t *testing.T) {
 
 func TestHashListEncodeDecodeSSZ(t *testing.T) {
 	h := NewHashList(10)
-	hash := common.Hash{1, 2, 3}
+	hash := libcommon.Hash{1, 2, 3}
 	h.Append(hash)
 
 	encoded, err := h.EncodeSSZ([]byte{})
-	assert.Nil(t, err, "EncodeSSZ should not return an error")
+	assert.NoError(t, err, "EncodeSSZ should not return an error")
 
 	hDecoded := NewHashList(10)
 	err = hDecoded.DecodeSSZ(encoded, 0)
-	assert.Nil(t, err, "DecodeSSZ should not return an error")
+	assert.NoError(t, err, "DecodeSSZ should not return an error")
 
 	assert.Equal(t, h.Length(), hDecoded.Length(), "Lengths should match after decoding")
 	assert.Equal(t, h.Get(0), hDecoded.Get(0), "Values should match after decoding")
@@ -149,11 +166,11 @@ func TestUint64ListSSZEncodeDecodeSSZ(t *testing.T) {
 	h.Append(123)
 
 	encoded, err := h.EncodeSSZ([]byte{})
-	assert.Nil(t, err, "EncodeSSZ should not return an error")
+	assert.NoError(t, err, "EncodeSSZ should not return an error")
 
 	hDecoded := NewUint64ListSSZ(10)
 	err = hDecoded.DecodeSSZ(encoded, 0)
-	assert.Nil(t, err, "DecodeSSZ should not return an error")
+	assert.NoError(t, err, "DecodeSSZ should not return an error")
 
 	assert.Equal(t, h.Length(), hDecoded.Length(), "Lengths should match after decoding")
 	assert.Equal(t, h.Get(0), hDecoded.Get(0), "Values should match after decoding")
@@ -191,21 +208,21 @@ func TestTransactionsSSZ(t *testing.T) {
 
 	// Test DecodeSSZ
 	encodedData, err := transactionsSSZ.EncodeSSZ(nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	decodedTransactionsSSZ := &TransactionsSSZ{}
 	err = decodedTransactionsSSZ.DecodeSSZ(encodedData, len(encodedData))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, transactionsSSZ, decodedTransactionsSSZ)
 
 	// Test EncodeSSZ
 	encodedData, err = transactionsSSZ.EncodeSSZ(nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotEmpty(t, encodedData)
 
 	// Test HashSSZ
-	expectedRoot := common.HexToHash("55b3a5969a59aaac27189b17dba3e6f17f64ff9b9f52734cafa9fd5d9010cb3b") // Example expected root
+	expectedRoot := libcommon.HexToHash("55b3a5969a59aaac27189b17dba3e6f17f64ff9b9f52734cafa9fd5d9010cb3b") // Example expected root
 	root, err := transactionsSSZ.HashSSZ()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expectedRoot, libcommon.Hash(root))
 
 	// Test EncodingSizeSSZ
@@ -225,3 +242,30 @@ func TestTransactionsSSZ(t *testing.T) {
 	})
 	assert.Equal(t, transactions, visitedTransactions)
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

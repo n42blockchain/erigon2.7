@@ -1,3 +1,19 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package cltypes_test
 
 import (
@@ -49,7 +65,7 @@ func TestForkEncodeSSZ(t *testing.T) {
 	expected, err := ssz2.MarshalSSZ([]byte{}, fork.PreviousVersion[:], fork.CurrentVersion[:], fork.Epoch)
 	require.NoError(err, "Error calculating expected encoded value")
 
-	require.Equal(encoded, expected, "Fork EncodeSSZ did not produce the expected result")
+	require.Equal(expected, encoded, "Fork EncodeSSZ did not produce the expected result")
 }
 
 func TestForkDecodeSSZ(t *testing.T) {
@@ -71,7 +87,7 @@ func TestForkDecodeSSZ(t *testing.T) {
 		CurrentVersion:  [4]byte{5, 6, 7, 8},
 		Epoch:           123,
 	}
-	require.Equal(fork, expected, "Fork DecodeSSZ did not produce the expected result")
+	require.Equal(expected, fork, "Fork DecodeSSZ did not produce the expected result")
 }
 
 func TestForkEncodingSizeSSZ(t *testing.T) {
@@ -80,7 +96,7 @@ func TestForkEncodingSizeSSZ(t *testing.T) {
 	fork := cltypes.Fork{}
 	encodingSize := fork.EncodingSizeSSZ()
 
-	require.Equal(encodingSize, 16, "Fork EncodingSizeSSZ did not return the expected size")
+	require.Equal(16, encodingSize, "Fork EncodingSizeSSZ did not return the expected size")
 }
 
 func TestForkHashSSZ(t *testing.T) {
@@ -98,5 +114,32 @@ func TestForkHashSSZ(t *testing.T) {
 	expected, err := merkle_tree.HashTreeRoot(fork.PreviousVersion[:], fork.CurrentVersion[:], fork.Epoch)
 	require.NoError(err, "Error calculating expected hash")
 
-	require.Equal(hash, expected, "Fork HashSSZ did not produce the expected result")
+	require.Equal(expected, hash, "Fork HashSSZ did not produce the expected result")
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

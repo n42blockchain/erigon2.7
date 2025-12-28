@@ -1,11 +1,28 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package solid
 
 import (
 	"testing"
 
-	"github.com/erigontech/erigon-lib/common"
-	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	libcommon "github.com/erigontech/erigon-lib/common"
 )
 
 func TestSyncCommittee(t *testing.T) {
@@ -45,15 +62,15 @@ func TestSyncCommittee(t *testing.T) {
 
 	// Test EncodeSSZ and DecodeSSZ
 	encodedData, err := syncCommittee.EncodeSSZ(nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	decodedSyncCommittee := &SyncCommittee{}
 	err = decodedSyncCommittee.DecodeSSZ(encodedData, encodingSize)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, syncCommittee, decodedSyncCommittee)
 
 	// Test Clone
 	clone := syncCommittee.Clone().(*SyncCommittee)
-	assert.NotEqual(t, nil, clone)
+	assert.NotNil(t, clone)
 
 	// Test Copy
 	copy := syncCommittee.Copy()
@@ -65,9 +82,9 @@ func TestSyncCommittee(t *testing.T) {
 	assert.True(t, syncCommittee.Equal(syncCommittee))
 
 	// Test HashSSZ
-	expectedRoot := common.HexToHash("28628f3f10fa1070f2a42aeeeae792cd6ded1ef81030104e765e1498a1cfcfbd") // Example expected root
+	expectedRoot := libcommon.HexToHash("28628f3f10fa1070f2a42aeeeae792cd6ded1ef81030104e765e1498a1cfcfbd") // Example expected root
 	root, err := syncCommittee.HashSSZ()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expectedRoot, libcommon.Hash(root))
 
 	// Test Static
@@ -83,9 +100,36 @@ func TestSyncCommitteeJson(t *testing.T) {
 	aggregatePublicKey := [48]byte{1, 2, 3} // Example aggregate public key
 	syncCommittee := NewSyncCommitteeFromParameters(committee, aggregatePublicKey)
 	encodedData, err := syncCommittee.MarshalJSON()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	decodedSyncCommittee := &SyncCommittee{}
 	err = decodedSyncCommittee.UnmarshalJSON(encodedData)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, syncCommittee, decodedSyncCommittee)
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

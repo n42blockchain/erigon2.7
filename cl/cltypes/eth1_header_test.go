@@ -1,13 +1,31 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package cltypes
 
 import (
 	"testing"
 
-	libcommon "github.com/erigontech/erigon-lib/common"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/erigontech/erigon/cl/clparams"
 	"github.com/erigontech/erigon/cl/cltypes/solid"
+	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon/core/types"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestEth1Header(t *testing.T) {
@@ -61,10 +79,10 @@ func TestEth1Header(t *testing.T) {
 
 	// Test EncodeSSZ and DecodeSSZ
 	encodedData, err := header.EncodeSSZ(nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	decodedHeader := &Eth1Header{}
 	err = decodedHeader.DecodeSSZ(encodedData, int(version))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, header, decodedHeader)
 
 	// Test EncodingSizeSSZ
@@ -74,6 +92,33 @@ func TestEth1Header(t *testing.T) {
 
 	// Test HashSSZ
 	root, err := header.HashSSZ()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, libcommon.HexToHash("0x9170a25a0980f07bcb9af2a52ff915262763e0e6a2df26aa205b967bd462a6d3"), libcommon.Hash(root))
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

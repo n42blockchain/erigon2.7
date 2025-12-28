@@ -12,7 +12,7 @@ package mock_services
 import (
 	reflect "reflect"
 
-	common "github.com/erigontech/erigon-lib/common"
+	libcommon "github.com/erigontech/erigon-lib/common"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -117,10 +117,10 @@ func (c *MockBeaconStateReaderGetDomainCall) DoAndReturn(f func([4]byte, uint64)
 }
 
 // ValidatorPublicKey mocks base method.
-func (m *MockBeaconStateReader) ValidatorPublicKey(arg0 int) (common.Bytes48, error) {
+func (m *MockBeaconStateReader) ValidatorPublicKey(arg0 int) (libcommon.Bytes48, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ValidatorPublicKey", arg0)
-	ret0, _ := ret[0].(common.Bytes48)
+	ret0, _ := ret[0].(libcommon.Bytes48)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -138,19 +138,46 @@ type MockBeaconStateReaderValidatorPublicKeyCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockBeaconStateReaderValidatorPublicKeyCall) Return(arg0 common.Bytes48, arg1 error) *MockBeaconStateReaderValidatorPublicKeyCall {
+func (c *MockBeaconStateReaderValidatorPublicKeyCall) Return(arg0 libcommon.Bytes48, arg1 error) *MockBeaconStateReaderValidatorPublicKeyCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockBeaconStateReaderValidatorPublicKeyCall) Do(f func(int) (common.Bytes48, error)) *MockBeaconStateReaderValidatorPublicKeyCall {
+func (c *MockBeaconStateReaderValidatorPublicKeyCall) Do(f func(int) (libcommon.Bytes48, error)) *MockBeaconStateReaderValidatorPublicKeyCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockBeaconStateReaderValidatorPublicKeyCall) DoAndReturn(f func(int) (common.Bytes48, error)) *MockBeaconStateReaderValidatorPublicKeyCall {
+func (c *MockBeaconStateReaderValidatorPublicKeyCall) DoAndReturn(f func(int) (libcommon.Bytes48, error)) *MockBeaconStateReaderValidatorPublicKeyCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

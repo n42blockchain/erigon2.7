@@ -1,11 +1,28 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package beaconhttp
 
 import (
 	"encoding/json"
+	"maps"
 	"net/http"
 
-	"github.com/erigontech/erigon-lib/types/ssz"
 	"github.com/erigontech/erigon/cl/clparams"
+	"github.com/erigontech/erigon-lib/types/ssz"
 )
 
 type BeaconResponse struct {
@@ -14,13 +31,37 @@ type BeaconResponse struct {
 	Version             *clparams.StateVersion
 	ExecutionOptimistic *bool
 
-	Extra map[string]any
+	Extra   map[string]any
+	headers map[string]string
 }
 
 func NewBeaconResponse(data any) *BeaconResponse {
 	return &BeaconResponse{
 		Data: data,
 	}
+}
+
+func (r *BeaconResponse) Headers() map[string]string {
+	if r.headers == nil {
+		return make(map[string]string)
+	}
+	return r.headers
+}
+
+func (r *BeaconResponse) WithHeaders(headers map[string]string) (out *BeaconResponse) {
+	if r.headers == nil {
+		r.headers = make(map[string]string)
+	}
+	r.headers = headers
+	return r
+}
+
+func (r *BeaconResponse) WithHeader(key string, value string) (out *BeaconResponse) {
+	if r.headers == nil {
+		r.headers = make(map[string]string)
+	}
+	r.headers[key] = value
+	return r
 }
 
 func (r *BeaconResponse) With(key string, value any) (out *BeaconResponse) {
@@ -66,14 +107,12 @@ func (b *BeaconResponse) MarshalJSON() ([]byte, error) {
 		o["finalized"] = *b.Finalized
 	}
 	if b.Version != nil {
-		o["version"] = clparams.ClVersionToString(*b.Version)
+		o["version"] = b.Version.String()
 	}
 	if b.ExecutionOptimistic != nil {
 		o["execution_optimistic"] = *b.ExecutionOptimistic
 	}
-	for k, v := range b.Extra {
-		o[k] = v
-	}
+	maps.Copy(o, b.Extra)
 	return json.Marshal(o)
 }
 
@@ -96,3 +135,30 @@ func (b *BeaconResponse) EncodingSizeSSZ() int {
 	}
 	return marshaler.EncodingSizeSSZ()
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

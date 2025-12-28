@@ -1,3 +1,19 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package beacontest
 
 import (
@@ -277,7 +293,7 @@ func (c *Comparison) Compare(t *testing.T, aRaw, bRaw json.RawMessage, aCode, bC
 		if !ok {
 			return ErrExpressionMustReturnBool
 		}
-		if !assert.Equal(t, bres, true, `expr: %s`, expr) {
+		if !assert.True(t, bres, `expr: %s`, expr) {
 			if os.Getenv("HIDE_HARNESS_LOG") != "1" {
 				// b1, _ := json.Marshal(b)
 				// panic(string(b1))
@@ -438,3 +454,30 @@ func (s *Source) executeRaw(ctx context.Context) (json.RawMessage, int, error) {
 func (s *Source) executeEmpty(ctx context.Context) (json.RawMessage, int, error) {
 	return []byte("{}"), 200, nil
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

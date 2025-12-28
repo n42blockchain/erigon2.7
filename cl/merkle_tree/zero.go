@@ -1,3 +1,19 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package merkle_tree
 
 // ZeroHashes is a representation of all zerohashes of
@@ -104,3 +120,30 @@ var ZeroHashes = [100][32]byte{
 	{76, 216, 234, 82, 172, 165, 36, 8, 251, 135, 176, 230, 151, 205, 36, 99, 45, 148, 166, 223, 117, 127, 163, 242, 156, 192, 165, 213, 73, 78, 220, 197},
 	{175, 162, 199, 93, 194, 197, 168, 70, 44, 23, 9, 46, 225, 239, 226, 29, 233, 177, 15, 13, 192, 222, 160, 121, 79, 48, 69, 19, 225, 170, 51, 210},
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

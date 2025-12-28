@@ -1,19 +1,36 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package raw
 
 import (
 	"testing"
 
-	"github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon/cl/clparams"
 	"github.com/erigontech/erigon/cl/cltypes"
 	"github.com/erigontech/erigon/cl/cltypes/solid"
+	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBeaconState_SetVersion(t *testing.T) {
 	state := GetTestState()
 	state.SetVersion(clparams.Phase0Version)
-	assert.Equal(t, state.Version(), clparams.Phase0Version)
+	assert.Equal(t, clparams.Phase0Version, state.Version())
 }
 
 func TestBeaconState_SetSlot(t *testing.T) {
@@ -26,7 +43,7 @@ func TestBeaconState_SetSlot(t *testing.T) {
 func TestBeaconState_SetBlockRootAt(t *testing.T) {
 	state := GetTestState()
 	index := 0
-	root := common.HexToHash("0x1234567890abcdef")
+	root := libcommon.HexToHash("0x1234567890abcdef")
 	state.SetBlockRootAt(index, root)
 	assert.Equal(t, root, state.blockRoots.Get(index))
 }
@@ -34,7 +51,7 @@ func TestBeaconState_SetBlockRootAt(t *testing.T) {
 func TestBeaconState_SetStateRootAt(t *testing.T) {
 	state := GetTestState()
 	index := 0
-	root := common.HexToHash("0xabcdef1234567890")
+	root := libcommon.HexToHash("0xabcdef1234567890")
 	state.SetStateRootAt(index, root)
 	assert.Equal(t, root, state.stateRoots.Get(index))
 }
@@ -42,7 +59,7 @@ func TestBeaconState_SetStateRootAt(t *testing.T) {
 func TestBeaconState_SetWithdrawalCredentialForValidatorAtIndex(t *testing.T) {
 	state := GetTestState()
 	index := 0
-	creds := common.HexToHash("0xabcdef1234567890")
+	creds := libcommon.HexToHash("0xabcdef1234567890")
 	state.SetWithdrawalCredentialForValidatorAtIndex(index, creds)
 	assert.Equal(t, creds, state.validators.Get(index).WithdrawalCredentials())
 }
@@ -60,7 +77,7 @@ func TestBeaconState_SetWithdrawableEpochForValidatorAtIndex(t *testing.T) {
 	index := 0
 	epoch := uint64(5)
 	err := state.SetWithdrawableEpochForValidatorAtIndex(index, epoch)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, epoch, state.validators.Get(index).WithdrawableEpoch())
 }
 
@@ -69,7 +86,7 @@ func TestBeaconState_SetWithdrawableEpochForValidatorAtIndex_InvalidIndex(t *tes
 	index := 10000000000000
 	epoch := uint64(5)
 	err := state.SetWithdrawableEpochForValidatorAtIndex(index, epoch)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestBeaconState_SetEffectiveBalanceForValidatorAtIndex(t *testing.T) {
@@ -99,9 +116,9 @@ func TestBeaconState_SetActivationEligibilityEpochForValidatorAtIndex(t *testing
 func TestBeaconState_SetEth1Data(t *testing.T) {
 	state := GetTestState()
 	eth1Data := &cltypes.Eth1Data{
-		Root:         common.HexToHash("0xabcdef1234567890"),
+		Root:         libcommon.HexToHash("0xabcdef1234567890"),
 		DepositCount: 100,
-		BlockHash:    common.HexToHash("0x1234567890abcdef"),
+		BlockHash:    libcommon.HexToHash("0x1234567890abcdef"),
 	}
 	state.SetEth1Data(eth1Data)
 	assert.Equal(t, eth1Data, state.eth1Data)
@@ -110,14 +127,14 @@ func TestBeaconState_SetEth1Data(t *testing.T) {
 func TestBeaconState_AddEth1DataVote(t *testing.T) {
 	state := GetTestState()
 	vote1 := &cltypes.Eth1Data{
-		Root:         common.HexToHash("0xabcdef1234567890"),
+		Root:         libcommon.HexToHash("0xabcdef1234567890"),
 		DepositCount: 100,
-		BlockHash:    common.HexToHash("0x1234567890abcdef"),
+		BlockHash:    libcommon.HexToHash("0x1234567890abcdef"),
 	}
 	vote2 := &cltypes.Eth1Data{
-		Root:         common.HexToHash("0x1234567890abcdef"),
+		Root:         libcommon.HexToHash("0x1234567890abcdef"),
 		DepositCount: 200,
-		BlockHash:    common.HexToHash("0xabcdef1234567890"),
+		BlockHash:    libcommon.HexToHash("0xabcdef1234567890"),
 	}
 	state.AddEth1DataVote(vote1)
 	state.AddEth1DataVote(vote2)
@@ -127,9 +144,9 @@ func TestBeaconState_AddEth1DataVote(t *testing.T) {
 func TestBeaconState_ResetEth1DataVotes(t *testing.T) {
 	state := GetTestState()
 	vote1 := &cltypes.Eth1Data{
-		Root:         common.HexToHash("0xabcdef1234567890"),
+		Root:         libcommon.HexToHash("0xabcdef1234567890"),
 		DepositCount: 100,
-		BlockHash:    common.HexToHash("0x1234567890abcdef"),
+		BlockHash:    libcommon.HexToHash("0x1234567890abcdef"),
 	}
 	state.AddEth1DataVote(vote1)
 	state.ResetEth1DataVotes()
@@ -148,7 +165,7 @@ func TestBeaconState_SetValidatorSlashed(t *testing.T) {
 	index := 0
 	slashed := true
 	err := state.SetValidatorSlashed(index, slashed)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, slashed, state.validators.Get(index).Slashed())
 }
 
@@ -157,16 +174,21 @@ func TestBeaconState_SetValidatorSlashed_InvalidIndex(t *testing.T) {
 	index := 10
 	slashed := true
 	err := state.SetValidatorSlashed(index, slashed)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestBeaconState_SetValidatorMinCurrentInclusionDelayAttestation(t *testing.T) {
 	state := GetTestState()
 	index := 0
-	value := solid.NewPendingAttestionFromParameters(nil, solid.NewAttestationData(), 123, 3)
+	//value := solid.NewPendingAttestionFromParameters(nil, solid.NewAttestationData(), 123, 3)
+	value := &solid.PendingAttestation{
+		AggregationBits: solid.NewBitList(0, 2048),
+		InclusionDelay:  123,
+		ProposerIndex:   3,
+	}
 
 	err := state.SetValidatorMinCurrentInclusionDelayAttestation(index, value)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, value, state.validators.MinCurrentInclusionDelayAttestation(index))
 }
 
@@ -175,7 +197,7 @@ func TestBeaconState_SetValidatorIsCurrentMatchingSourceAttester(t *testing.T) {
 	index := 0
 	value := true
 	err := state.SetValidatorIsCurrentMatchingSourceAttester(index, value)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, value, state.validators.IsCurrentMatchingSourceAttester(index))
 }
 
@@ -184,7 +206,7 @@ func TestBeaconState_SetValidatorIsCurrentMatchingTargetAttester(t *testing.T) {
 	index := 0
 	value := true
 	err := state.SetValidatorIsCurrentMatchingTargetAttester(index, value)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, value, state.validators.IsCurrentMatchingTargetAttester(index))
 }
 
@@ -193,16 +215,20 @@ func TestBeaconState_SetValidatorIsCurrentMatchingHeadAttester(t *testing.T) {
 	index := 0
 	value := true
 	err := state.SetValidatorIsCurrentMatchingHeadAttester(index, value)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, value, state.validators.IsCurrentMatchingHeadAttester(index))
 }
 
 func TestBeaconState_SetValidatorMinPreviousInclusionDelayAttestation(t *testing.T) {
 	state := GetTestState()
 	index := 0
-	value := solid.NewPendingAttestionFromParameters(nil, solid.NewAttestationData(), 123, 3)
+	value := &solid.PendingAttestation{
+		AggregationBits: solid.NewBitList(0, 2048),
+		InclusionDelay:  123,
+		ProposerIndex:   3,
+	}
 	err := state.SetValidatorMinPreviousInclusionDelayAttestation(index, value)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, value, state.validators.MinPreviousInclusionDelayAttestation(index))
 }
 
@@ -211,7 +237,7 @@ func TestBeaconState_SetValidatorIsPreviousMatchingSourceAttester(t *testing.T) 
 	index := 0
 	value := true
 	err := state.SetValidatorIsPreviousMatchingSourceAttester(index, value)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, value, state.validators.IsPreviousMatchingSourceAttester(index))
 }
 
@@ -220,7 +246,7 @@ func TestBeaconState_SetValidatorIsPreviousMatchingTargetAttester(t *testing.T) 
 	index := 0
 	value := true
 	err := state.SetValidatorIsPreviousMatchingTargetAttester(index, value)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, value, state.validators.IsPreviousMatchingTargetAttester(index))
 }
 
@@ -250,8 +276,8 @@ func TestBeaconState_AddHistoricalSummary(t *testing.T) {
 
 func TestBeaconState_AddHistoricalRoot(t *testing.T) {
 	state := GetTestState()
-	root1 := common.HexToHash("0xabcdef1234567890")
-	root2 := common.HexToHash("0x1234567890abcdef")
+	root1 := libcommon.HexToHash("0xabcdef1234567890")
+	root2 := libcommon.HexToHash("0x1234567890abcdef")
 	state.AddHistoricalRoot(root1)
 	state.AddHistoricalRoot(root2)
 	assert.Equal(t, 2, state.historicalRoots.Length())
@@ -276,7 +302,7 @@ func TestBeaconState_AddInactivityScore(t *testing.T) {
 func TestBeaconState_SetValidatorInactivityScore(t *testing.T) {
 	state := GetTestState()
 	err := state.SetValidatorInactivityScore(0, 1)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, uint64(1), state.inactivityScores.Get(0))
 }
 
@@ -293,7 +319,7 @@ func TestBeaconState_SetValidatorIsPreviousMatchingHeadAttester(t *testing.T) {
 	index := 0
 	value := true
 	err := state.SetValidatorIsPreviousMatchingHeadAttester(index, value)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, value, state.validators.IsPreviousMatchingHeadAttester(index))
 }
 
@@ -302,7 +328,7 @@ func TestBeaconState_SetValidatorBalance(t *testing.T) {
 	index := 0
 	balance := uint64(1000)
 	err := state.SetValidatorBalance(index, balance)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, balance, state.balances.Get(index))
 }
 
@@ -317,7 +343,7 @@ func TestBeaconState_AddValidator(t *testing.T) {
 func TestBeaconState_SetRandaoMixAt(t *testing.T) {
 	state := GetTestState()
 	index := 0
-	mix := common.HexToHash("0xabcdef1234567890")
+	mix := libcommon.HexToHash("0xabcdef1234567890")
 	state.SetRandaoMixAt(index, mix)
 	assert.Equal(t, mix, state.randaoMixes.Get(index))
 }
@@ -345,3 +371,30 @@ func TestBeaconState_SetValidatorAtIndex(t *testing.T) {
 	state.SetValidatorAtIndex(index, validator)
 	assert.Equal(t, validator, state.validators.Get(index))
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,3 +1,19 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package sentinel
 
 import (
@@ -7,38 +23,46 @@ import (
 	"io"
 	"testing"
 
-	"github.com/erigontech/erigon-lib/log/v3"
 	"github.com/golang/snappy"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
-	"github.com/erigontech/erigon-lib/common/datadir"
-	"github.com/erigontech/erigon-lib/kv"
-	"github.com/erigontech/erigon-lib/kv/memdb"
 	"github.com/erigontech/erigon/cl/antiquary"
-	"github.com/erigontech/erigon/cl/antiquary/tests"
+	antiquarytests "github.com/erigontech/erigon/cl/antiquary/tests"
+	"github.com/erigontech/erigon/cl/beacon/synced_data"
 	"github.com/erigontech/erigon/cl/clparams"
 	"github.com/erigontech/erigon/cl/cltypes"
 	"github.com/erigontech/erigon/cl/cltypes/solid"
+	peerdasstatemock "github.com/erigontech/erigon/cl/das/state/mock_services"
 	state_accessors "github.com/erigontech/erigon/cl/persistence/state"
 	"github.com/erigontech/erigon/cl/phase1/core/state"
 	"github.com/erigontech/erigon/cl/phase1/forkchoice/mock_services"
 	"github.com/erigontech/erigon/cl/sentinel/communication"
 	"github.com/erigontech/erigon/cl/sentinel/communication/ssz_snappy"
 	"github.com/erigontech/erigon/cl/utils"
+	"github.com/erigontech/erigon-lib/log/v3"
+	"github.com/erigontech/erigon-lib/common/datadir"
+	"github.com/erigontech/erigon-lib/kv"
+	"github.com/erigontech/erigon-lib/kv/dbutils"
+	"github.com/erigontech/erigon-lib/kv/memdb"
+	"github.com/erigontech/erigon-lib/chain"
 )
 
-func loadChain(t *testing.T) (db kv.RwDB, blocks []*cltypes.SignedBeaconBlock, f afero.Fs, preState, postState *state.CachingBeaconState, reader *tests.MockBlockReader) {
-	blocks, preState, postState = tests.GetPhase0Random()
-	db = memdb.NewTestDB(t)
-	reader = tests.LoadChain(blocks, postState, db, t)
+func loadChain(t *testing.T) (db kv.RwDB, blocks []*cltypes.SignedBeaconBlock, f afero.Fs, preState, postState *state.CachingBeaconState, reader *antiquarytests.MockBlockReader) {
+	blocks, preState, postState = antiquarytests.GetPhase0Random()
+	db = memdb.NewTestDB(t, dbcfg.ChainDB)
+	reader = antiquarytests.LoadChain(blocks, postState, db, t)
+
+	sn := synced_data.NewSyncedDataManager(&clparams.MainnetBeaconConfig, true)
+	sn.OnHeadState(postState)
 
 	ctx := context.Background()
 	vt := state_accessors.NewStaticValidatorTable()
-	a := antiquary.NewAntiquary(ctx, nil, preState, vt, &clparams.MainnetBeaconConfig, datadir.New("/tmp"), nil, db, nil, reader, log.New(), true, true, false)
+	a := antiquary.NewAntiquary(ctx, nil, preState, vt, &clparams.MainnetBeaconConfig, datadir.New("/tmp"), nil, db, nil, nil, reader, sn, log.New(), true, true, false, false, nil)
 	require.NoError(t, a.IncrementBeaconState(ctx, blocks[len(blocks)-1].Block.Slot+33))
 	return
 }
@@ -49,18 +73,28 @@ func TestSentinelBlocksByRange(t *testing.T) {
 	ethClock := getEthClock(t)
 	ctx := context.Background()
 	db, blocks, _, _, _, reader := loadChain(t)
-	networkConfig, beaconConfig := clparams.GetConfigsByNetwork(clparams.MainnetNetwork)
+	networkConfig, beaconConfig := clparams.GetConfigsByNetwork(chain.MainnetChainID)
+
+	// Create mock PeerDasStateReader
+	ctrl := gomock.NewController(t)
+	mockPeerDasStateReader := peerdasstatemock.NewMockPeerDasStateReader(ctrl)
+	mockPeerDasStateReader.EXPECT().GetEarliestAvailableSlot().Return(uint64(0)).AnyTimes()
+	mockPeerDasStateReader.EXPECT().GetRealCgc().Return(uint64(0)).AnyTimes()
+	mockPeerDasStateReader.EXPECT().GetAdvertisedCgc().Return(uint64(0)).AnyTimes()
+
 	sentinel, err := New(ctx, &SentinelConfig{
 		NetworkConfig: networkConfig,
 		BeaconConfig:  beaconConfig,
 		IpAddr:        listenAddrHost,
 		Port:          7070,
 		EnableBlocks:  true,
-	}, ethClock, reader, nil, db, log.New(), &mock_services.ForkChoiceStorageMock{})
+		MaxPeerCount:  8883,
+	}, ethClock, reader, nil, db, log.New(), &mock_services.ForkChoiceStorageMock{}, nil, mockPeerDasStateReader)
 	require.NoError(t, err)
 	defer sentinel.Stop()
 
-	require.NoError(t, sentinel.Start())
+	_, err = sentinel.Start()
+	require.NoError(t, err)
 	h := sentinel.host
 
 	listenAddrHost1 := "/ip4/127.0.0.1/tcp/3202"
@@ -88,7 +122,7 @@ func TestSentinelBlocksByRange(t *testing.T) {
 	code := make([]byte, 1)
 	_, err = stream.Read(code)
 	require.NoError(t, err)
-	require.Equal(t, code[0], uint8(0))
+	require.Equal(t, uint8(0), code[0])
 
 	var w bytes.Buffer
 	_, err = io.Copy(&w, stream)
@@ -126,7 +160,7 @@ func TestSentinelBlocksByRange(t *testing.T) {
 		version, err := ethClock.StateVersionByForkDigest(utils.Uint32ToBytes4(respForkDigest))
 		require.NoError(t, err)
 
-		responseChunk := cltypes.NewSignedBeaconBlock(beaconConfig)
+		responseChunk := cltypes.NewSignedBeaconBlock(beaconConfig, clparams.DenebVersion)
 
 		require.NoError(t, responseChunk.DecodeSSZ(raw, int(version)))
 
@@ -134,7 +168,7 @@ func TestSentinelBlocksByRange(t *testing.T) {
 		// TODO(issues/5884): figure out why there is this extra byte.
 		r.ReadByte()
 	}
-	require.Equal(t, len(responsePacket), len(blocks))
+	require.Len(t, blocks, len(responsePacket))
 	for i := 0; i < len(blocks); i++ {
 		root1, err := responsePacket[i].HashSSZ()
 		require.NoError(t, err)
@@ -144,7 +178,6 @@ func TestSentinelBlocksByRange(t *testing.T) {
 
 		require.Equal(t, root1, root2)
 	}
-
 }
 
 func TestSentinelBlocksByRoots(t *testing.T) {
@@ -153,18 +186,28 @@ func TestSentinelBlocksByRoots(t *testing.T) {
 	ctx := context.Background()
 	db, blocks, _, _, _, reader := loadChain(t)
 	ethClock := getEthClock(t)
-	networkConfig, beaconConfig := clparams.GetConfigsByNetwork(clparams.MainnetNetwork)
+	networkConfig, beaconConfig := clparams.GetConfigsByNetwork(chain.MainnetChainID)
+
+	// Create mock PeerDasStateReader
+	ctrl := gomock.NewController(t)
+	mockPeerDasStateReader := peerdasstatemock.NewMockPeerDasStateReader(ctrl)
+	mockPeerDasStateReader.EXPECT().GetEarliestAvailableSlot().Return(uint64(0)).AnyTimes()
+	mockPeerDasStateReader.EXPECT().GetRealCgc().Return(uint64(0)).AnyTimes()
+	mockPeerDasStateReader.EXPECT().GetAdvertisedCgc().Return(uint64(0)).AnyTimes()
+
 	sentinel, err := New(ctx, &SentinelConfig{
 		NetworkConfig: networkConfig,
 		BeaconConfig:  beaconConfig,
 		IpAddr:        listenAddrHost,
 		Port:          7070,
 		EnableBlocks:  true,
-	}, ethClock, reader, nil, db, log.New(), &mock_services.ForkChoiceStorageMock{})
+		MaxPeerCount:  8883,
+	}, ethClock, reader, nil, db, log.New(), &mock_services.ForkChoiceStorageMock{}, nil, mockPeerDasStateReader)
 	require.NoError(t, err)
 	defer sentinel.Stop()
 
-	require.NoError(t, sentinel.Start())
+	_, err = sentinel.Start()
+	require.NoError(t, err)
 	h := sentinel.host
 
 	listenAddrHost1 := "/ip4/127.0.0.1/tcp/5021"
@@ -196,7 +239,7 @@ func TestSentinelBlocksByRoots(t *testing.T) {
 	code := make([]byte, 1)
 	_, err = stream.Read(code)
 	require.NoError(t, err)
-	require.Equal(t, code[0], uint8(0))
+	require.Equal(t, uint8(0), code[0])
 
 	var w bytes.Buffer
 	_, err = io.Copy(&w, stream)
@@ -234,7 +277,7 @@ func TestSentinelBlocksByRoots(t *testing.T) {
 		version, err := ethClock.StateVersionByForkDigest(utils.Uint32ToBytes4(respForkDigest))
 		require.NoError(t, err)
 
-		responseChunk := cltypes.NewSignedBeaconBlock(beaconConfig)
+		responseChunk := cltypes.NewSignedBeaconBlock(beaconConfig, clparams.DenebVersion)
 
 		require.NoError(t, responseChunk.DecodeSSZ(raw, int(version)))
 
@@ -243,7 +286,7 @@ func TestSentinelBlocksByRoots(t *testing.T) {
 		r.ReadByte()
 	}
 
-	require.Equal(t, len(responsePacket), len(blocks))
+	require.Len(t, blocks, len(responsePacket))
 	for i := 0; i < len(responsePacket); i++ {
 		root1, err := responsePacket[i].HashSSZ()
 		require.NoError(t, err)
@@ -262,18 +305,28 @@ func TestSentinelStatusRequest(t *testing.T) {
 	ctx := context.Background()
 	db, blocks, _, _, _, reader := loadChain(t)
 	ethClock := getEthClock(t)
-	networkConfig, beaconConfig := clparams.GetConfigsByNetwork(clparams.MainnetNetwork)
+	networkConfig, beaconConfig := clparams.GetConfigsByNetwork(chain.MainnetChainID)
+
+	// Create mock PeerDasStateReader
+	ctrl := gomock.NewController(t)
+	mockPeerDasStateReader := peerdasstatemock.NewMockPeerDasStateReader(ctrl)
+	mockPeerDasStateReader.EXPECT().GetEarliestAvailableSlot().Return(uint64(0)).AnyTimes()
+	mockPeerDasStateReader.EXPECT().GetRealCgc().Return(uint64(0)).AnyTimes()
+	mockPeerDasStateReader.EXPECT().GetAdvertisedCgc().Return(uint64(0)).AnyTimes()
+
 	sentinel, err := New(ctx, &SentinelConfig{
 		NetworkConfig: networkConfig,
 		BeaconConfig:  beaconConfig,
 		IpAddr:        listenAddrHost,
 		Port:          7070,
 		EnableBlocks:  true,
-	}, ethClock, reader, nil, db, log.New(), &mock_services.ForkChoiceStorageMock{})
+		MaxPeerCount:  8883,
+	}, ethClock, reader, nil, db, log.New(), &mock_services.ForkChoiceStorageMock{}, nil, mockPeerDasStateReader)
 	require.NoError(t, err)
 	defer sentinel.Stop()
 
-	require.NoError(t, sentinel.Start())
+	_, err = sentinel.Start()
+	require.NoError(t, err)
 	h := sentinel.host
 
 	listenAddrHost1 := "/ip4/127.0.0.1/tcp/5001"
@@ -300,7 +353,7 @@ func TestSentinelStatusRequest(t *testing.T) {
 	code := make([]byte, 1)
 	_, err = stream.Read(code)
 	require.NoError(t, err)
-	require.Equal(t, code[0], uint8(0))
+	require.Equal(t, uint8(0), code[0])
 
 	resp := &cltypes.Status{}
 	if err := ssz_snappy.DecodeAndReadNoForkDigest(stream, resp, 0); err != nil {
@@ -310,3 +363,30 @@ func TestSentinelStatusRequest(t *testing.T) {
 
 	require.Equal(t, resp, req)
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,3 +1,19 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package consensus_tests
 
 import (
@@ -5,12 +21,12 @@ import (
 	"os"
 	"testing"
 
-	"github.com/erigontech/erigon/cl/transition/machine"
-	"github.com/erigontech/erigon/spectest"
-
-	"github.com/erigontech/erigon/cl/cltypes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/erigontech/erigon/cl/cltypes"
+	"github.com/erigontech/erigon/cl/spectest/spectest"
+	"github.com/erigontech/erigon/cl/transition/machine"
 )
 
 var SanitySlots = spectest.HandlerFunc(func(t *testing.T, root fs.FS, c spectest.TestCase) (err error) {
@@ -34,7 +50,7 @@ var SanitySlots = spectest.HandlerFunc(func(t *testing.T, root fs.FS, c spectest
 	haveRoot, err := testState.HashSSZ()
 	require.NoError(t, err)
 
-	assert.EqualValues(t, expectedRoot, haveRoot)
+	assert.Equal(t, expectedRoot, haveRoot)
 	return nil
 })
 
@@ -83,7 +99,34 @@ var SanityBlocks = spectest.HandlerFunc(func(t *testing.T, root fs.FS, c spectes
 	haveRoot, err := testState.HashSSZ()
 	require.NoError(t, err)
 
-	assert.EqualValues(t, finalRoot, haveRoot)
+	assert.Equal(t, finalRoot, haveRoot)
 
 	return nil
 })
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

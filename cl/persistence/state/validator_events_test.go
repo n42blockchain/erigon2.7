@@ -1,10 +1,26 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package state_accessors
 
 import (
 	"testing"
 
-	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon/cl/cltypes/solid"
+	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,16 +47,16 @@ func TestStateEvents(t *testing.T) {
 		return nil
 	}, func(validatorIndex, exitEpoch uint64) error {
 		if validatorIndex == 1 {
-			require.Equal(t, exitEpoch, uint64(3))
+			require.Equal(t, uint64(3), exitEpoch)
 		} else {
-			require.Equal(t, exitEpoch, uint64(2))
+			require.Equal(t, uint64(2), exitEpoch)
 		}
 		return nil
 	}, func(validatorIndex, withdrawableEpoch uint64) error {
 		if validatorIndex == 1 {
-			require.Equal(t, withdrawableEpoch, uint64(4))
+			require.Equal(t, uint64(4), withdrawableEpoch)
 		} else {
-			require.Equal(t, withdrawableEpoch, uint64(3))
+			require.Equal(t, uint64(3), withdrawableEpoch)
 		}
 		return nil
 	}, func(validatorIndex uint64, withdrawalCredentials libcommon.Hash) error {
@@ -52,21 +68,48 @@ func TestStateEvents(t *testing.T) {
 		return nil
 	}, func(validatorIndex, activationEpoch uint64) error {
 		if validatorIndex == 1 {
-			require.Equal(t, activationEpoch, uint64(5))
+			require.Equal(t, uint64(5), activationEpoch)
 		} else {
-			require.Equal(t, activationEpoch, uint64(4))
+			require.Equal(t, uint64(4), activationEpoch)
 		}
 		return nil
 	}, func(validatorIndex, activationEligibilityEpoch uint64) error {
 		if validatorIndex == 1 {
-			require.Equal(t, activationEligibilityEpoch, uint64(6))
+			require.Equal(t, uint64(6), activationEligibilityEpoch)
 		} else {
-			require.Equal(t, activationEligibilityEpoch, uint64(5))
+			require.Equal(t, uint64(5), activationEligibilityEpoch)
 		}
 		return nil
 	}, func(validatorIndex uint64, slashed bool) error {
-		require.Equal(t, slashed, true)
+		require.True(t, slashed)
 		return nil
 	}, events)
 
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,19 +1,35 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package sync_contribution_pool
 
 import (
 	"testing"
 
-	"github.com/Giulio2002/bls"
-	"github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon/cl/clparams"
 	"github.com/erigontech/erigon/cl/cltypes"
 	"github.com/erigontech/erigon/cl/cltypes/solid"
 	"github.com/erigontech/erigon/cl/phase1/core/state"
 	"github.com/erigontech/erigon/cl/utils"
+	"github.com/erigontech/erigon/cl/utils/bls"
+	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/stretchr/testify/require"
 )
 
-var testHash = common.Hash{0x01, 0x02, 0x03, 0x04}
+var testHash = libcommon.Hash{0x01, 0x02, 0x03, 0x04}
 
 func getTestCommitteesMessages(n int) (privateKeys [][]byte, messages []cltypes.SyncCommitteeMessage, s *state.CachingBeaconState) {
 	s = state.New(&clparams.MainnetBeaconConfig)
@@ -32,15 +48,15 @@ func getTestCommitteesMessages(n int) (privateKeys [][]byte, messages []cltypes.
 		message := cltypes.SyncCommitteeMessage{
 			BeaconBlockRoot: testHash,
 			ValidatorIndex:  uint64(i),
-			Signature:       common.Bytes96(sig.Bytes()),
+			Signature:       libcommon.Bytes96(sig.Bytes()),
 		}
 		messages = append(messages, message)
 		v := solid.NewValidator()
-		v.SetPublicKey(common.Bytes48(bls.CompressPublicKey(privateKey.PublicKey())))
+		v.SetPublicKey(libcommon.Bytes48(bls.CompressPublicKey(privateKey.PublicKey())))
 		s.AppendValidator(v)
 		currCommittee := s.CurrentSyncCommittee()
 		c := currCommittee.GetCommittee()
-		c[i] = common.Bytes48(bls.CompressPublicKey(privateKey.PublicKey()))
+		c[i] = libcommon.Bytes48(bls.CompressPublicKey(privateKey.PublicKey()))
 		currCommittee.SetCommittee(c)
 		s.SetCurrentSyncCommittee(currCommittee)
 	}
@@ -55,8 +71,35 @@ func TestSyncContributionPool(t *testing.T) {
 	require.NoError(t, pool.AddSyncCommitteeMessage(s, 0, &msgs[2]))
 
 	contribution := pool.GetSyncContribution(0, 0, testHash)
-	require.NotEqual(t, contribution.Signature, common.Bytes96(bls.InfiniteSignature))
+	require.NotEqual(t, contribution.Signature, libcommon.Bytes96(bls.InfiniteSignature))
 
 	contribution.SubcommitteeIndex = 1
 	require.NoError(t, pool.AddSyncContribution(s, contribution))
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

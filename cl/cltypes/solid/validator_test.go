@@ -1,10 +1,26 @@
+// Copyright 2024 The Erigon Authors
+// This file is part of Erigon.
+//
+// Erigon is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Erigon is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Erigon. If not, see <http://www.gnu.org/licenses/>.
+
 package solid
 
 import (
 	"encoding/binary"
 	"testing"
 
-	"github.com/erigontech/erigon-lib/common"
+	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -12,7 +28,7 @@ import (
 func TestValidator(t *testing.T) {
 	// Initializing some dummy data
 	var pubKey [48]byte
-	var withdrawalCred common.Hash
+	var withdrawalCred libcommon.Hash
 	for i := 0; i < 48; i++ {
 		pubKey[i] = byte(i)
 	}
@@ -43,7 +59,7 @@ func TestValidator(t *testing.T) {
 	encoded, _ := validator.EncodeSSZ(nil)
 	newValidator := NewValidator()
 	err := newValidator.DecodeSSZ(encoded, 0)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, validator, newValidator)
 
 	// Testing CopyTo
@@ -87,3 +103,30 @@ func TestMarshalUnmarshalJson(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, validator, decoded)
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
