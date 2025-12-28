@@ -26,6 +26,10 @@ const (
 	TxAccessListStorageKeyGas uint64 = 1900  // Per storage key specified in EIP 2930 access list
 	TxTotalCostFloorPerToken  uint64 = 10    // Per token of calldata in a transaction, as a minimum the txn must pay (EIP-7623)
 
+	// EIP-7825: Transaction Gas Limit Cap
+	// Maximum gas limit per transaction = 2^24 = 16,777,216
+	MaxTxnGasLimit uint64 = 16_777_216
+
 	MaxCodeSize = 24576 // Maximum bytecode to permit for a contract
 
 	// EIP-3860 to limit size of initcode

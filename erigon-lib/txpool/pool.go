@@ -884,6 +884,10 @@ func (p *TxPool) validateTx(txn *types.TxSlot, isLocal bool, stateCache kvcache.
 	if isShanghai && txn.Creation && txn.DataLen > fixedgas.MaxInitCodeSize {
 		return txpoolcfg.InitCodeTooLarge // EIP-3860
 	}
+	// EIP-7825: Transaction Gas Limit Cap (Osaka/Fusaka)
+	if p.isOsaka() && txn.Gas > fixedgas.MaxTxnGasLimit {
+		return txpoolcfg.GasLimitTooHigh
+	}
 	if txn.Type == types.BlobTxType {
 		if !p.isCancun() {
 			return txpoolcfg.TypeNotActivated

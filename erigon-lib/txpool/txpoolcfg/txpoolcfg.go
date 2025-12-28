@@ -117,6 +117,7 @@ const (
 	BlobPoolOverflow     DiscardReason = 31 // The total number of blobs (through blob txs) in the pool has reached its limit
 	NoAuthorizations     DiscardReason = 32 // EIP-7702 transactions with an empty authorization list are invalid
 	ErrAuthorityReserved DiscardReason = 33 // EIP-7702 transaction with authority already reserved
+	GasLimitTooHigh      DiscardReason = 34 // EIP-7825: Transaction gas limit exceeds MaxTxnGasLimit
 )
 
 func (r DiscardReason) String() string {
@@ -183,6 +184,8 @@ func (r DiscardReason) String() string {
 		return "EIP-7702 transactions with an empty authorization list are invalid"
 	case ErrAuthorityReserved:
 		return "authority already reserved"
+	case GasLimitTooHigh:
+		return "gas limit too high (EIP-7825)"
 	default:
 		panic(fmt.Sprintf("discard reason: %d", r))
 	}
