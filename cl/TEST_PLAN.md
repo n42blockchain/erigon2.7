@@ -143,15 +143,52 @@ Some v3.3.2 APIs differ from the current codebase:
 
 ### Phase 3: Add Missing Unit Tests (Priority: Medium) ✅ DONE
 EIP-specific tests have been added:
-- ✅ EIP-7549 (Electra Attestation Committee Bits)
-  - `TestElectraAttestation`
-  - `TestGetCommitteeIndexFromBits_*`
-  - `TestSingleAttestation*`
-  - `TestAttestationJSONUnmarshal*`
+- ✅ EIP-7549 (Electra Attestation Committee Bits) - COMPREHENSIVE
+  - `TestElectraAttestation` - Basic Electra attestation with CommitteeBits
+  - `TestGetCommitteeIndexFromBits_NoCommitteeBitsSet` - Error case
+  - `TestGetCommitteeIndexFromBits_MultipleCommitteeBits` - Multiple bits handling
+  - `TestSingleAttestation` - SSZ encode/decode, HashSSZ, Clone
+  - `TestSingleAttestationToAttestation` - Conversion with member index
+  - `TestElectraAttestationEncodingSizeSSZ` - Size calculation
+  - `TestAttestationJSONUnmarshalElectra/Deneb` - JSON parsing
+  - `TestElectraSingleAttestationCommitteeIndexMustBeZeroInData` - EIP-7549 validation
+  - `TestElectraSingleAttestationValidCommitteeIndex` - Network service validation
+  - `TestElectraSingleAttestationWithData` - ToAttestation conversion
 - ✅ EIP-7594 (PeerDAS/Fulu)
   - `TestGetCustodyGroups*`
   - `TestComputeColumnsForCustodyGroup*`
   - `TestGetCustodyColumns*`
+- ✅ EIP-6110 (Deposit Requests)
+  - `TestDepositRequestEncodeDecode`
+  - `TestDepositRequestHashSSZ`
+  - `TestDepositRequestClone`
+  - `TestDepositRequestStatic`
+  - `TestPendingDepositEncodeDecode`
+  - `TestPendingDepositHashSSZ`
+  - `TestDepositRequestDataLength`
+  - `TestDepositRequestInterfaceCompliance`
+- ✅ EIP-7002 (Withdrawal Requests)
+  - `TestWithdrawalRequestEncodeDecode`
+  - `TestWithdrawalRequestHashSSZ`
+  - `TestWithdrawalRequestClone`
+  - `TestWithdrawalRequestStatic`
+  - `TestPendingPartialWithdrawalEncodeDecode`
+  - `TestPendingPartialWithdrawalHashSSZ`
+  - `TestWithdrawalRequestDataLength`
+  - `TestWithdrawalRequestInterfaceCompliance`
+  - `TestWithdrawalRequestFullWithdrawal`
+  - `TestWithdrawalRequestPartialWithdrawal`
+- ✅ EIP-7251 (Consolidation Requests)
+  - `TestConsolidationRequestEncodeDecode`
+  - `TestConsolidationRequestHashSSZ`
+  - `TestConsolidationRequestClone`
+  - `TestConsolidationRequestStatic`
+  - `TestPendingConsolidationEncodeDecode`
+  - `TestPendingConsolidationHashSSZ`
+  - `TestConsolidationRequestDataLength`
+  - `TestConsolidationRequestInterfaceCompliance`
+  - `TestConsolidationRequestSwitchToCompounding`
+  - `TestConsolidationRequestDifferentPubkeys`
 - ✅ Version handling tests for Electra/Fulu
   - `TestStateVersion*`
   - `TestElectraVersionCheck`
@@ -159,8 +196,8 @@ EIP-specific tests have been added:
   - `TestVersionFeatureDetection`
 
 Still needs more coverage:
-- Consolidation request handling
 - Full state transition tests for Electra/Fulu
+- Additional network service tests for Electra gossip protocol
 
 ### Phase 4: Integration Testing (Priority: Medium)
 1. Set up Lighthouse interoperability tests

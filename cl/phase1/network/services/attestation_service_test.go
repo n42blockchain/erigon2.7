@@ -376,6 +376,183 @@ func uint64Ptr(i uint64) *uint64 {
 	return &i
 }
 
+// EIP-7549: Electra SingleAttestation Tests
+type electraAttestationTestSuite struct {
+	suite.Suite
+	gomockCtrl        *gomock.Controller
+	mockForkChoice    *mock_services.ForkChoiceStorageMock
+	syncedData        synced_data.SyncedData
+	committeeSubscibe *mockCommittee.MockCommitteeSubscribe
+	ethClock          *eth_clock.MockEthereumClock
+	attService        AttestationService
+	beaconConfig      *clparams.BeaconChainConfig
+	netConfig         *clparams.NetworkConfig
+}
+
+func (t *electraAttestationTestSuite) SetupTest() {
+	t.gomockCtrl = gomock.NewController(t.T())
+	t.mockForkChoice = &mock_services.ForkChoiceStorageMock{}
+	_, st, _ := tests.GetBellatrixRandom()
+	t.syncedData = synced_data.NewSyncedDataManager(&clparams.MainnetBeaconConfig, true)
+	t.syncedData.OnHeadState(st)
+	t.committeeSubscibe = mockCommittee.NewMockCommitteeSubscribe(t.gomockCtrl)
+	t.ethClock = eth_clock.NewMockEthereumClock(t.gomockCtrl)
+	t.beaconConfig = &clparams.BeaconChainConfig{
+		SlotsPerEpoch:    mockSlotsPerEpoch,
+		ElectraForkEpoch: 0, // Electra is active from epoch 0
+	}
+	t.netConfig = &clparams.NetworkConfig{
+		AttestationSubnetCount: 64,
+	}
+	emitters := beaconevents.NewEventEmitter()
+	computeSigningRoot = func(obj ssz.HashableSSZ, domain []byte) ([32]byte, error) { return [32]byte{}, nil }
+	batchSignatureVerifier := NewBatchSignatureVerifier(context.TODO(), nil)
+	go batchSignatureVerifier.Start()
+	ctx, cn := context.WithCancel(context.Background())
+	cn()
+	t.attService = NewAttestationService(ctx, t.mockForkChoice, t.committeeSubscibe, t.ethClock, t.syncedData, t.beaconConfig, t.netConfig, emitters, batchSignatureVerifier)
+}
+
+func (t *electraAttestationTestSuite) TearDownTest() {
+	t.gomockCtrl.Finish()
+}
+
+// TestElectraSingleAttestationCommitteeIndexMustBeZeroInData tests EIP-7549 requirement:
+// For Electra, the attestation.data.index (CommitteeIndex) must be 0
+func (t *electraAttestationTestSuite) TestElectraSingleAttestationCommitteeIndexMustBeZeroInData() {
+	// Create SingleAttestation with non-zero committee index in data (should fail)
+	singleAtt := &solid.SingleAttestation{
+		CommitteeIndex: 3,
+		AttesterIndex:  42,
+		Data: &solid.AttestationData{
+			Slot:            mockSlot,
+			CommitteeIndex:  1, // EIP-7549: This should be 0 in Electra
+			BeaconBlockRoot: [32]byte{0, 4, 2, 6},
+			Source:          solid.Checkpoint{Epoch: mockEpoch, Root: [32]byte{1, 0}},
+			Target:          solid.Checkpoint{Epoch: mockEpoch, Root: [32]byte{1, 0}},
+		},
+		Signature: [96]byte{'a', 'b', 'c', 'd', 'e', 'f'},
+	}
+
+	computeCommitteeCountPerSlot = func(_ abstract.BeaconStateReader, _, _ uint64) uint64 {
+		return 8
+	}
+	computeSubnetForAttestation = func(_, _, _, _, _ uint64) uint64 {
+		return 1
+	}
+	t.ethClock.EXPECT().GetEpochAtSlot(mockSlot).Return(mockEpoch).Times(1)
+	t.ethClock.EXPECT().GetCurrentSlot().Return(mockSlot).Times(1)
+
+	subnet := uint64Ptr(1)
+	err := t.attService.ProcessMessage(context.Background(), subnet, &AttestationForGossip{
+		SingleAttestation: singleAtt,
+		ImmediateProcess:  true,
+	})
+
+	// Should fail because data.CommitteeIndex != 0
+	t.Require().Error(err)
+	t.Contains(err.Error(), "committee index must be 0")
+}
+
+// TestElectraSingleAttestationValidCommitteeIndex tests EIP-7549:
+// Committee index should be extracted from SingleAttestation.CommitteeIndex field
+func (t *electraAttestationTestSuite) TestElectraSingleAttestationValidCommitteeIndex() {
+	// Create valid SingleAttestation for Electra
+	singleAtt := &solid.SingleAttestation{
+		CommitteeIndex: 3, // This is where committee index is in Electra
+		AttesterIndex:  0, // First validator in committee
+		Data: &solid.AttestationData{
+			Slot:            mockSlot,
+			CommitteeIndex:  0, // Must be 0 in Electra (EIP-7549)
+			BeaconBlockRoot: [32]byte{0, 4, 2, 6},
+			Source:          solid.Checkpoint{Epoch: mockEpoch, Root: [32]byte{1, 0}},
+			Target:          solid.Checkpoint{Epoch: mockEpoch, Root: [32]byte{1, 0}},
+		},
+		Signature: [96]byte{'a', 'b', 'c', 'd', 'e', 'f'},
+	}
+
+	computeCommitteeCountPerSlot = func(_ abstract.BeaconStateReader, _, _ uint64) uint64 {
+		return 8
+	}
+	computeSubnetForAttestation = func(_, _, _, _, _ uint64) uint64 {
+		return 1
+	}
+	t.ethClock.EXPECT().GetEpochAtSlot(mockSlot).Return(mockEpoch).Times(1)
+	t.ethClock.EXPECT().GetCurrentSlot().Return(mockSlot).Times(1)
+	computeSigningRoot = func(obj ssz.HashableSSZ, domain []byte) ([32]byte, error) {
+		return [32]byte{}, nil
+	}
+	blsVerifyMultipleSignatures = func(signatures [][]byte, signRoots [][]byte, pks [][]byte) (bool, error) {
+		return true, nil
+	}
+	t.mockForkChoice.Headers = map[libcommon.Hash]*cltypes.BeaconBlockHeader{
+		singleAtt.Data.BeaconBlockRoot: {},
+	}
+
+	mockFinalizedCheckPoint := &solid.Checkpoint{Root: [32]byte{1, 0}, Epoch: 1}
+	t.mockForkChoice.Ancestors = map[uint64]libcommon.Hash{
+		mockEpoch * mockSlotsPerEpoch:                     singleAtt.Data.Target.Root,
+		mockFinalizedCheckPoint.Epoch * mockSlotsPerEpoch: mockFinalizedCheckPoint.Root,
+	}
+	t.mockForkChoice.FinalizedCheckpointVal = *mockFinalizedCheckPoint
+
+	subnet := uint64Ptr(1)
+	err := t.attService.ProcessMessage(context.Background(), subnet, &AttestationForGossip{
+		SingleAttestation: singleAtt,
+		ImmediateProcess:  true,
+	})
+
+	// Should fail because attester is not in committee (mock state doesn't have the validator)
+	// But the committee index validation should pass
+	t.Require().Error(err)
+	t.Contains(err.Error(), "attester is not a member of the committee")
+}
+
+// TestElectraSingleAttestationWithData tests EIP-7549 SingleAttestation with valid data structure
+func (t *electraAttestationTestSuite) TestElectraSingleAttestationWithData() {
+	// Create a valid SingleAttestation with correct EIP-7549 structure
+	singleAtt := &solid.SingleAttestation{
+		CommitteeIndex: 0,
+		AttesterIndex:  0,
+		Data: &solid.AttestationData{
+			Slot:            mockSlot,
+			CommitteeIndex:  0, // Must be 0 in Electra (EIP-7549)
+			BeaconBlockRoot: [32]byte{0, 4, 2, 6},
+			Source:          solid.Checkpoint{Epoch: mockEpoch, Root: [32]byte{1, 0}},
+			Target:          solid.Checkpoint{Epoch: mockEpoch, Root: [32]byte{1, 0}},
+		},
+		Signature: [96]byte{'a', 'b', 'c', 'd', 'e', 'f'},
+	}
+
+	// Verify the SingleAttestation structure is correct
+	t.Require().NotNil(singleAtt.Data)
+	t.Require().Equal(uint64(0), singleAtt.Data.CommitteeIndex, "EIP-7549: data.CommitteeIndex must be 0 in Electra")
+	t.Require().Equal(uint64(0), singleAtt.CommitteeIndex, "CommitteeIndex in SingleAttestation container")
+	t.Require().Equal(uint64(0), singleAtt.AttesterIndex, "AttesterIndex in SingleAttestation")
+
+	// Test ToAttestation conversion (EIP-7549 core functionality)
+	attestation := singleAtt.ToAttestation(5, 100) // member index 5 in committee of 100
+	t.Require().NotNil(attestation)
+	t.Require().NotNil(attestation.CommitteeBits)
+	t.Require().NotNil(attestation.AggregationBits)
+
+	// Verify CommitteeBits is set correctly
+	idx, err := attestation.GetCommitteeIndexFromBits()
+	t.Require().NoError(err)
+	t.Require().Equal(uint64(0), idx)
+
+	// Verify AggregationBits has the member bit set
+	t.Require().True(attestation.AggregationBits.GetBitAt(5))
+}
+
+func TestElectraAttestation(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
+	suite.Run(t, &electraAttestationTestSuite{})
+}
+
 
 
 
