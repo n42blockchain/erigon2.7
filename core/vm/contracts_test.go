@@ -59,13 +59,13 @@ var allPrecompiles = map[libcommon.Address]PrecompiledContract{
 	libcommon.BytesToAddress([]byte{7}):          &bn256ScalarMulIstanbul{},
 	libcommon.BytesToAddress([]byte{8}):          &bn256PairingIstanbul{},
 	libcommon.BytesToAddress([]byte{9}):          &blake2F{},
-	libcommon.BytesToAddress([]byte{10}):         &bls12381G1Add{},
-	libcommon.BytesToAddress([]byte{12}):         &bls12381G1MultiExp{},
-	libcommon.BytesToAddress([]byte{13}):         &bls12381G2Add{},
-	libcommon.BytesToAddress([]byte{15}):         &bls12381G2MultiExp{},
-	libcommon.BytesToAddress([]byte{16}):         &bls12381Pairing{},
-	libcommon.BytesToAddress([]byte{17}):         &bls12381MapFpToG1{},
-	libcommon.BytesToAddress([]byte{18}):         &bls12381MapFp2ToG2{},
+	libcommon.BytesToAddress([]byte{0x0b}):        &bls12381G1Add{},      // EIP-2537: G1ADD
+	libcommon.BytesToAddress([]byte{0x0c}):        &bls12381G1MultiExp{}, // EIP-2537: G1MSM
+	libcommon.BytesToAddress([]byte{0x0d}):        &bls12381G2Add{},      // EIP-2537: G2ADD
+	libcommon.BytesToAddress([]byte{0x0e}):        &bls12381G2MultiExp{}, // EIP-2537: G2MSM
+	libcommon.BytesToAddress([]byte{0x0f}):        &bls12381Pairing{},    // EIP-2537: PAIRING
+	libcommon.BytesToAddress([]byte{0x10}):        &bls12381MapFpToG1{},  // EIP-2537: MAP_FP_TO_G1
+	libcommon.BytesToAddress([]byte{0x11}):        &bls12381MapFp2ToG2{}, // EIP-2537: MAP_FP2_TO_G2
 	libcommon.BytesToAddress([]byte{20}):         &pointEvaluation{},
 	libcommon.BytesToAddress([]byte{0x01, 0x00}): &p256Verify{},
 }
@@ -406,32 +406,32 @@ func benchJson(name, addr string, b *testing.B) {
 	}
 }
 
-func TestPrecompiledBLS12381G1Add(t *testing.T)      { testJson("blsG1Add", "0a", t) }
-func TestPrecompiledBLS12381G1MultiExp(t *testing.T) { testJson("blsG1MultiExp", "0c", t) }
-func TestPrecompiledBLS12381G2Add(t *testing.T)      { testJson("blsG2Add", "0d", t) }
-func TestPrecompiledBLS12381G2MultiExp(t *testing.T) { testJson("blsG2MultiExp", "0f", t) }
-func TestPrecompiledBLS12381Pairing(t *testing.T)    { testJson("blsPairing", "10", t) }
-func TestPrecompiledBLS12381MapG1(t *testing.T)      { testJson("blsMapG1", "11", t) }
-func TestPrecompiledBLS12381MapG2(t *testing.T)      { testJson("blsMapG2", "12", t) }
+func TestPrecompiledBLS12381G1Add(t *testing.T)      { testJson("blsG1Add", "0b", t) }      // EIP-2537 address 0x0b
+func TestPrecompiledBLS12381G1MultiExp(t *testing.T) { testJson("blsG1MultiExp", "0c", t) } // EIP-2537 address 0x0c
+func TestPrecompiledBLS12381G2Add(t *testing.T)      { testJson("blsG2Add", "0d", t) }      // EIP-2537 address 0x0d
+func TestPrecompiledBLS12381G2MultiExp(t *testing.T) { testJson("blsG2MultiExp", "0e", t) } // EIP-2537 address 0x0e
+func TestPrecompiledBLS12381Pairing(t *testing.T)    { testJson("blsPairing", "0f", t) }    // EIP-2537 address 0x0f
+func TestPrecompiledBLS12381MapG1(t *testing.T)      { testJson("blsMapG1", "10", t) }      // EIP-2537 address 0x10
+func TestPrecompiledBLS12381MapG2(t *testing.T)      { testJson("blsMapG2", "11", t) }      // EIP-2537 address 0x11
 func TestPrecompiledPointEvaluation(t *testing.T)    { testJson("pointEvaluation", "14", t) }
 
-func BenchmarkPrecompiledBLS12381G1Add(b *testing.B)      { benchJson("blsG1Add", "0a", b) }
-func BenchmarkPrecompiledBLS12381G1Mul(b *testing.B)      { benchJson("blsG1Mul", "0b", b) }
-func BenchmarkPrecompiledBLS12381G1MultiExp(b *testing.B) { benchJson("blsG1MultiExp", "0c", b) }
-func BenchmarkPrecompiledBLS12381G2Add(b *testing.B)      { benchJson("blsG2Add", "0d", b) }
-func BenchmarkPrecompiledBLS12381G2MultiExp(b *testing.B) { benchJson("blsG2MultiExp", "0f", b) }
-func BenchmarkPrecompiledBLS12381Pairing(b *testing.B)    { benchJson("blsPairing", "10", b) }
-func BenchmarkPrecompiledBLS12381MapG1(b *testing.B)      { benchJson("blsMapG1", "11", b) }
-func BenchmarkPrecompiledBLS12381MapG2(b *testing.B)      { benchJson("blsMapG2", "12", b) }
+func BenchmarkPrecompiledBLS12381G1Add(b *testing.B)      { benchJson("blsG1Add", "0b", b) }      // EIP-2537 address 0x0b
+func BenchmarkPrecompiledBLS12381G1Mul(b *testing.B)      { benchJson("blsG1Mul", "0c", b) }      // G1MSM with k=1
+func BenchmarkPrecompiledBLS12381G1MultiExp(b *testing.B) { benchJson("blsG1MultiExp", "0c", b) } // EIP-2537 address 0x0c
+func BenchmarkPrecompiledBLS12381G2Add(b *testing.B)      { benchJson("blsG2Add", "0d", b) }      // EIP-2537 address 0x0d
+func BenchmarkPrecompiledBLS12381G2MultiExp(b *testing.B) { benchJson("blsG2MultiExp", "0e", b) } // EIP-2537 address 0x0e
+func BenchmarkPrecompiledBLS12381Pairing(b *testing.B)    { benchJson("blsPairing", "0f", b) }    // EIP-2537 address 0x0f
+func BenchmarkPrecompiledBLS12381MapG1(b *testing.B)      { benchJson("blsMapG1", "10", b) }      // EIP-2537 address 0x10
+func BenchmarkPrecompiledBLS12381MapG2(b *testing.B)      { benchJson("blsMapG2", "11", b) }      // EIP-2537 address 0x11
 
-// Failure tests
-func TestPrecompiledBLS12381G1AddFail(t *testing.T)      { testJsonFail("blsG1Add", "0a", t) }
-func TestPrecompiledBLS12381G1MultiExpFail(t *testing.T) { testJsonFail("blsG1MultiExp", "0c", t) }
-func TestPrecompiledBLS12381G2AddFail(t *testing.T)      { testJsonFail("blsG2Add", "0d", t) }
-func TestPrecompiledBLS12381G2MultiExpFail(t *testing.T) { testJsonFail("blsG2MultiExp", "0f", t) }
-func TestPrecompiledBLS12381PairingFail(t *testing.T)    { testJsonFail("blsPairing", "10", t) }
-func TestPrecompiledBLS12381MapG1Fail(t *testing.T)      { testJsonFail("blsMapG1", "11", t) }
-func TestPrecompiledBLS12381MapG2Fail(t *testing.T)      { testJsonFail("blsMapG2", "12", t) }
+// Failure tests for EIP-2537 BLS12-381 precompiles
+func TestPrecompiledBLS12381G1AddFail(t *testing.T)      { testJsonFail("blsG1Add", "0b", t) }      // EIP-2537 address 0x0b
+func TestPrecompiledBLS12381G1MultiExpFail(t *testing.T) { testJsonFail("blsG1MultiExp", "0c", t) } // EIP-2537 address 0x0c
+func TestPrecompiledBLS12381G2AddFail(t *testing.T)      { testJsonFail("blsG2Add", "0d", t) }      // EIP-2537 address 0x0d
+func TestPrecompiledBLS12381G2MultiExpFail(t *testing.T) { testJsonFail("blsG2MultiExp", "0e", t) } // EIP-2537 address 0x0e
+func TestPrecompiledBLS12381PairingFail(t *testing.T)    { testJsonFail("blsPairing", "0f", t) }    // EIP-2537 address 0x0f
+func TestPrecompiledBLS12381MapG1Fail(t *testing.T)      { testJsonFail("blsMapG1", "10", t) }      // EIP-2537 address 0x10
+func TestPrecompiledBLS12381MapG2Fail(t *testing.T)      { testJsonFail("blsMapG2", "11", t) }      // EIP-2537 address 0x11
 
 func loadJson(name string) ([]precompiledTest, error) {
 	data, err := os.ReadFile(fmt.Sprintf("testdata/precompiles/%v.json", name))
