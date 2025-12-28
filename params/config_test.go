@@ -182,3 +182,116 @@ func TestGnosisBlobSchedule(t *testing.T) {
 	assert.Equal(t, uint64(2), b.MaxBlobsPerBlock(isPrague, isOsaka))
 	assert.Equal(t, uint64(1112826), b.BaseFeeUpdateFraction(isPrague, isOsaka))
 }
+
+// EIP-7691: Blob throughput increase
+// Tests the blob schedule constants and gas calculations
+
+func TestEIP7691BlobGasCalculations(t *testing.T) {
+	// EIP-7691 specifies:
+	// Cancun: target=3, max=6, BASE_FEE_UPDATE_FRACTION=3338477
+	// Prague: target=6, max=9, BASE_FEE_UPDATE_FRACTION=5007716
+	// Osaka:  target=10, max=15, BASE_FEE_UPDATE_FRACTION=8346618
+
+	// Blob gas per blob = 131072 (BlobGasPerBlob)
+	const blobGasPerBlob = uint64(131072)
+
+	// Test Cancun (pre-Prague)
+	maxBlobsCancun := MainnetChainConfig.GetMaxBlobsPerBlock(0)
+	assert.Equal(t, uint64(6), maxBlobsCancun)
+	assert.Equal(t, uint64(6)*blobGasPerBlob, MainnetChainConfig.GetMaxBlobGasPerBlock(0))
+
+	// Test target blob gas
+	targetBlobsCancun := MainnetChainConfig.GetTargetBlobsPerBlock(0)
+	assert.Equal(t, uint64(3), targetBlobsCancun)
+	assert.Equal(t, uint64(3)*blobGasPerBlob, MainnetChainConfig.GetTargetBlobGasPerBlock(0))
+}
+
+func TestEIP7691PragueValues(t *testing.T) {
+	// Create a config with Prague enabled
+	pragueTime := big.NewInt(1000)
+	config := &chain.Config{
+		PragueTime: pragueTime,
+	}
+
+	// Before Prague
+	assert.Equal(t, uint64(6), config.GetMaxBlobsPerBlock(999))
+	assert.Equal(t, uint64(3), config.GetTargetBlobsPerBlock(999))
+	assert.Equal(t, uint64(3338477), config.GetBlobGasPriceUpdateFraction(999))
+
+	// After Prague - EIP-7691 values
+	assert.Equal(t, uint64(9), config.GetMaxBlobsPerBlock(1000))
+	assert.Equal(t, uint64(6), config.GetTargetBlobsPerBlock(1000))
+	assert.Equal(t, uint64(5007716), config.GetBlobGasPriceUpdateFraction(1000))
+}
+
+func TestEIP7691OsakaValues(t *testing.T) {
+	// Create a config with Osaka enabled
+	pragueTime := big.NewInt(1000)
+	osakaTime := big.NewInt(2000)
+	config := &chain.Config{
+		PragueTime: pragueTime,
+		OsakaTime:  osakaTime,
+	}
+
+	// Before Osaka (in Prague)
+	assert.Equal(t, uint64(9), config.GetMaxBlobsPerBlock(1500))
+	assert.Equal(t, uint64(6), config.GetTargetBlobsPerBlock(1500))
+
+	// After Osaka - increased blob throughput
+	assert.Equal(t, uint64(15), config.GetMaxBlobsPerBlock(2000))
+	assert.Equal(t, uint64(10), config.GetTargetBlobsPerBlock(2000))
+	assert.Equal(t, uint64(8346618), config.GetBlobGasPriceUpdateFraction(2000))
+}
+
+func TestEIP7691CustomBlobSchedule(t *testing.T) {
+	// Test custom blob schedule override
+	customTarget := uint64(4)
+	customMax := uint64(8)
+	customFraction := uint64(4000000)
+
+	config := &chain.Config{
+		BlobSchedule: &chain.BlobSchedule{
+			Cancun: &chain.BlobConfig{
+				Target:                &customTarget,
+				Max:                   &customMax,
+				BaseFeeUpdateFraction: &customFraction,
+			},
+		},
+	}
+
+	assert.Equal(t, customMax, config.GetMaxBlobsPerBlock(0))
+	assert.Equal(t, customTarget, config.GetTargetBlobsPerBlock(0))
+	assert.Equal(t, customFraction, config.GetBlobGasPriceUpdateFraction(0))
+}
+
+func TestEIP7691NilBlobSchedule(t *testing.T) {
+	// Test with nil blob schedule - should use defaults
+	config := &chain.Config{
+		BlobSchedule: nil,
+	}
+
+	// Should return EIP-4844 defaults
+	assert.Equal(t, uint64(6), config.GetMaxBlobsPerBlock(0))
+	assert.Equal(t, uint64(3), config.GetTargetBlobsPerBlock(0))
+	assert.Equal(t, uint64(3338477), config.GetBlobGasPriceUpdateFraction(0))
+}
+
+func TestEIP7691MaxBlobGasConsistency(t *testing.T) {
+	const blobGasPerBlob = uint64(131072)
+
+	// Verify that max blob gas = max blobs * blob gas per blob
+	// Cancun
+	assert.Equal(t, uint64(6)*blobGasPerBlob, MainnetChainConfig.GetMaxBlobGasPerBlock(0))
+
+	// Prague (EIP-7691)
+	pragueTime := big.NewInt(1000)
+	config := &chain.Config{
+		PragueTime: pragueTime,
+	}
+	assert.Equal(t, uint64(9)*blobGasPerBlob, config.GetMaxBlobGasPerBlock(1000))
+
+	// Osaka
+	osakaTime := big.NewInt(2000)
+	config.OsakaTime = osakaTime
+	assert.Equal(t, uint64(15)*blobGasPerBlob, config.GetMaxBlobGasPerBlock(2000))
+}
