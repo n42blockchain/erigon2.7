@@ -156,7 +156,9 @@ func (b *blockCollector) Flush(ctx context.Context) error {
 			}
 			blocksBatch = []*types.Block{}
 		}
-		return next(k, nil, nil)
+		// Don't call next() with nil values since we're using ETL without a bucket
+		// The bucket is empty ("") so there's no cursor to work with
+		return nil
 	}, etl.TransformArgs{}); err != nil {
 		return err
 	}
