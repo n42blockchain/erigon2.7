@@ -708,6 +708,13 @@ var ChaindataTables = []string{
 	ActiveValidatorIndicies,
 	EffectiveBalancesDump,
 	BalancesDump,
+	// Electra pending operations
+	PendingDeposits,
+	PendingDepositsDump,
+	PendingConsolidations,
+	PendingConsolidationsDump,
+	PendingPartialWithdrawals,
+	PendingPartialWithdrawalsDump,
 }
 
 const (
