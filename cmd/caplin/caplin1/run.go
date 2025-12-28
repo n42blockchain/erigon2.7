@@ -29,7 +29,11 @@ import (
 	"github.com/erigontech/erigon/cl/validator/validator_params"
 	"github.com/erigontech/erigon/eth/ethconfig"
 	"github.com/erigontech/erigon/params"
+	"github.com/erigontech/erigon/turbo/snapshotsync"
 	"github.com/erigontech/erigon/turbo/snapshotsync/freezeblocks"
+	"github.com/erigontech/erigon/cl/das"
+	"github.com/erigontech/erigon/p2p/enode"
+	"golang.org/x/sync/semaphore"
 
 	"github.com/spf13/afero"
 
@@ -41,8 +45,10 @@ import (
 	"github.com/erigontech/erigon/cl/persistence/state/historical_states_reader"
 	"github.com/erigontech/erigon/cl/phase1/core/state"
 	"github.com/erigontech/erigon/cl/phase1/execution_client"
+	peerdasstate "github.com/erigontech/erigon/cl/das/state"
 	"github.com/erigontech/erigon/cl/phase1/forkchoice"
 	"github.com/erigontech/erigon/cl/phase1/forkchoice/fork_graph"
+	"github.com/erigontech/erigon/cl/phase1/forkchoice/public_keys_registry"
 	"github.com/erigontech/erigon/cl/phase1/network"
 	"github.com/erigontech/erigon/cl/phase1/network/services"
 	"github.com/erigontech/erigon/cl/phase1/stages"
@@ -116,7 +122,7 @@ func RunCaplinPhase1(ctx context.Context, engine execution_client.ExecutionEngin
 	rcsn := freezeblocks.NewBeaconSnapshotReader(csn, eth1Getter, beaconConfig)
 
 	pool := pool.NewOperationsPool(beaconConfig)
-	attestationProducer := attestation_producer.New(beaconConfig)
+	attestationProducer := attestation_producer.New(ctx, beaconConfig)
 
 	caplinFcuPath := path.Join(dirs.Tmp, "caplin-forkchoice")
 	os.RemoveAll(caplinFcuPath)
@@ -125,12 +131,31 @@ func RunCaplinPhase1(ctx context.Context, engine execution_client.ExecutionEngin
 		return err
 	}
 	fcuFs := afero.NewBasePathFs(afero.NewOsFs(), caplinFcuPath)
-	syncedDataManager := synced_data.NewSyncedDataManager(true, beaconConfig)
+	syncedDataManager := synced_data.NewSyncedDataManager(beaconConfig, true)
 
 	syncContributionPool := sync_contribution_pool.NewSyncContributionPool(beaconConfig)
-	emitters := beaconevents.NewEmitters()
+	eventEmitter := beaconevents.NewEventEmitter()
 	aggregationPool := aggregation.NewAggregationPool(ctx, beaconConfig, networkConfig, ethClock)
-	forkChoice, err := forkchoice.NewForkChoiceStore(ethClock, state, engine, pool, fork_graph.NewForkGraphDisk(state, fcuFs, config.BeaconRouter), emitters, syncedDataManager, blobStorage)
+	localValidators := validator_params.NewValidatorParams()
+
+	// Create data column storage for PeerDAS
+	columnFs := afero.NewBasePathFs(afero.NewOsFs(), path.Join(dirs.Tmp, "data-columns"))
+	dataColumnStorage := blob_storage.NewDataColumnStore(columnFs, 1000, beaconConfig, ethClock, eventEmitter)
+
+	// Create PeerDAS state
+	peerDasState := peerdasstate.NewPeerDasState(beaconConfig, networkConfig)
+
+	// Create Caplin state snapshots
+	stateSn := snapshotsync.NewCaplinStateSnapshots()
+
+	// Create semaphore for snapshot building
+	snBuildSema := semaphore.NewWeighted(1)
+
+	// Create batch signature verifier
+	batchSignatureVerifier := services.NewBatchSignatureVerifier(ctx, nil)
+	go batchSignatureVerifier.Start()
+
+	forkChoice, err := forkchoice.NewForkChoiceStore(ethClock, state, engine, pool, fork_graph.NewForkGraphDisk(state, syncedDataManager, fcuFs, config.BeaconRouter, eventEmitter), eventEmitter, syncedDataManager, blobStorage, public_keys_registry.NewInMemoryPublicKeysRegistry(), localValidators, false)
 	if err != nil {
 		logger.Error("Could not create forkchoice", "err", err)
 		return err
@@ -150,7 +175,7 @@ func RunCaplinPhase1(ctx context.Context, engine execution_client.ExecutionEngin
 	}
 	activeIndicies := state.GetActiveValidatorsIndices(state.Slot() / beaconConfig.SlotsPerEpoch)
 
-	sentinel, err := service.StartSentinelService(&sentinel.SentinelConfig{
+	sentinelClient, _, err := service.StartSentinelService(&sentinel.SentinelConfig{
 		IpAddr:         config.LightClientDiscoveryAddr,
 		Port:           int(config.LightClientDiscoveryPort),
 		TCPPort:        uint(config.LightClientDiscoveryTCPPort),
@@ -160,36 +185,36 @@ func RunCaplinPhase1(ctx context.Context, engine execution_client.ExecutionEngin
 		EnableBlocks:   true,
 		ActiveIndicies: uint64(len(activeIndicies)),
 	}, rcsn, blobStorage, indexDB, &service.ServerConfig{
-		Network:   "tcp",
-		Addr:      fmt.Sprintf("%s:%d", config.SentinelAddr, config.SentinelPort),
-		Creds:     creds,
-		Validator: config.BeaconRouter.Validator,
+		Network: "tcp",
+		Addr:    fmt.Sprintf("%s:%d", config.SentinelAddr, config.SentinelPort),
+		Creds:   creds,
 		InitialStatus: &cltypes.Status{
 			ForkDigest:     forkDigest,
-			FinalizedRoot:  state.FinalizedCheckpoint().BlockRoot(),
-			FinalizedEpoch: state.FinalizedCheckpoint().Epoch(),
-			HeadSlot:       state.FinalizedCheckpoint().Epoch() * beaconConfig.SlotsPerEpoch,
-			HeadRoot:       state.FinalizedCheckpoint().BlockRoot(),
+			FinalizedRoot:  state.FinalizedCheckpoint().Root,
+			FinalizedEpoch: state.FinalizedCheckpoint().Epoch,
+			HeadSlot:       state.FinalizedCheckpoint().Epoch * beaconConfig.SlotsPerEpoch,
+			HeadRoot:       state.FinalizedCheckpoint().Root,
 		},
-	}, ethClock, forkChoice, logger)
+	}, ethClock, forkChoice, dataColumnStorage, peerDasState, logger)
 	if err != nil {
 		return err
 	}
-	beaconRpc := rpc.NewBeaconRpcP2P(ctx, sentinel, beaconConfig, ethClock)
-	committeeSub := committee_subscription.NewCommitteeSubscribeManagement(ctx, indexDB, beaconConfig, networkConfig, ethClock, sentinel, state, aggregationPool, syncedDataManager)
+	beaconRpc := rpc.NewBeaconRpcP2P(ctx, sentinelClient, beaconConfig, ethClock, state)
+	committeeSub := committee_subscription.NewCommitteeSubscribeManagement(ctx, indexDB, beaconConfig, networkConfig, ethClock, sentinelClient, aggregationPool, syncedDataManager)
 	// Define gossip services
-	blockService := services.NewBlockService(ctx, indexDB, forkChoice, syncedDataManager, ethClock, beaconConfig, emitters)
-	blobService := services.NewBlobSidecarService(ctx, beaconConfig, forkChoice, syncedDataManager, ethClock, false)
-	syncCommitteeMessagesService := services.NewSyncCommitteeMessagesService(beaconConfig, ethClock, syncedDataManager, syncContributionPool, false)
-	attestationService := services.NewAttestationService(ctx, forkChoice, committeeSub, ethClock, syncedDataManager, beaconConfig, networkConfig)
-	syncContributionService := services.NewSyncContributionService(syncedDataManager, beaconConfig, syncContributionPool, ethClock, emitters, false)
-	aggregateAndProofService := services.NewAggregateAndProofService(ctx, syncedDataManager, forkChoice, beaconConfig, pool, false)
-	voluntaryExitService := services.NewVoluntaryExitService(pool, emitters, syncedDataManager, beaconConfig, ethClock)
-	blsToExecutionChangeService := services.NewBLSToExecutionChangeService(pool, emitters, syncedDataManager, beaconConfig)
-	proposerSlashingService := services.NewProposerSlashingService(pool, syncedDataManager, beaconConfig, ethClock)
+	blockService := services.NewBlockService(ctx, indexDB, forkChoice, syncedDataManager, ethClock, beaconConfig, eventEmitter)
+	blobService := services.NewBlobSidecarService(ctx, beaconConfig, forkChoice, syncedDataManager, ethClock, eventEmitter, false)
+	dataColumnSidecarService := services.NewDataColumnSidecarService(beaconConfig, ethClock, forkChoice, syncedDataManager, dataColumnStorage, eventEmitter)
+	syncCommitteeMessagesService := services.NewSyncCommitteeMessagesService(beaconConfig, ethClock, syncedDataManager, syncContributionPool, batchSignatureVerifier, false)
+	attestationService := services.NewAttestationService(ctx, forkChoice, committeeSub, ethClock, syncedDataManager, beaconConfig, networkConfig, eventEmitter, batchSignatureVerifier)
+	syncContributionService := services.NewSyncContributionService(syncedDataManager, beaconConfig, syncContributionPool, ethClock, eventEmitter, batchSignatureVerifier, false)
+	aggregateAndProofService := services.NewAggregateAndProofService(ctx, syncedDataManager, forkChoice, beaconConfig, pool, false, batchSignatureVerifier)
+	voluntaryExitService := services.NewVoluntaryExitService(pool, eventEmitter, syncedDataManager, beaconConfig, ethClock, batchSignatureVerifier)
+	blsToExecutionChangeService := services.NewBLSToExecutionChangeService(pool, eventEmitter, syncedDataManager, beaconConfig, batchSignatureVerifier)
+	proposerSlashingService := services.NewProposerSlashingService(pool, syncedDataManager, beaconConfig, ethClock, eventEmitter)
 	// Create the gossip manager
-	gossipManager := network.NewGossipReceiver(sentinel, forkChoice, beaconConfig, ethClock, emitters, committeeSub,
-		blockService, blobService, syncCommitteeMessagesService, syncContributionService, aggregateAndProofService,
+	gossipManager := network.NewGossipReceiver(sentinelClient, forkChoice, beaconConfig, networkConfig, ethClock, eventEmitter, committeeSub,
+		blockService, blobService, dataColumnSidecarService, syncCommitteeMessagesService, syncContributionService, aggregateAndProofService,
 		attestationService, voluntaryExitService, blsToExecutionChangeService, proposerSlashingService)
 	{ // start ticking forkChoice
 		go func() {
@@ -225,7 +250,6 @@ func RunCaplinPhase1(ctx context.Context, engine execution_client.ExecutionEngin
 			}
 		}()
 	}
-	antiquary.IsTest = false
 
 	tx, err := indexDB.BeginRw(ctx)
 	if err != nil {
@@ -238,9 +262,6 @@ func RunCaplinPhase1(ctx context.Context, engine execution_client.ExecutionEngin
 		return err
 	}
 
-	if err := state_accessors.InitializeStaticTables(tx, state); err != nil {
-		return err
-	}
 	if err := beacon_indicies.WriteHighestFinalized(tx, 0); err != nil {
 		return err
 	}
@@ -257,7 +278,7 @@ func RunCaplinPhase1(ctx context.Context, engine execution_client.ExecutionEngin
 	if err != nil {
 		return err
 	}
-	antiq := antiquary.NewAntiquary(ctx, blobStorage, genesisState, vTables, beaconConfig, dirs, snDownloader, indexDB, csn, rcsn, logger, states, backfilling, blobBackfilling)
+	antiq := antiquary.NewAntiquary(ctx, blobStorage, genesisState, vTables, beaconConfig, dirs, snDownloader, indexDB, stateSn, csn, rcsn, syncedDataManager, logger, states, backfilling, blobBackfilling, false, snBuildSema)
 	// Create the antiquary
 	go func() {
 		if err := antiq.Loop(); err != nil {
@@ -269,8 +290,12 @@ func RunCaplinPhase1(ctx context.Context, engine execution_client.ExecutionEngin
 		return err
 	}
 
-	statesReader := historical_states_reader.NewHistoricalStatesReader(beaconConfig, rcsn, vTables, genesisState)
+	statesReader := historical_states_reader.NewHistoricalStatesReader(beaconConfig, rcsn, vTables, genesisState, stateSn, syncedDataManager)
 	validatorParameters := validator_params.NewValidatorParams()
+
+	// Create PeerDas
+	caplinConfig := clparams.CaplinConfig{}
+	peerDas := das.NewPeerDas(ctx, beaconRpc, beaconConfig, &caplinConfig, dataColumnStorage, blobStorage, sentinelClient, enode.ID{}, ethClock, peerDasState)
 	if config.BeaconRouter.Active {
 		apiHandler := handler.NewApiHandler(
 			logger,
@@ -283,11 +308,12 @@ func RunCaplinPhase1(ctx context.Context, engine execution_client.ExecutionEngin
 			rcsn,
 			syncedDataManager,
 			statesReader,
-			sentinel,
+			sentinelClient,
 			params.GitTag,
 			&config.BeaconRouter,
-			emitters,
+			eventEmitter,
 			blobStorage,
+			dataColumnStorage,
 			csn,
 			validatorParameters,
 			attestationProducer,
@@ -302,6 +328,10 @@ func RunCaplinPhase1(ctx context.Context, engine execution_client.ExecutionEngin
 			voluntaryExitService,
 			blsToExecutionChangeService,
 			proposerSlashingService,
+			nil,     // builderClient
+			stateSn, // stateSnapshots
+			false,   // enableMemoizedHeadState
+			peerDas, // peerDas
 		)
 		go beacon.ListenAndServe(&beacon.LayeredBeaconHandler{
 			ArchiveApi: apiHandler,
@@ -309,7 +339,7 @@ func RunCaplinPhase1(ctx context.Context, engine execution_client.ExecutionEngin
 		log.Info("Beacon API started", "addr", config.BeaconRouter.Address)
 	}
 
-	stageCfg := stages.ClStagesCfg(beaconRpc, antiq, ethClock, beaconConfig, state, engine, gossipManager, forkChoice, indexDB, csn, rcsn, dirs.Tmp, dbConfig, backfilling, blobBackfilling, syncedDataManager, emitters, blobStorage, attestationProducer)
+	stageCfg := stages.ClStagesCfg(beaconRpc, antiq, ethClock, beaconConfig, state, engine, gossipManager, forkChoice, indexDB, csn, rcsn, dirs, dbConfig.PruneDepth, caplinConfig, syncedDataManager, eventEmitter, blobStorage, attestationProducer, peerDas)
 	sync := stages.ConsensusClStages(ctx, stageCfg)
 
 	logger.Info("[Caplin] starting clstages loop")

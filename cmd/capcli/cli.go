@@ -153,7 +153,7 @@ func (c *Chain) Run(ctx *Context) error {
 	}
 	defer db.Close()
 
-	beacon := rpc.NewBeaconRpcP2P(ctx, s, beaconConfig, ethClock)
+	beacon := rpc.NewBeaconRpcP2P(ctx, s, beaconConfig, ethClock, bs)
 
 	bRoot, err := bs.BlockRoot()
 	if err != nil {
@@ -175,8 +175,9 @@ func (c *Chain) Run(ctx *Context) error {
 		return err
 	}
 
-	downloader := network.NewBackwardBeaconDownloader(ctx, beacon, nil, db)
-	cfg := stages.StageHistoryReconstruction(downloader, antiquary.NewAntiquary(ctx, nil, nil, nil, nil, dirs, nil, nil, nil, nil, nil, false, false, false), csn, db, nil, beaconConfig, true, false, true, bRoot, bs.Slot(), "/tmp", 300*time.Millisecond, nil, nil, blobStorage, log.Root())
+	downloader := network.NewBackwardBeaconDownloader(ctx, beacon, csn, nil, db)
+	antiq := antiquary.NewAntiquary(ctx, blobStorage, bs, nil, beaconConfig, dirs, nil, db, nil, csn, nil, nil, log.Root(), false, false, false, false, nil)
+	cfg := stages.StageHistoryReconstruction(downloader, antiq, csn, db, nil, beaconConfig, clparams.CaplinConfig{}, true, bRoot, bs.Slot(), "/tmp", 300*time.Millisecond, nil, nil, blobStorage, log.Root(), nil)
 	return stages.SpawnStageHistoryDownload(cfg, ctx, log.Root())
 }
 
@@ -571,7 +572,7 @@ func (r *RetrieveHistoricalState) Run(ctx *Context) error {
 
 	var bor *freezeblocks.BorRoSnapshots
 	blockReader := freezeblocks.NewBlockReader(allSnapshots, bor)
-	eth1Getter := getters.NewExecutionSnapshotReader(ctx, beaconConfig, blockReader, db)
+	eth1Getter := getters.NewExecutionSnapshotReader(ctx, blockReader, db)
 	csn := freezeblocks.NewCaplinSnapshots(ethconfig.BlocksFreezing{}, beaconConfig, dirs, log.Root())
 	if err := csn.ReopenFolder(); err != nil {
 		return err
@@ -582,7 +583,7 @@ func (r *RetrieveHistoricalState) Run(ctx *Context) error {
 		return err
 	}
 
-	hr := historical_states_reader.NewHistoricalStatesReader(beaconConfig, snr, vt, gSpot)
+	hr := historical_states_reader.NewHistoricalStatesReader(beaconConfig, snr, vt, gSpot, nil, nil)
 	start := time.Now()
 	haveState, err := hr.ReadHistoricalState(ctx, tx, r.CompareSlot)
 	if err != nil {

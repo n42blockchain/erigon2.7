@@ -34,6 +34,8 @@ const (
 	GnosisChainID  uint64 = 100
 	ChiadoChainID  uint64 = 10200
 	HoodiChainID   uint64 = 560048
+	HoleskyChainID uint64 = 17000
+	GoerliChainID  uint64 = 5
 )
 
 // Config is the core config which determines the blockchain settings.

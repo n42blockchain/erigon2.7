@@ -174,9 +174,9 @@ func (s *CaplinService) Start() error {
 			s.dirs,
 			nil, // eth1Getter - will use execution client
 			s.snDownloader,
-			s.config.CaplinConfig.Backfilling,
-			s.config.CaplinConfig.BlobBackfilling,
-			s.config.CaplinConfig.Archive,
+			s.config.CaplinConfig.ArchiveBlocks,           // backfilling
+			s.config.CaplinConfig.ImmediateBlobsBackfilling, // blobBackfilling
+			s.config.CaplinConfig.ArchiveStates,            // states (archive mode)
 			indexDB,
 			blobStorage,
 			s.creds,
