@@ -117,21 +117,7 @@ func TestETH69VsETH68Differences(t *testing.T) {
 	}
 }
 
-// StatusPacket69 represents the proposed eth/69 status message with EIP-7642 fields
-// TODO: This is the target structure for EIP-7642 implementation
-type StatusPacket69 struct {
-	ProtocolVersion uint32
-	NetworkID       uint64
-	TD              *big.Int
-	Head            libcommon.Hash
-	Genesis         libcommon.Hash
-	ForkID          forkid.ID
-	// EIP-7642 additions:
-	EarliestBlock uint64 // Earliest block this node can serve
-	LatestBlock   uint64 // Latest block this node can serve (usually same as head)
-}
-
-// TestStatusPacket69Fields tests the proposed StatusPacket69 structure
+// TestStatusPacket69Fields tests the StatusPacket69 structure from protocol_eip7642.go
 func TestStatusPacket69Fields(t *testing.T) {
 	status := StatusPacket69{
 		ProtocolVersion: 69,
@@ -149,16 +135,9 @@ func TestStatusPacket69Fields(t *testing.T) {
 	assert.True(t, status.EarliestBlock < status.LatestBlock)
 }
 
-// BlockRangeUpdate represents the proposed BlockRangeUpdate message for EIP-7642
-// TODO: This message type needs to be added to the protocol
-type BlockRangeUpdate struct {
-	EarliestBlock uint64 // Updated earliest block
-	LatestBlock   uint64 // Updated latest block
-}
-
-// TestBlockRangeUpdate tests the proposed BlockRangeUpdate message
+// TestBlockRangeUpdate tests the BlockRangeUpdatePacket from protocol_eip7642.go
 func TestBlockRangeUpdate(t *testing.T) {
-	update := BlockRangeUpdate{
+	update := BlockRangeUpdatePacket{
 		EarliestBlock: 1500000,
 		LatestBlock:   2500000,
 	}

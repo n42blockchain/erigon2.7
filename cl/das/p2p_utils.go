@@ -2,6 +2,10 @@ package das
 
 import (
 	"crypto/sha256"
+	"fmt"
+	"runtime"
+
+	goethkzg "github.com/crate-crypto/go-eth-kzg"
 
 	"github.com/erigontech/erigon/cl/clparams"
 	"github.com/erigontech/erigon/cl/cltypes"
@@ -10,15 +14,77 @@ import (
 	"github.com/erigontech/erigon-lib/log/v3"
 )
 
-// RecoverBlobs recovers blobs from data column sidecars using the provided blob storage.
-// NOTE: This is a stub implementation - actual recovery requires go-eth-kzg support
+// CellsPerExtBlob is the number of cells in an extended blob (128).
+const CellsPerExtBlob = goethkzg.CellsPerExtBlob
+
+// RecoverBlobs recovers blobs from data column sidecars.
+// This implements the blob recovery mechanism from EIP-7594.
 func RecoverBlobs(sidecars []*cltypes.DataColumnSidecar) ([]cltypes.Blob, error) {
-	// TODO: Implement actual blob recovery when go-eth-kzg supports it
-	log.Warn("[PeerDAS] Blob recovery not implemented - requires go-eth-kzg DAS support")
-	return nil, nil
+	if len(sidecars) == 0 {
+		return nil, nil
+	}
+
+	// Group cells by blob index
+	blobCount := 0
+	for _, sidecar := range sidecars {
+		if sidecar.KzgCommitments.Len() > blobCount {
+			blobCount = sidecar.KzgCommitments.Len()
+		}
+	}
+
+	if blobCount == 0 {
+		return nil, nil
+	}
+
+	ctx, err := goethkzg.NewContext4096Secure()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create KZG context: %w", err)
+	}
+
+	blobs := make([]cltypes.Blob, blobCount)
+	numGoRoutines := runtime.NumCPU()
+
+	// Recover each blob
+	for blobIdx := 0; blobIdx < blobCount; blobIdx++ {
+		var cellIDs []uint64
+		var cells []*goethkzg.Cell
+
+		// Collect cells for this blob from all sidecars
+		for _, sidecar := range sidecars {
+			if sidecar.Column.Len() > blobIdx {
+				cellIDs = append(cellIDs, sidecar.Index)
+				cellPtr := sidecar.Column.Get(blobIdx)
+				cell := goethkzg.Cell(*cellPtr)
+				cells = append(cells, &cell)
+			}
+		}
+
+		if len(cells) < CellsPerExtBlob/2 {
+			return nil, fmt.Errorf("not enough cells for blob %d recovery: need at least %d, got %d",
+				blobIdx, CellsPerExtBlob/2, len(cells))
+		}
+
+		// Recover all cells
+		recoveredCells, _, err := ctx.RecoverCellsAndComputeKZGProofs(cellIDs, cells, numGoRoutines)
+		if err != nil {
+			return nil, fmt.Errorf("failed to recover cells for blob %d: %w", blobIdx, err)
+		}
+
+		// Reconstruct blob from cells
+		var blobData goethkzg.Blob
+		for i, cell := range recoveredCells {
+			if cell != nil {
+				copy(blobData[i*len(cell):], cell[:])
+			}
+		}
+		blobs[blobIdx] = cltypes.Blob(blobData)
+	}
+
+	return blobs, nil
 }
 
-// VerifyDataColumnSidecar verifies that a data column sidecar is valid
+// VerifyDataColumnSidecar verifies that a data column sidecar is valid.
+// This includes verifying the inclusion proof and KZG proofs.
 func VerifyDataColumnSidecar(sidecar *cltypes.DataColumnSidecar) bool {
 	if sidecar == nil {
 		return false
@@ -26,13 +92,9 @@ func VerifyDataColumnSidecar(sidecar *cltypes.DataColumnSidecar) bool {
 	return VerifyDataColumnSidecarInclusionProof(sidecar) && VerifyDataColumnsSidecarKZGProofs(sidecar)
 }
 
-// VerifyDataColumnsSidecarKZGProofs verifies the KZG proofs for data column sidecars
-// NOTE: This is a stub implementation - actual verification requires go-eth-kzg support
+// VerifyDataColumnsSidecarKZGProofs verifies the KZG proofs for a data column sidecar.
+// This implements verify_cell_kzg_proof_batch from EIP-7594.
 func VerifyDataColumnsSidecarKZGProofs(sidecar *cltypes.DataColumnSidecar) bool {
-	// TODO: Implement actual KZG proof verification when go-eth-kzg supports it
-	// For now, we log a warning and return true to allow the system to proceed
-	log.Trace("[PeerDAS] KZG proof verification not implemented - requires go-eth-kzg DAS support")
-	
 	// Basic structure validation
 	if sidecar == nil {
 		return false
@@ -40,17 +102,69 @@ func VerifyDataColumnsSidecarKZGProofs(sidecar *cltypes.DataColumnSidecar) bool 
 	if sidecar.KzgCommitments.Len() == 0 {
 		return false
 	}
-	
-	// Return true for now since we can't verify without proper KZG support
+
+	ctx, err := goethkzg.NewContext4096Secure()
+	if err != nil {
+		log.Error("[PeerDAS] Failed to create KZG context", "err", err)
+		return false
+	}
+
+	// Build verification inputs
+	commitments := make([]goethkzg.KZGCommitment, sidecar.KzgCommitments.Len())
+	for i := 0; i < sidecar.KzgCommitments.Len(); i++ {
+		commitment := sidecar.KzgCommitments.Get(i)
+		commitments[i] = goethkzg.KZGCommitment(*commitment)
+	}
+
+	cellIndices := make([]uint64, sidecar.Column.Len())
+	cells := make([]*goethkzg.Cell, sidecar.Column.Len())
+	proofs := make([]goethkzg.KZGProof, sidecar.KzgProofs.Len())
+
+	for i := 0; i < sidecar.Column.Len(); i++ {
+		cellIndices[i] = sidecar.Index
+		cellPtr := sidecar.Column.Get(i)
+		cell := goethkzg.Cell(*cellPtr)
+		cells[i] = &cell
+	}
+
+	for i := 0; i < sidecar.KzgProofs.Len(); i++ {
+		proof := sidecar.KzgProofs.Get(i)
+		proofs[i] = goethkzg.KZGProof(*proof)
+	}
+
+	err = ctx.VerifyCellKZGProofBatch(commitments, cellIndices, cells, proofs)
+	if err != nil {
+		log.Debug("[PeerDAS] KZG proof verification failed", "err", err, "columnIndex", sidecar.Index)
+		return false
+	}
+
 	return true
 }
 
-// ComputeCells computes cells from a blob
-// NOTE: This is a stub implementation - actual computation requires go-eth-kzg support
-func ComputeCells(blobs *cltypes.Blob) ([]cltypes.Cell, error) {
-	// TODO: Implement actual cell computation when go-eth-kzg supports it
-	log.Warn("[PeerDAS] Cell computation not implemented - requires go-eth-kzg DAS support")
-	return nil, nil
+// ComputeCells computes cells from a blob.
+// This implements compute_cells from EIP-7594.
+func ComputeCells(blob *cltypes.Blob) ([]cltypes.Cell, error) {
+	ctx, err := goethkzg.NewContext4096Secure()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create KZG context: %w", err)
+	}
+
+	goethBlob := (*goethkzg.Blob)(blob)
+	numGoRoutines := runtime.NumCPU()
+
+	cells, err := ctx.ComputeCells(goethBlob, numGoRoutines)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute cells: %w", err)
+	}
+
+	result := make([]cltypes.Cell, CellsPerExtBlob)
+	for i := 0; i < CellsPerExtBlob; i++ {
+		if cells[i] != nil {
+			result[i] = cltypes.Cell(*cells[i])
+		}
+	}
+
+	return result, nil
 }
 
 // VerifyDataColumnSidecarKZGProofs is an alias for VerifyDataColumnsSidecarKZGProofs

@@ -257,17 +257,33 @@ func TestRecoverMatrix_NotImplemented(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestRecoverCellsAndKZGProofs_NotImplemented(t *testing.T) {
-	// This should return an error as it requires go-eth-kzg library
+func TestRecoverCellsAndKZGProofs_InsufficientCells(t *testing.T) {
+	// This should return an error as there are not enough cells
 	_, _, err := RecoverCellsAndKZGProofs(nil, nil)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not implemented")
+	// The new implementation requires at least 64 cells for recovery
+	assert.Contains(t, err.Error(), "not enough cells")
 }
 
-func TestComputeCellsAndKZGProofs_NotImplemented(t *testing.T) {
-	// This should return an error as it requires go-eth-kzg library
+func TestComputeCellsAndKZGProofs_InvalidBlobSize(t *testing.T) {
+	// This should return an error for invalid blob size
 	_, _, err := ComputeCellsAndKZGProofs([]byte{})
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not implemented")
+	// The new implementation validates blob size (must be BYTES_PER_BLOB)
+	assert.Contains(t, err.Error(), "invalid blob size")
+}
+
+func TestComputeCellsAndKZGProofs_ValidBlob(t *testing.T) {
+	// Skip if running short tests as this is computationally expensive
+	if testing.Short() {
+		t.Skip("Skipping KZG computation test in short mode")
+	}
+	
+	// Create a valid blob (all zeros)
+	blob := make([]byte, 131072) // BYTES_PER_BLOB
+	cells, proofs, err := ComputeCellsAndKZGProofs(blob)
+	assert.NoError(t, err)
+	assert.Len(t, cells, 128) // CellsPerExtBlob
+	assert.Len(t, proofs, 128)
 }
 
