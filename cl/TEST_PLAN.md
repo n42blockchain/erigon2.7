@@ -48,12 +48,13 @@ This document describes the current status of CL (Consensus Layer) tests and the
 | `cl/beacon/builder` | 2 tests | ✅ PASS |
 | `cl/sentinel/handlers` | 10 tests | ✅ PASS |
 
-#### ⚠️ Compilation Fixed, Runtime Failures (PendingDeposits Table Missing)
-| Package | Issue | Action Required |
-|---------|-------|-----------------|
-| `cl/sentinel` | Missing PendingDeposits table | Add table to kv/tables.go |
-| `cl/beacon/handler` | Missing PendingDeposits table | Add table to kv/tables.go |
-| `cl/antiquary` | Missing PendingDeposits table | Add table to kv/tables.go |
+| `cl/beacon/handler` | 25+ tests | ✅ PASS |
+| `cl/phase1/core/checkpoint_sync` | 3 tests | ✅ PASS |
+
+#### ⚠️ Pre-existing Test Issues (Not Migration Related)
+| Package | Issue | Status |
+|---------|-------|--------|
+| `cl/phase1/execution_client/block_collector` | ETL Load requires DB context | 🔧 Needs test fix |
 
 ### 2. Spec Tests (Ethereum Consensus Spec)
 
@@ -103,19 +104,20 @@ make capella
 
 ## Known Issues
 
-### 1. Missing Database Tables
-The following tables need to be added to `erigon-lib/kv/tables.go`:
-- `PendingDeposits`
-- `PendingDepositsDump`
-- `PendingConsolidations`
-- `PendingConsolidationsDump`
-- `PendingPartialWithdrawals`
-- `PendingPartialWithdrawalsDump`
-- `ParentRootToBlockRoots`
+### 1. Database Tables (FIXED)
+The following tables have been added to `ChaindataTables` in `erigon-lib/kv/tables.go`:
+- ✅ `PendingDeposits`
+- ✅ `PendingDepositsDump`
+- ✅ `PendingConsolidations`
+- ✅ `PendingConsolidationsDump`
+- ✅ `PendingPartialWithdrawals`
+- ✅ `PendingPartialWithdrawalsDump`
 
-These are already declared as string constants in `tables.go` but need to be:
-1. Added to the appropriate table creation list
-2. Registered for the `memdb` test database
+### 2. Pre-existing Test Issues
+The following test has a pre-existing issue unrelated to v3.3.2 migration:
+- `cl/phase1/execution_client/block_collector/block_collector_test.go`: 
+  - Issue: ETL collector Flush requires valid DB context
+  - The test doesn't provide proper DB initialization for ETL load operations
 
 ### 2. API Compatibility
 Some v3.3.2 APIs differ from the current codebase:
