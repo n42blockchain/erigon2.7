@@ -34,6 +34,9 @@ func TestBlockchain(t *testing.T) {
 	}
 
 	bt := new(testMatcher)
+	// Skip .meta directories which contain metadata, not test files
+	bt.skipLoad(`^\.meta/`)
+	bt.skipLoad(`/\.meta/`)
 	// General state tests are 'exported' as blockchain tests, but we can run them natively.
 	// For speedier CI-runs those are skipped.
 	bt.skipLoad(`^GeneralStateTests/`)

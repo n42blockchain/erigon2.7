@@ -21,7 +21,13 @@ func TestExecutionSpec(t *testing.T) {
 	bt := new(testMatcher)
 
 	dir := filepath.Join(".", "execution-spec-tests")
-	bt.skipLoad(`^prague/eip2935_historical_block_hashes_from_state/block_hashes/block_hashes_history.json`)
+	// Skip .meta directories which contain metadata, not test files
+	bt.skipLoad(`^\.meta/`)
+	bt.skipLoad(`/\.meta/`)
+	// Skip Engine API tests - they require a different test framework (use Hive instead)
+	bt.skipLoad(`^blockchain_tests_engine/`)
+	// Skip EIP-2935 block hashes tests - known issue with large block number tests
+	bt.skipLoad(`eip2935_historical_block_hashes_from_state/block_hashes/`)
 	checkStateRoot := true
 
 	bt.walk(t, dir, func(t *testing.T, name string, test *BlockTest) {

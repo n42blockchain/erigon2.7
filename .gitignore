@@ -74,6 +74,8 @@ __pycache__
 
 libmdbx/build/*
 tests/testdata/*
+tests/execution-spec-tests/
+tests/fixtures.tar.gz
 
 go.work*
 
