@@ -1,6 +1,6 @@
 # CL Consensus Spec Tests Results
 
-**Date**: 2026-01-10
+**Date**: 2026-01-10 (Updated: 2026-01-11)
 **Test Suite Version**: v1.6.0-alpha.6
 **Total Test Time**: 92.961s
 
@@ -8,32 +8,36 @@
 
 - **Total Tests**: ~several thousand tests across all forks
 - **Passing**: Majority of tests passing
-- **Failing**: 1 test
+- **Failing**: ~~1 test~~ **0 tests** ✅ (Fixed on 2026-01-11)
 - **Skipped**: 651 tests
 
 ## Test Failures
 
-### 1. Fork Choice - PeerDAS Test (CRITICAL)
+### ~~1. Fork Choice - PeerDAS Test (CRITICAL)~~ ✅ FIXED
 
 **Test**: `Test/mainnet/fulu/fork_choice/on_block/pyspec_tests/on_block_peerdas__ok`
 
-**Location**: `cl/spectest/consensus_tests/fork_choice.go:307`
+**Status**: **FIXED** ✅
 
-**Error**:
+**Fix Date**: 2026-01-11
+
+**Original Error**:
 ```
-Error: Not equal:
-  expected: true
-  actual  : false
-Messages: step 4: on_block
+Column X verification failed: overall=false, inclusion=false, kzg=true
+(All 128 DataColumn sidecars failed inclusion proof verification)
 ```
 
-**Analysis**:
-- This test validates PeerDAS (Peer Data Availability Sampling) functionality
-- The test expects the block to be valid (step.GetValid() == true)
-- But the implementation returns false, indicating validation failure
-- This is specific to the Fulu fork and PeerDAS feature
+**Root Cause**:
+Incorrect generalized index calculation in `VerifyDataColumnSidecarInclusionProof()`.
+Used `MaxBlobsPerBlock + columnIndex` instead of fixed value 27.
 
-**Impact**: High - PeerDAS is an important feature for data availability sampling
+**Solution**:
+Fixed in commit 38f5d5b. Changed generalized index to constant 27 (BlobKzgCommitments
+field position in BeaconBody).
+
+**Details**: See [PEERDAS_FIX.md](PEERDAS_FIX.md)
+
+**Impact**: High - PeerDAS is critical for data availability sampling in Fulu fork
 
 ## Skipped Tests Breakdown
 

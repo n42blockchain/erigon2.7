@@ -206,13 +206,16 @@ func VerifyDataColumnSidecarInclusionProof(sidecar *cltypes.DataColumnSidecar) b
 	}
 
 	// Verify the merkle proof from commitments root to block body root
-	gIndex := clparams.GetBeaconConfig().MaxBlobsPerBlock + sidecar.Index
+	// BlobKzgCommitments is field 11 in BeaconBody (0-indexed)
+	// BeaconBody has 13 fields, next power of 2 is 16
+	// Generalized index = 16 + 11 = 27
+	const blobKzgCommitmentsGindex = 27
 
 	return merkle_tree.IsValidMerkleBranch(
 		commitmentsRoot,
 		branch,
 		kzgCommitmentsInclusionProofDepth,
-		gIndex,
+		blobKzgCommitmentsGindex,
 		sidecar.SignedBlockHeader.Header.BodyRoot,
 	)
 }
