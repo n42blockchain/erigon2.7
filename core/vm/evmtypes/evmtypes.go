@@ -160,6 +160,9 @@ type IntraBlockState interface {
 	// Empty returns whether the given account is empty. Empty
 	// is defined according to EIP161 (balance = nonce = code = 0).
 	Empty(common.Address) bool
+	// HasNonEmptyStorage checks if the account has non-empty storage.
+	// Used for EIP-7610 CREATE2 collision detection in Cancun fork.
+	HasNonEmptyStorage(common.Address) bool
 
 	Prepare(rules *chain.Rules, sender, coinbase common.Address, dest *common.Address,
 		precompiles []common.Address, txAccesses types2.AccessList, authorities []common.Address)

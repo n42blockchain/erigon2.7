@@ -340,6 +340,19 @@ func (s *Merge) Initialize(config *chain.Config, chain consensus.ChainHeaderRead
 		})
 	}
 	if chain.Config().IsPrague(header.Time) || chain.Config().IsOsaka(header.Time) {
+		// Detect fork transition by checking if parent block is before Prague
+		parent := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
+		isForkTransition := false
+		if parent != nil {
+			parentIsPrague := chain.Config().IsPrague(parent.Time) || chain.Config().IsOsaka(parent.Time)
+			isForkTransition = !parentIsPrague
+		}
+
+		// Deploy system contracts at fork transition
+		if isForkTransition {
+			misc.DeployPragueSystemContracts(state, logger)
+		}
+
 		misc.StoreBlockHashesEip2935(header, state, config, chain)
 	}
 }

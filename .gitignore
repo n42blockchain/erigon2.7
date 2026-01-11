@@ -73,7 +73,7 @@ __pycache__
 /ethdb/*.fail
 
 libmdbx/build/*
-tests/testdata/*
+tests/testdata/
 tests/execution-spec-tests/
 tests/fixtures.tar.gz
 

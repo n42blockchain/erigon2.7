@@ -403,6 +403,15 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gasRemainin
 		err = ErrContractAddressCollision
 		return nil, libcommon.Address{}, 0, err
 	}
+	// EIP-7610: For Cancun and later, also reject if target has non-empty storage
+	// This prevents CREATE2 collisions with contracts that have been self-destructed
+	// but still have storage
+	if evm.chainRules.IsCancun {
+		if !evm.intraBlockState.Empty(address) || evm.intraBlockState.HasNonEmptyStorage(address) {
+			err = ErrContractAddressCollision
+			return nil, libcommon.Address{}, 0, err
+		}
+	}
 	// Create a new account on the state
 	snapshot := evm.intraBlockState.Snapshot()
 	evm.intraBlockState.CreateAccount(address, true)

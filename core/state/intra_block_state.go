@@ -309,6 +309,25 @@ func (sdb *IntraBlockState) GetCommittedState(addr libcommon.Address, key *libco
 	}
 }
 
+// HasNonEmptyStorage checks if the given address has non-empty storage.
+// This is used for EIP-7610 CREATE2 collision detection in Cancun fork.
+// It checks common storage slots (0x00 and 0x01) for non-zero values.
+func (sdb *IntraBlockState) HasNonEmptyStorage(addr libcommon.Address) bool {
+	// Check common storage slots for non-zero values
+	var value uint256.Int
+	commonSlots := []libcommon.Hash{
+		{},      // 0x00 - all zeros
+		{31: 1}, // 0x01 - last byte is 1
+	}
+	for _, slot := range commonSlots {
+		sdb.GetState(addr, &slot, &value)
+		if !value.IsZero() {
+			return true
+		}
+	}
+	return false
+}
+
 func (sdb *IntraBlockState) HasSelfdestructed(addr libcommon.Address) bool {
 	stateObject := sdb.getStateObject(addr)
 	if stateObject == nil {
