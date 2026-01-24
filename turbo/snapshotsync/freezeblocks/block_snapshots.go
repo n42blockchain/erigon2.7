@@ -219,25 +219,56 @@ func (s *Segment) reopenIdx(dir string) (err error) {
 	return nil
 }
 
-func (sn *Segment) mappedHeaderSnapshot() *silkworm.MappedHeaderSnapshot {
-	segmentRegion := silkworm.NewMemoryMappedRegion(sn.FilePath(), sn.DataHandle(), sn.Size())
-	idxRegion := silkworm.NewMemoryMappedRegion(sn.Index().FilePath(), sn.Index().DataHandle(), sn.Index().Size())
-	return silkworm.NewMappedHeaderSnapshot(segmentRegion, idxRegion)
+func (sn *Segment) headersSnapshot() silkworm.HeadersSnapshot {
+	return silkworm.HeadersSnapshot{
+		Segment: silkworm.MemoryMappedFile{
+			FilePath:   silkworm.NewFilePath(sn.FilePath()),
+			DataHandle: sn.DataHandle(),
+			Size:       sn.Size(),
+		},
+		HeaderHashIndex: silkworm.MemoryMappedFile{
+			FilePath:   silkworm.NewFilePath(sn.Index().FilePath()),
+			DataHandle: sn.Index().DataHandle(),
+			Size:       sn.Index().Size(),
+		},
+	}
 }
 
-func (sn *Segment) mappedBodySnapshot() *silkworm.MappedBodySnapshot {
-	segmentRegion := silkworm.NewMemoryMappedRegion(sn.FilePath(), sn.DataHandle(), sn.Size())
-	idxRegion := silkworm.NewMemoryMappedRegion(sn.Index().FilePath(), sn.Index().DataHandle(), sn.Index().Size())
-	return silkworm.NewMappedBodySnapshot(segmentRegion, idxRegion)
+func (sn *Segment) bodiesSnapshot() silkworm.BodiesSnapshot {
+	return silkworm.BodiesSnapshot{
+		Segment: silkworm.MemoryMappedFile{
+			FilePath:   silkworm.NewFilePath(sn.FilePath()),
+			DataHandle: sn.DataHandle(),
+			Size:       sn.Size(),
+		},
+		BlockNumIndex: silkworm.MemoryMappedFile{
+			FilePath:   silkworm.NewFilePath(sn.Index().FilePath()),
+			DataHandle: sn.Index().DataHandle(),
+			Size:       sn.Index().Size(),
+		},
+	}
 }
 
-func (sn *Segment) mappedTxnSnapshot() *silkworm.MappedTxnSnapshot {
-	segmentRegion := silkworm.NewMemoryMappedRegion(sn.FilePath(), sn.DataHandle(), sn.Size())
+func (sn *Segment) transactionsSnapshot() silkworm.TransactionsSnapshot {
 	idxTxnHash := sn.Index(coresnaptype.Indexes.TxnHash)
-	idxTxnHashRegion := silkworm.NewMemoryMappedRegion(idxTxnHash.FilePath(), idxTxnHash.DataHandle(), idxTxnHash.Size())
 	idxTxnHash2BlockNum := sn.Index(coresnaptype.Indexes.TxnHash2BlockNum)
-	idxTxnHash2BlockRegion := silkworm.NewMemoryMappedRegion(idxTxnHash2BlockNum.FilePath(), idxTxnHash2BlockNum.DataHandle(), idxTxnHash2BlockNum.Size())
-	return silkworm.NewMappedTxnSnapshot(segmentRegion, idxTxnHashRegion, idxTxnHash2BlockRegion)
+	return silkworm.TransactionsSnapshot{
+		Segment: silkworm.MemoryMappedFile{
+			FilePath:   silkworm.NewFilePath(sn.FilePath()),
+			DataHandle: sn.DataHandle(),
+			Size:       sn.Size(),
+		},
+		TxnHashIndex: silkworm.MemoryMappedFile{
+			FilePath:   silkworm.NewFilePath(idxTxnHash.FilePath()),
+			DataHandle: idxTxnHash.DataHandle(),
+			Size:       idxTxnHash.Size(),
+		},
+		TxnHash2BlockIndex: silkworm.MemoryMappedFile{
+			FilePath:   silkworm.NewFilePath(idxTxnHash2BlockNum.FilePath()),
+			DataHandle: idxTxnHash2BlockNum.DataHandle(),
+			Size:       idxTxnHash2BlockNum.Size(),
+		},
+	}
 }
 
 // headers
@@ -849,11 +880,11 @@ func (s *RoSnapshots) PrintDebug() {
 }
 
 func (s *RoSnapshots) AddSnapshotsToSilkworm(silkwormInstance *silkworm.Silkworm) error {
-	mappedHeaderSnapshots := make([]*silkworm.MappedHeaderSnapshot, 0)
+	headersSnapshots := make([]silkworm.HeadersSnapshot, 0)
 	if headers, ok := s.segments.Get(coresnaptype.Enums.Headers); ok {
 		err := headers.View(func(segments []*Segment) error {
 			for _, headerSegment := range segments {
-				mappedHeaderSnapshots = append(mappedHeaderSnapshots, headerSegment.mappedHeaderSnapshot())
+				headersSnapshots = append(headersSnapshots, headerSegment.headersSnapshot())
 			}
 			return nil
 		})
@@ -862,11 +893,11 @@ func (s *RoSnapshots) AddSnapshotsToSilkworm(silkwormInstance *silkworm.Silkworm
 		}
 	}
 
-	mappedBodySnapshots := make([]*silkworm.MappedBodySnapshot, 0)
+	bodiesSnapshots := make([]silkworm.BodiesSnapshot, 0)
 	if bodies, ok := s.segments.Get(coresnaptype.Enums.Bodies); ok {
 		err := bodies.View(func(segments []*Segment) error {
 			for _, bodySegment := range segments {
-				mappedBodySnapshots = append(mappedBodySnapshots, bodySegment.mappedBodySnapshot())
+				bodiesSnapshots = append(bodiesSnapshots, bodySegment.bodiesSnapshot())
 			}
 			return nil
 		})
@@ -875,11 +906,11 @@ func (s *RoSnapshots) AddSnapshotsToSilkworm(silkwormInstance *silkworm.Silkworm
 		}
 	}
 
-	mappedTxnSnapshots := make([]*silkworm.MappedTxnSnapshot, 0)
+	txnsSnapshots := make([]silkworm.TransactionsSnapshot, 0)
 	if txs, ok := s.segments.Get(coresnaptype.Enums.Transactions); ok {
 		err := txs.View(func(segments []*Segment) error {
 			for _, txnSegment := range segments {
-				mappedTxnSnapshots = append(mappedTxnSnapshots, txnSegment.mappedTxnSnapshot())
+				txnsSnapshots = append(txnsSnapshots, txnSegment.transactionsSnapshot())
 			}
 			return nil
 		})
@@ -888,17 +919,17 @@ func (s *RoSnapshots) AddSnapshotsToSilkworm(silkwormInstance *silkworm.Silkworm
 		}
 	}
 
-	if len(mappedHeaderSnapshots) != len(mappedBodySnapshots) || len(mappedBodySnapshots) != len(mappedTxnSnapshots) {
+	if len(headersSnapshots) != len(bodiesSnapshots) || len(bodiesSnapshots) != len(txnsSnapshots) {
 		return fmt.Errorf("addSnapshots: the number of headers/bodies/txs snapshots must be the same")
 	}
 
-	for i := 0; i < len(mappedHeaderSnapshots); i++ {
-		mappedSnapshot := &silkworm.MappedChainSnapshot{
-			Headers: mappedHeaderSnapshots[i],
-			Bodies:  mappedBodySnapshots[i],
-			Txs:     mappedTxnSnapshots[i],
+	for i := 0; i < len(headersSnapshots); i++ {
+		bundle := silkworm.BlocksSnapshotBundle{
+			Headers:      headersSnapshots[i],
+			Bodies:       bodiesSnapshots[i],
+			Transactions: txnsSnapshots[i],
 		}
-		err := silkwormInstance.AddSnapshot(mappedSnapshot)
+		err := silkwormInstance.AddBlocksSnapshotBundle(bundle)
 		if err != nil {
 			return err
 		}

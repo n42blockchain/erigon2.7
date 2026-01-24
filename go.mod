@@ -5,14 +5,14 @@ go 1.24.6
 require (
 	github.com/erigontech/mdbx-go v0.40.0
 	github.com/erigontech/secp256k1 v1.2.0
-	github.com/erigontech/silkworm-go v0.18.0
+	github.com/erigontech/silkworm-go v0.24.0
 )
 
 replace github.com/erigontech/erigon-lib => ./erigon-lib
 
 require (
 	gfx.cafe/util/go/generic v0.0.0-20230721185457-c559e86c829c
-	github.com/99designs/gqlgen v0.17.49
+	github.com/99designs/gqlgen v0.17.86
 	github.com/Giulio2002/bls v0.0.0-20250219221058-ae64eda9b6ef
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/RoaringBitmap/roaring v1.9.4
@@ -86,8 +86,8 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/thomaso-mirodin/intmath v0.0.0-20160323211736-5dc6d854e46e
 	github.com/tidwall/btree v1.8.1
-	github.com/ugorji/go/codec v1.1.13
-	github.com/ugorji/go/codec/codecgen v1.1.13
+	github.com/ugorji/go/codec v1.2.13
+	github.com/ugorji/go/codec/codecgen v1.2.13
 	github.com/urfave/cli/v2 v2.27.7
 	github.com/valyala/fastjson v1.6.7
 	github.com/vektah/gqlparser/v2 v2.5.31
@@ -127,10 +127,10 @@ require (
 	github.com/francoispqt/gojay v1.2.13 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
+	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
 	github.com/libp2p/go-nat v0.2.0 // indirect
 	github.com/libp2p/go-yamux/v4 v4.0.1 // indirect
-	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/moby/sys/reexec v0.1.0 // indirect
 	github.com/moby/sys/userns v0.1.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect

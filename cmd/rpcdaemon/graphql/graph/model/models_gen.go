@@ -86,12 +86,18 @@ type Log struct {
 	Transaction *Transaction `json:"transaction"`
 }
 
+type Mutation struct {
+}
+
 type Pending struct {
 	TransactionCount int            `json:"transactionCount"`
 	Transactions     []*Transaction `json:"transactions,omitempty"`
 	Account          *Account       `json:"account"`
 	Call             *CallResult    `json:"call,omitempty"`
 	EstimateGas      uint64         `json:"estimateGas"`
+}
+
+type Query struct {
 }
 
 type SyncState struct {
