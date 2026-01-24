@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 
+	libcommon "github.com/erigontech/erigon-lib/common"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
+	"github.com/erigontech/erigon-lib/log/v3"
 	"github.com/erigontech/erigon/cl/beacon/beaconevents"
 	"github.com/erigontech/erigon/cl/beacon/synced_data"
 	"github.com/erigontech/erigon/cl/clparams"
@@ -16,9 +19,6 @@ import (
 	"github.com/erigontech/erigon/cl/phase1/core/state/lru"
 	"github.com/erigontech/erigon/cl/phase1/forkchoice"
 	"github.com/erigontech/erigon/cl/utils/eth_clock"
-	libcommon "github.com/erigontech/erigon-lib/common"
-	"github.com/erigontech/erigon-lib/log/v3"
-	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 )
 
 var (
@@ -97,7 +97,7 @@ func (s *dataColumnSidecarService) ProcessMessage(ctx context.Context, subnet *u
 
 	// [IGNORE] The sidecar is the first sidecar for the tuple (block_header.slot, block_header.proposer_index, sidecar.index) with valid header signature, sidecar inclusion proof, and kzg proof.
 	if _, ok := s.seenSidecar.Get(seenKey); ok {
-		return ErrIgnore
+		return nil
 	}
 
 	blockRoot, err := msg.SignedBlockHeader.Header.HashSSZ()
@@ -231,31 +231,3 @@ func (s *dataColumnSidecarService) verifyProposerSignature(proposerIndex uint64,
 	}
 	return valid, nil
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

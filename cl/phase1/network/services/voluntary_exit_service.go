@@ -21,6 +21,8 @@ import (
 	"errors"
 	"fmt"
 
+	libcommon "github.com/erigontech/erigon-lib/common"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 	"github.com/erigontech/erigon/cl/beacon/beaconevents"
 	"github.com/erigontech/erigon/cl/beacon/synced_data"
 	"github.com/erigontech/erigon/cl/clparams"
@@ -31,8 +33,6 @@ import (
 	"github.com/erigontech/erigon/cl/pool"
 	"github.com/erigontech/erigon/cl/utils"
 	"github.com/erigontech/erigon/cl/utils/eth_clock"
-	libcommon "github.com/erigontech/erigon-lib/common"
-	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 )
 
 type voluntaryExitService struct {
@@ -90,7 +90,7 @@ func (s *voluntaryExitService) ProcessMessage(ctx context.Context, subnet *uint6
 
 	// [IGNORE] The voluntary exit is the first valid voluntary exit received for the validator with index signed_voluntary_exit.message.validator_index.
 	if s.operationsPool.VoluntaryExitsPool.Has(voluntaryExit.ValidatorIndex) {
-		return ErrIgnore
+		return nil
 	}
 
 	var (
@@ -174,37 +174,9 @@ func (s *voluntaryExitService) ProcessMessage(ctx context.Context, subnet *uint6
 	// push the signatures to verify asynchronously and run final functions after that.
 	s.batchSignatureVerifier.AsyncVerifyVoluntaryExit(aggregateVerificationData)
 
-	// As the logic goes, if we return ErrIgnore there will be no peer banning and further publishing
+	// As the logic goes, if we return nil there will be no peer banning and further publishing
 	// gossip data into the network by the gossip manager. That's what we want because we will be doing that ourselves
 	// in BatchSignatureVerifier service. After validating signatures, if they are valid we will publish the
 	// gossip ourselves or ban the peer which sent that particular invalid signature.
-	return ErrIgnore
+	return nil
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -22,6 +22,7 @@ import (
 	"slices"
 	"sync"
 
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 	"github.com/erigontech/erigon/cl/beacon/synced_data"
 	"github.com/erigontech/erigon/cl/clparams"
 	"github.com/erigontech/erigon/cl/cltypes"
@@ -31,7 +32,6 @@ import (
 	"github.com/erigontech/erigon/cl/utils"
 	"github.com/erigontech/erigon/cl/utils/eth_clock"
 	"github.com/erigontech/erigon/cl/validator/sync_contribution_pool"
-	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 )
 
 type seenSyncCommitteeMessage struct {
@@ -120,7 +120,7 @@ func (s *syncCommitteeMessagesService) ProcessMessage(ctx context.Context, subne
 		// [IGNORE] There has been no other valid sync committee message for the declared slot for the validator referenced by sync_committee_message.validator_index.
 
 		if _, ok := s.seenSyncCommitteeMessages.Load(seenSyncCommitteeMessageIdentifier); ok {
-			return ErrIgnore
+			return nil
 		}
 		// [REJECT] The signature is valid for the message beacon_block_root for the validator referenced by validator_index
 		signature, signingRoot, pubKey, err := verifySyncCommitteeMessageSignature(headState, msg.SyncCommitteeMessage)
@@ -154,11 +154,11 @@ func (s *syncCommitteeMessagesService) ProcessMessage(ctx context.Context, subne
 			s.batchSignatureVerifier.AsyncVerifySyncCommitteeMessage(aggregateVerificationData)
 		}
 
-		// As the logic goes, if we return ErrIgnore there will be no peer banning and further publishing
+		// As the logic goes, if we return nil there will be no peer banning and further publishing
 		// gossip data into the network by the gossip manager. That's what we want because we will be doing that ourselves
 		// in BatchSignatureVerifier service. After validating signatures, if they are valid we will publish the
 		// gossip ourselves or ban the peer which sent that particular invalid signature.
-		return ErrIgnore
+		return nil
 	})
 }
 
@@ -193,31 +193,3 @@ func verifySyncCommitteeMessageSignature(s *state.CachingBeaconState, msg *cltyp
 	signingRoot := utils.Sha256(msg.BeaconBlockRoot[:], domain)
 	return msg.Signature[:], signingRoot[:], publicKey[:], nil
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

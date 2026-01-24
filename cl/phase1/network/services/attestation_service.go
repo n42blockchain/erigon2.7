@@ -22,6 +22,9 @@ import (
 	"fmt"
 	"time"
 
+	libcommon "github.com/erigontech/erigon-lib/common"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
+	"github.com/erigontech/erigon-lib/log/v3"
 	"github.com/erigontech/erigon/cl/aggregation"
 	"github.com/erigontech/erigon/cl/beacon/beaconevents"
 	"github.com/erigontech/erigon/cl/beacon/synced_data"
@@ -36,9 +39,6 @@ import (
 	"github.com/erigontech/erigon/cl/utils"
 	"github.com/erigontech/erigon/cl/utils/eth_clock"
 	"github.com/erigontech/erigon/cl/validator/committee_subscription"
-	libcommon "github.com/erigontech/erigon-lib/common"
-	"github.com/erigontech/erigon-lib/log/v3"
-	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 )
 
 var (
@@ -254,7 +254,7 @@ func (s *attestationService) ProcessMessage(ctx context.Context, subnet *uint64,
 		// mark the validator as seen
 		epochLastTime, ok := s.validatorAttestationSeen.Get(vIndex)
 		if ok && epochLastTime == targetEpoch {
-			return fmt.Errorf("validator already seen in target epoch %w", ErrIgnore)
+			return nil
 		}
 		s.validatorAttestationSeen.Add(vIndex, targetEpoch)
 
@@ -387,31 +387,3 @@ func contains[T comparable](target T, slices []T) int {
 	}
 	return -1
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

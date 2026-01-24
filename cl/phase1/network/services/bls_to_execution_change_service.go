@@ -22,6 +22,8 @@ import (
 	"errors"
 	"fmt"
 
+	libcommon "github.com/erigontech/erigon-lib/common"
+	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 	"github.com/erigontech/erigon/cl/beacon/beaconevents"
 	"github.com/erigontech/erigon/cl/beacon/synced_data"
 	"github.com/erigontech/erigon/cl/clparams"
@@ -31,8 +33,6 @@ import (
 	"github.com/erigontech/erigon/cl/phase1/core/state"
 	"github.com/erigontech/erigon/cl/pool"
 	"github.com/erigontech/erigon/cl/utils"
-	libcommon "github.com/erigontech/erigon-lib/common"
-	sentinelproto "github.com/erigontech/erigon-lib/gointerfaces/sentinel"
 )
 
 // SignedBLSToExecutionChangeForGossip type represents SignedBLSToExecutionChange with the gossip data where it's coming from.
@@ -86,7 +86,7 @@ func (s *blsToExecutionChangeService) ProcessMessage(ctx context.Context, subnet
 	// [IGNORE] The signed_bls_to_execution_change is the first valid signed bls to execution change received
 	// for the validator with index signed_bls_to_execution_change.message.validator_index.
 	if s.operationsPool.BLSToExecutionChangesPool.Has(msg.SignedBLSToExecutionChange.Signature) {
-		return ErrIgnore
+		return nil
 	}
 	change := msg.SignedBLSToExecutionChange.Message
 
@@ -153,37 +153,9 @@ func (s *blsToExecutionChangeService) ProcessMessage(ctx context.Context, subnet
 	// push the signatures to verify asynchronously and run final functions after that.
 	s.batchSignatureVerifier.AsyncVerifyBlsToExecutionChange(aggregateVerificationData)
 
-	// As the logic goes, if we return ErrIgnore there will be no peer banning and further publishing
+	// As the logic goes, if we return nil there will be no peer banning and further publishing
 	// gossip data into the network by the gossip manager. That's what we want because we will be doing that ourselves
 	// in BatchSignatureVerifier service. After validating signatures, if they are valid we will publish the
 	// gossip ourselves or ban the peer which sent that particular invalid signature.
-	return ErrIgnore
+	return nil
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
