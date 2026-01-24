@@ -152,7 +152,7 @@ func BorHeimdallForward(
 			}})
 			dataflow.HeaderDownloadStates.AddChange(headNumber, dataflow.HeaderInvalidated)
 			s.state.UnwindTo(unwindPoint, ForkReset(hash))
-			var reset uint64 = 0
+			var reset uint64
 			finality.BorMilestoneRewind.Store(&reset)
 			return fmt.Errorf("verification failed for header %d: %x", headNumber, header.Hash())
 		}

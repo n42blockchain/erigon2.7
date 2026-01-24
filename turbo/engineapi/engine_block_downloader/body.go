@@ -54,16 +54,16 @@ func (e *EngineBlockDownloader) downloadAndLoadBodiesSyncronously(ctx context.Co
 	logEvery := time.NewTicker(logInterval)
 	defer logEvery.Stop()
 
-	var prevDeliveredCount float64 = 0
-	var prevWastedCount float64 = 0
+	var prevDeliveredCount float64
+	var prevWastedCount float64
 	timer := time.NewTimer(1 * time.Second) // Check periodically even in the abseence of incoming messages
 	var req *bodydownload.BodyRequest
 	var peer [64]byte
 	var sentToPeer bool
 	stopped := false
 	prevProgress := bodyProgress
-	var noProgressCount uint = 0 // How many time the progress was printed without actual progress
-	var totalDelivered uint64 = 0
+	var noProgressCount uint // How many time the progress was printed without actual progress
+	var totalDelivered uint64
 
 	loopBody := func() (bool, error) {
 		// loopCount is used here to ensure we don't get caught in a constant loop of making requests

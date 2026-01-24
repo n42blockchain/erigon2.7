@@ -1374,7 +1374,7 @@ func (c *Bor) GetRootHash(ctx context.Context, tx kv.Tx, start, end uint64) (str
 	}
 
 	header := rawdb.ReadCurrentHeader(tx)
-	var currentHeaderNumber uint64 = 0
+	var currentHeaderNumber uint64
 	if header == nil {
 		return "", &valset.InvalidStartEndBlockError{Start: start, End: end, CurrentHeader: currentHeaderNumber}
 	}

@@ -161,7 +161,14 @@ func calcBackoff(min, max time.Duration, attemptNum int, resp *http.Response) ti
 		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusServiceUnavailable {
 			if s, ok := resp.Header["Retry-After"]; ok {
 				if sleep, err := strconv.ParseInt(s[0], 10, 64); err == nil {
-					return time.Second * time.Duration(sleep)
+					if sleep < 0 {
+						sleep = 0
+					}
+					duration := time.Second * time.Duration(sleep)
+					if duration > max {
+						duration = max
+					}
+					return duration
 				}
 			}
 		}

@@ -1196,7 +1196,7 @@ func canRetire(from, to uint64, snapType snaptype.Enum, chainConfig *chain.Confi
 	}
 	blockFrom = (from / 1_000) * 1_000
 	roundedTo1K := (to / 1_000) * 1_000
-	var maxJump uint64 = 1_000
+	maxJump := uint64(1_000)
 
 	var chainName string
 

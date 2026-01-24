@@ -61,7 +61,7 @@ func BenchOtsGetBlockTransactions(erigonURL, gethURL string, needCompare, visitA
 
 	for bn := blockFrom; bn <= blockTo; bn++ {
 
-		var pageCount uint64 = 0
+		var pageCount uint64
 		pageEnded := false
 
 		for !pageEnded {

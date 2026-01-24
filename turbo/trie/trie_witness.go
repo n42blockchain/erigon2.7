@@ -25,7 +25,7 @@ func ExtractWitnesses(subTries SubTries, trace bool, retainDec RetainDecider) ([
 	var witnesses []*Witness
 	for _, root := range subTries.roots {
 		builder := NewWitnessBuilder(root, trace)
-		var limiter *MerklePathLimiter = nil
+		var limiter *MerklePathLimiter
 		if retainDec != nil {
 			hr := newHasher(false)
 			defer returnHasherToPool(hr)
@@ -45,7 +45,7 @@ func ExtractWitnesses(subTries SubTries, trace bool, retainDec RetainDecider) ([
 // if retainDec param is set to a RetainList instance, it will make a witness for only the accounts/storages that were actually touched; other paths will be hashed.
 func extractWitnessFromRootNode(root node, trace bool, retainDec RetainDecider) (*Witness, error) {
 	builder := NewWitnessBuilder(root, trace)
-	var limiter *MerklePathLimiter = nil
+	var limiter *MerklePathLimiter
 	if retainDec != nil {
 		hr := newHasher(false)
 		defer returnHasherToPool(hr)

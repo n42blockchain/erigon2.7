@@ -19,9 +19,9 @@ package state
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 
 	"github.com/erigontech/erigon-lib/kv/dbutils"
+	"github.com/erigontech/erigon-lib/log/v3"
 
 	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon-lib/common/hexutility"
@@ -315,7 +315,7 @@ func (d *Dumper) Dump(excludeCode, excludeStorage bool) []byte {
 	dump := d.RawDump(excludeCode, excludeStorage)
 	json, err := json.MarshalIndent(dump, "", "    ")
 	if err != nil {
-		fmt.Println("dump err", err)
+		log.Warn("dump: failed to marshal JSON", "err", err)
 	}
 	return json
 }

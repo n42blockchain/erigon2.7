@@ -74,7 +74,7 @@ func (m *Mapmutation) IncrementSequence(bucket string, amount uint64) (res uint6
 		}
 	}
 
-	var currentV uint64 = 0
+	var currentV uint64
 	if len(v) > 0 {
 		currentV = binary.BigEndian.Uint64(v)
 	}
@@ -95,7 +95,7 @@ func (m *Mapmutation) ReadSequence(bucket string) (res uint64, err error) {
 			return 0, err
 		}
 	}
-	var currentV uint64 = 0
+	var currentV uint64
 	if len(v) > 0 {
 		currentV = binary.BigEndian.Uint64(v)
 	}

@@ -225,7 +225,7 @@ func (api *OtterscanAPIImpl) GetTransactionBySenderAndNonce(ctx context.Context,
 
 	// Locate the exact block inside chunk when the nonce changed
 	blocks := bitmap.ToArray()
-	var errSearch error = nil
+	var errSearch error
 	idx := sort.Search(len(blocks), func(i int) bool {
 		if errSearch != nil {
 			return false

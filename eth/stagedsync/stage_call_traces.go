@@ -174,7 +174,7 @@ func promoteCallTraces(logPrefix string, tx kv.RwTx, startBlock, endBlock uint64
 
 	// Clean up before loading call traces to reclaim space
 	var prunedMin uint64 = math.MaxUint64
-	var prunedMax uint64 = 0
+	var prunedMax uint64
 	for k, _, err = traceCursor.First(); k != nil; k, _, err = traceCursor.NextNoDup() {
 		if err != nil {
 			return err

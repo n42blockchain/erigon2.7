@@ -1252,7 +1252,7 @@ func (s *Ethereum) IsMining() bool { return s.config.Miner.Enabled }
 func (s *Ethereum) ChainKV() kv.RwDB            { return s.chainDB }
 func (s *Ethereum) NetVersion() (uint64, error) { return s.networkID, nil }
 func (s *Ethereum) NetPeerCount() (uint64, error) {
-	var sentryPc uint64 = 0
+	var sentryPc uint64
 
 	s.logger.Trace("sentry", "peer count", sentryPc)
 	for _, sc := range s.sentriesClient.Sentries() {

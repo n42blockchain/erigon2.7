@@ -152,7 +152,7 @@ Loop:
 		if !ok {
 			continue
 		}
-		var processed bool = true
+		processed := true
 
 		switch f.Type.Enum() {
 		case snaptype.CaplinEnums.BeaconBlocks:

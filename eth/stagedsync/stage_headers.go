@@ -191,7 +191,7 @@ func HeadersPOW(
 	})
 
 	stopped := false
-	var noProgressCounter uint = 0
+	var noProgressCounter uint
 	prevProgress := startProgress
 	var wasProgress bool
 	var lastSkeletonTime time.Time
@@ -453,7 +453,7 @@ func HeadersUnwind(u *UnwindState, s *StageState, tx kv.RwTx, cfg HeadersCfg, te
 	if unwindBlock {
 		var maxTd big.Int
 		var maxHash libcommon.Hash
-		var maxNum uint64 = 0
+		var maxNum uint64
 
 		if test { // If we are not in the test, we can do searching for the heaviest chain in the next cycle
 			// Find header with biggest TD

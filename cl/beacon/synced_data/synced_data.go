@@ -18,16 +18,16 @@ package synced_data
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	libcommon "github.com/erigontech/erigon-lib/common"
+	"github.com/erigontech/erigon-lib/common/dbg"
+	log "github.com/erigontech/erigon-lib/log/v3"
 	"github.com/erigontech/erigon/cl/clparams"
 	"github.com/erigontech/erigon/cl/cltypes"
 	"github.com/erigontech/erigon/cl/phase1/core/state"
-	libcommon "github.com/erigontech/erigon-lib/common"
-	"github.com/erigontech/erigon-lib/common/dbg"
 )
 
 var (
@@ -116,7 +116,7 @@ func (s *SyncedDataManager) ViewHeadState(fn ViewHeadStateFn) error {
 		go func() {
 			select {
 			case <-time.After(100 * time.Second):
-				fmt.Println("ViewHeadState timeout", trace)
+				log.Warn("[caplin] ViewHeadState timeout", "trace", trace)
 			case <-ch:
 				return
 			}
@@ -222,30 +222,3 @@ func (s *SyncedDataManager) HistoricalSummaryElementAtIndex(index int) (*cltypes
 
 	return s.headState.HistoricalSummary(index), nil
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
