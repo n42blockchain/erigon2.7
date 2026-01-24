@@ -10,7 +10,7 @@ import (
 	"github.com/erigontech/erigon-lib/etl"
 	"github.com/erigontech/erigon-lib/kv"
 	"github.com/erigontech/erigon-lib/log/v3"
-	"github.com/gballet/go-verkle"
+	"github.com/ethereum/go-verkle"
 	"github.com/holiman/uint256"
 
 	"github.com/erigontech/erigon/common"
@@ -31,7 +31,7 @@ func int256ToVerkleFormat(x *uint256.Int, buffer []byte) {
 func flushVerkleNode(db kv.RwTx, node verkle.VerkleNode, logInterval *time.Ticker, key []byte, logger log.Logger) error {
 	var err error
 	totalInserted := 0
-	node.(*verkle.InternalNode).Flush(func(node verkle.VerkleNode) {
+	node.(*verkle.InternalNode).Flush(func(_ []byte, node verkle.VerkleNode) {
 		if err != nil {
 			return
 		}
@@ -53,7 +53,7 @@ func flushVerkleNode(db kv.RwTx, node verkle.VerkleNode, logInterval *time.Ticke
 func collectVerkleNode(collector *etl.Collector, node verkle.VerkleNode, logInterval *time.Ticker, key []byte, logger log.Logger) error {
 	var err error
 	totalInserted := 0
-	node.(*verkle.InternalNode).Flush(func(node verkle.VerkleNode) {
+	node.(*verkle.InternalNode).Flush(func(_ []byte, node verkle.VerkleNode) {
 		if err != nil {
 			return
 		}
@@ -194,34 +194,28 @@ func (v *VerkleTreeWriter) CommitVerkleTreeFromScratch() (libcommon.Hash, error)
 	root := verkle.New()
 
 	logInterval := time.NewTicker(30 * time.Second)
+	insertCount := 0
 	if err := v.collector.Load(v.db, kv.VerkleTrie, func(k []byte, val []byte, _ etl.CurrentTableReader, next etl.LoadNextFunc) error {
 		if len(val) == 0 {
 			return next(k, nil, nil)
 		}
-		if err := root.InsertOrdered(libcommon.CopyBytes(k), libcommon.CopyBytes(val), func(node verkle.VerkleNode) {
-			rootHash := node.Commitment().Bytes()
-			encodedNode, err := node.Serialize()
-			if err != nil {
-				panic(err)
-			}
-			if err := verkleCollector.Collect(rootHash[:], encodedNode); err != nil {
-				panic(err)
-			}
-			select {
-			case <-logInterval.C:
-				v.logger.Info("[Verkle] Assembling Verkle Tree", "key", common.Bytes2Hex(k))
-			default:
-			}
-		}); err != nil {
+		// Use Insert instead of the removed InsertOrdered
+		if err := root.Insert(libcommon.CopyBytes(k), libcommon.CopyBytes(val), nil); err != nil {
 			return err
+		}
+		insertCount++
+		select {
+		case <-logInterval.C:
+			v.logger.Info("[Verkle] Assembling Verkle Tree", "key", common.Bytes2Hex(k), "inserted", insertCount)
+		default:
 		}
 		return next(k, nil, nil)
 	}, etl.TransformArgs{Quit: context.Background().Done()}); err != nil {
 		return libcommon.Hash{}, err
 	}
 
-	// Flush the rest all at once
-	if err := collectVerkleNode(v.collector, root, logInterval, nil, v.logger); err != nil {
+	// Flush all nodes at once
+	if err := collectVerkleNode(verkleCollector, root, logInterval, nil, v.logger); err != nil {
 		return libcommon.Hash{}, err
 	}
 

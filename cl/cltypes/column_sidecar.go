@@ -32,7 +32,7 @@ var (
 )
 
 type DataColumnSidecar struct {
-	BlockRoot                    common.Hash                    `json:"-"`
+	BlockRoot                    libcommon.Hash                 `json:"-"`
 	Index                        uint64                         `json:"index,string"` // index of the column
 	Slot                         uint64                         `json:"-"`
 	Column                       *solid.ListSSZ[*Cell]          `json:"column"`

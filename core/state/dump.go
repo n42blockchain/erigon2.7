@@ -19,6 +19,7 @@ package state
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 
 	"github.com/erigontech/erigon-lib/kv/dbutils"
 	"github.com/erigontech/erigon-lib/log/v3"

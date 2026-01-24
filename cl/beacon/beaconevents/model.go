@@ -41,7 +41,7 @@ type (
 
 // DataColumnSidecarData includes block_root and slot for SSE events
 type DataColumnSidecarData struct {
-	BlockRoot                    common.Hash                            `json:"block_root"`
+	BlockRoot                    libcommon.Hash                         `json:"block_root"`
 	Index                        uint64                                 `json:"index,string"`
 	Slot                         uint64                                 `json:"slot,string"`
 	Column                       *solid.ListSSZ[*cltypes.Cell]          `json:"column"`

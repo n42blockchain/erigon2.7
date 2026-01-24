@@ -10,7 +10,6 @@ import (
 	"github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon-lib/common/hexutil"
 	"github.com/erigontech/erigon-lib/common/hexutility"
-	"github.com/gballet/go-verkle"
 )
 
 var _ = (*headerMarshaling)(nil)
@@ -43,7 +42,7 @@ func (h Header) MarshalJSON() ([]byte, error) {
 		RequestsHash          *common.Hash    `json:"requestsHash"`
 		Verkle                bool
 		VerkleProof           []byte
-		VerkleKeyVals         []verkle.KeyValuePair
+		VerkleKeyVals         []VerkleKeyValuePair
 		Hash                  common.Hash `json:"hash"`
 	}
 	var enc Header
@@ -105,7 +104,7 @@ func (h *Header) UnmarshalJSON(input []byte) error {
 		RequestsHash          *common.Hash    `json:"requestsHash"`
 		Verkle                *bool
 		VerkleProof           []byte
-		VerkleKeyVals         []verkle.KeyValuePair
+		VerkleKeyVals         []VerkleKeyValuePair
 	}
 	var dec Header
 	if err := json.Unmarshal(input, &dec); err != nil {

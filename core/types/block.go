@@ -27,8 +27,6 @@ import (
 	"reflect"
 	"sync/atomic"
 
-	"github.com/gballet/go-verkle"
-
 	libcommon "github.com/erigontech/erigon-lib/common"
 	"github.com/erigontech/erigon-lib/common/hexutil"
 	"github.com/erigontech/erigon-lib/common/hexutility"
@@ -44,6 +42,12 @@ var (
 	ExtraVanityLength = 32 // Fixed number of extra-data prefix bytes reserved for signer vanity
 	ExtraSealLength   = 65 // Fixed number of extra-data suffix bytes reserved for signer seal
 )
+
+// VerkleKeyValuePair represents a key-value pair for Verkle tree execution witnesses.
+type VerkleKeyValuePair struct {
+	Key   []byte
+	Value []byte
+}
 
 // A BlockNonce is a 64-bit hash which proves (combined with the
 // mix-hash) that a sufficient amount of computation has been carried
@@ -110,7 +114,7 @@ type Header struct {
 	// The verkle proof is ignored in legacy headers
 	Verkle        bool
 	VerkleProof   []byte
-	VerkleKeyVals []verkle.KeyValuePair
+	VerkleKeyVals []VerkleKeyValuePair
 
 	// by default all headers are immutable
 	// but assembling/mining may use `NewEmptyHeaderForAssembling` to create temporary mutable Header object

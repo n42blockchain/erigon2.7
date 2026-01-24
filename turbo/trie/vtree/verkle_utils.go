@@ -2,7 +2,7 @@ package vtree
 
 import (
 	"github.com/crate-crypto/go-ipa/bandersnatch/fr"
-	"github.com/gballet/go-verkle"
+	"github.com/ethereum/go-verkle"
 	"github.com/holiman/uint256"
 )
 
@@ -49,16 +49,24 @@ func GetTreeKey(address []byte, treeIndex *uint256.Int, subIndex byte) []byte {
 
 	// 32-byte address, interpreted as two little endian
 	// 16-byte numbers.
-	verkle.FromLEBytes(&poly[1], address[:16])
-	verkle.FromLEBytes(&poly[2], address[16:])
+	if err := verkle.FromLEBytes(&poly[1], address[:16]); err != nil {
+		panic(err)
+	}
+	if err := verkle.FromLEBytes(&poly[2], address[16:]); err != nil {
+		panic(err)
+	}
 
 	// little-endian, 32-byte aligned treeIndex
 	var index [32]byte
 	for i, b := range treeIndex.Bytes() {
 		index[len(treeIndex.Bytes())-1-i] = b
 	}
-	verkle.FromLEBytes(&poly[3], index[:16])
-	verkle.FromLEBytes(&poly[4], index[16:])
+	if err := verkle.FromLEBytes(&poly[3], index[:16]); err != nil {
+		panic(err)
+	}
+	if err := verkle.FromLEBytes(&poly[4], index[16:]); err != nil {
+		panic(err)
+	}
 
 	cfg := verkle.GetConfig()
 	ret := cfg.CommitToPoly(poly[:], 0)
