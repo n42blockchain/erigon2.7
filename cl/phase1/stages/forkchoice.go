@@ -9,6 +9,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	libcommon "github.com/erigontech/erigon-lib/common"
+	"github.com/erigontech/erigon-lib/common/dbg"
+	"github.com/erigontech/erigon-lib/common/hexutil"
+	"github.com/erigontech/erigon-lib/kv"
+	"github.com/erigontech/erigon-lib/log/v3"
 	"github.com/erigontech/erigon/cl/beacon/beaconevents"
 	"github.com/erigontech/erigon/cl/beacon/synced_data"
 	"github.com/erigontech/erigon/cl/clparams"
@@ -19,13 +24,8 @@ import (
 	"github.com/erigontech/erigon/cl/phase1/core/state"
 	"github.com/erigontech/erigon/cl/phase1/core/state/shuffling"
 	"github.com/erigontech/erigon/cl/utils"
-	libcommon "github.com/erigontech/erigon-lib/common"
-	"github.com/erigontech/erigon-lib/common/dbg"
-	"github.com/erigontech/erigon-lib/common/hexutil"
-	"github.com/erigontech/erigon-lib/log/v3"
-	"github.com/erigontech/erigon-lib/kv"
-	"github.com/erigontech/erigon/turbo/engineapi/engine_types"
 	"github.com/erigontech/erigon/core/types"
+	"github.com/erigontech/erigon/turbo/engineapi/engine_types"
 )
 
 // computeAndNotifyServicesOfNewForkChoice calculates the new head of the fork choice and notifies relevant services.
@@ -402,6 +402,11 @@ func preCacheNextShuffledValidatorSet(ctx context.Context, logger log.Logger, cf
 			logger.Warn("failed to get block root at slot for pre-caching shuffled set", "err", err)
 			return
 		}
+
+		// Pre-cache active validators for current and next epoch
+		preCacheActiveValidatorsForEpoch(b, state.Epoch(b), blockRootAtBegginingPrevEpoch)
+		preCacheActiveValidatorsForEpoch(b, nextEpoch, blockRootAtBegginingPrevEpoch)
+
 		// Skip if the shuffled set is already pre-cached
 		if _, ok := caches.ShuffledIndiciesCacheGlobal.Get(nextEpoch, blockRootAtBegginingPrevEpoch); ok {
 			return
@@ -422,29 +427,19 @@ func preCacheNextShuffledValidatorSet(ctx context.Context, logger log.Logger, cf
 	}()
 }
 
+// preCacheActiveValidatorsForEpoch pre-caches active validators and total balance for a given epoch.
+func preCacheActiveValidatorsForEpoch(b *state.CachingBeaconState, epoch uint64, blockRoot libcommon.Hash) {
+	// Skip if already fully cached (both active validators and total balance)
+	if indicies, totalBalance, ok := caches.ActiveValidatorsCacheGlobal.Get(epoch, blockRoot); ok && len(indicies) > 0 && totalBalance > 0 {
+		return
+	}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+	// GetActiveValidatorsIndices and GetTotalActiveBalance will compute and cache the results
+	indicies := b.GetActiveValidatorsIndices(epoch)
+	if epoch != state.Epoch(b) {
+		caches.ActiveValidatorsCacheGlobal.Put(epoch, blockRoot, indicies, 0)
+		return
+	}
+	totalBalance := b.GetTotalActiveBalance()
+	caches.ActiveValidatorsCacheGlobal.Put(epoch, blockRoot, indicies, totalBalance)
+}
