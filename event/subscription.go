@@ -120,7 +120,7 @@ func ResubscribeErr(backoffMax time.Duration, fn ResubscribeErrFunc) Subscriptio
 		backoffMax: backoffMax,
 		fn:         fn,
 		err:        make(chan error),
-		unsub:      make(chan struct{}),
+		unsub:      make(chan struct{}, 1), // Buffered to prevent blocking on unsubscribe
 	}
 	go s.loop()
 	return s
@@ -141,10 +141,25 @@ type resubscribeSub struct {
 	waitTime, backoffMax time.Duration
 }
 
+// unsubscribeTimeout is the maximum time to wait for the loop goroutine to
+// acknowledge the unsubscribe signal. This prevents potential deadlocks.
+const unsubscribeTimeout = 5 * time.Second
+
 func (s *resubscribeSub) Unsubscribe() {
 	s.unsubOnce.Do(func() {
-		s.unsub <- struct{}{}
-		<-s.err
+		// Use select with timeout to prevent deadlock when sending unsubscribe signal
+		select {
+		case s.unsub <- struct{}{}:
+		case <-time.After(unsubscribeTimeout):
+			// Timeout - the loop might be stuck; close the channel to force exit
+			close(s.unsub)
+		}
+		// Wait for producer shutdown with timeout
+		select {
+		case <-s.err:
+		case <-time.After(unsubscribeTimeout):
+			// Producer did not shutdown in time, continue anyway
+		}
 	})
 }
 

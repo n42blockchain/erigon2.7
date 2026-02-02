@@ -39,7 +39,7 @@ import (
 var latestNumOrHash = rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber)
 
 // Call implements eth_call. Executes a new message call immediately without creating a transaction on the block chain.
-func (api *APIImpl) Call(ctx context.Context, args ethapi2.CallArgs, blockNrOrHash rpc.BlockNumberOrHash, overrides *ethapi2.StateOverrides) (hexutility.Bytes, error) {
+func (api *APIImpl) Call(ctx context.Context, args ethapi2.CallArgs, blockNrOrHash rpc.BlockNumberOrHash, overrides *ethapi2.StateOverrides, blockOverrides *ethapi2.BlockOverrides) (hexutility.Bytes, error) {
 	tx, err := api.db.BeginRo(ctx)
 	if err != nil {
 		return nil, err
@@ -73,7 +73,7 @@ func (api *APIImpl) Call(ctx context.Context, args ethapi2.CallArgs, blockNrOrHa
 		return nil, err
 	}
 	header := block.HeaderNoCopy()
-	result, err := transactions.DoCall(ctx, engine, args, tx, blockNrOrHash, header, overrides, api.GasCap, chainConfig, stateReader, api._blockReader, api.evmCallTimeout)
+	result, err := transactions.DoCall(ctx, engine, args, tx, blockNrOrHash, header, overrides, blockOverrides, api.GasCap, chainConfig, stateReader, api._blockReader, api.evmCallTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -219,7 +219,6 @@ func (api *APIImpl) EstimateGas(ctx context.Context, argsOrNil *ethapi2.CallArgs
 		log.Warn("Caller gas above allowance, capping", "requested", hi, "cap", api.GasCap)
 		hi = api.GasCap
 	}
-	gasCap = hi
 
 	chainConfig, err := api.chainConfig(ctx, dbtx)
 	if err != nil {
@@ -243,6 +242,14 @@ func (api *APIImpl) EstimateGas(ctx context.Context, argsOrNil *ethapi2.CallArgs
 	if block == nil {
 		return 0, fmt.Errorf("could not find latest block in cache or db")
 	}
+
+	// EIP-7825 (Osaka/Fusaka): Apply per-transaction gas limit cap
+	// After Osaka hardfork, transactions are limited to MaxTxnGasLimit (16.7M gas)
+	if chainConfig.IsOsaka(block.Time()) && hi > params.MaxTxnGasLimit {
+		log.Debug("Gas estimation capped by MaxTxnGasLimit (EIP-7825)", "original", hi, "cap", params.MaxTxnGasLimit)
+		hi = params.MaxTxnGasLimit
+	}
+	gasCap = hi
 
 	stateReader, err := rpchelper.CreateStateReaderFromBlockNumber(ctx, dbtx, latestCanBlockNumber, isLatest, 0, api.stateCache, api.historyV3(dbtx), chainConfig.ChainName)
 	if err != nil {

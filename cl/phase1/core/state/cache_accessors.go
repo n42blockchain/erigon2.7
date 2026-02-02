@@ -211,14 +211,11 @@ func (b *CachingBeaconState) SyncRewards() (proposerReward, participantReward ui
 }
 
 // CommitteeCount returns current number of committee for epoch.
+// See: https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/beacon-chain.md#get_committee_count_per_slot
 func (b *CachingBeaconState) CommitteeCount(epoch uint64) uint64 {
-	committeCount := min(b.BeaconConfig().MaxCommitteesPerSlot, uint64(
+	return max(min(b.BeaconConfig().MaxCommitteesPerSlot, uint64(
 		len(b.GetActiveValidatorsIndices(epoch)),
-	)/b.BeaconConfig().SlotsPerEpoch/b.BeaconConfig().TargetCommitteeSize)
-	if committeCount < 1 {
-		committeCount = 1
-	}
-	return committeCount
+	)/b.BeaconConfig().SlotsPerEpoch/b.BeaconConfig().TargetCommitteeSize), 1)
 }
 
 func (b *CachingBeaconState) GetAttestationParticipationFlagIndicies(

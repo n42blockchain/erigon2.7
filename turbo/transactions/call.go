@@ -31,6 +31,7 @@ func DoCall(
 	blockNrOrHash rpc.BlockNumberOrHash,
 	header *types.Header,
 	overrides *ethapi2.StateOverrides,
+	blockOverrides *ethapi2.BlockOverrides,
 	gasCap uint64,
 	chainConfig *chain.Config,
 	stateReader state.StateReader,
@@ -81,6 +82,12 @@ func DoCall(
 		return nil, err
 	}
 	blockCtx := NewEVMBlockContext(engine, header, blockNrOrHash.RequireCanonical, tx, headerReader, chainConfig)
+
+	// Apply block overrides if provided
+	if blockOverrides != nil {
+		blockOverrides.Apply(&blockCtx)
+	}
+
 	txCtx := core.NewEVMTxContext(msg)
 
 	evm := vm.NewEVM(blockCtx, txCtx, state, chainConfig, vm.Config{NoBaseFee: true})

@@ -757,12 +757,22 @@ func (srv *Server) setupListening(ctx context.Context) error {
 	return nil
 }
 
+// peerOpTimeout is the maximum time to wait for peer operations to complete.
+const peerOpTimeout = 10 * time.Second
+
 // doPeerOp runs fn on the main loop.
 func (srv *Server) doPeerOp(fn peerOpFunc) {
 	select {
 	case srv.peerOp <- fn:
-		<-srv.peerOpDone
+		select {
+		case <-srv.peerOpDone:
+		case <-srv.quit:
+		case <-time.After(peerOpTimeout):
+			srv.logger.Warn("Peer operation timeout")
+		}
 	case <-srv.quit:
+	case <-time.After(peerOpTimeout):
+		srv.logger.Warn("Peer operation send timeout")
 	}
 }
 
@@ -1082,6 +1092,11 @@ func nodeFromConn(pubkey *ecdsa.PublicKey, conn net.Conn) *enode.Node {
 	return enode.NewV4(pubkey, ip, port, port)
 }
 
+// checkpointTimeout is the maximum time to wait for the run loop to process
+// a checkpoint request. This prevents potential deadlocks when the run loop
+// is blocked or slow to respond.
+const checkpointTimeout = 30 * time.Second
+
 // checkpoint sends the conn to run, which performs the
 // post-handshake checks for the stage (posthandshake, addpeer).
 func (srv *Server) checkpoint(c *conn, stage chan<- *conn) error {
@@ -1089,8 +1104,21 @@ func (srv *Server) checkpoint(c *conn, stage chan<- *conn) error {
 	case stage <- c:
 	case <-srv.quit:
 		return errServerStopped
+	case <-time.After(checkpointTimeout):
+		srv.logger.Warn("Checkpoint send timeout", "addr", c.fd.RemoteAddr())
+		return errors.New("checkpoint send timeout")
 	}
-	return <-c.cont
+
+	// Wait for response from run loop with timeout protection
+	select {
+	case err := <-c.cont:
+		return err
+	case <-srv.quit:
+		return errServerStopped
+	case <-time.After(checkpointTimeout):
+		srv.logger.Warn("Checkpoint response timeout", "addr", c.fd.RemoteAddr())
+		return errors.New("checkpoint response timeout")
+	}
 }
 
 func (srv *Server) launchPeer(c *conn, pubkey [64]byte) *Peer {

@@ -157,8 +157,26 @@ func (g *GossipManager) routeAndProcess(ctx context.Context, data *sentinelproto
 	return fmt.Errorf("unknown message topic: %s", data.Name)
 }
 
+// isReadyToProcessOperations checks if the node is synced enough to process operations.
+// A node is considered ready if it's within 8 slots of the current slot.
+// This threshold allows for some network latency while ensuring the node is reasonably synced.
 func (g *GossipManager) isReadyToProcessOperations() bool {
-	return g.forkChoice.HighestSeen()+8 >= g.ethClock.GetCurrentSlot()
+	currentSlot := g.ethClock.GetCurrentSlot()
+	highestSeen := g.forkChoice.HighestSeen()
+	// Node is ready if highest seen slot + 8 >= current slot
+	// This gives a buffer of 8 slots (approximately 96 seconds) for sync lag
+	return highestSeen+8 >= currentSlot
+}
+
+// getSyncLagSlots returns the number of slots the node is behind the current slot.
+// This can be used for adaptive retry backoff decisions.
+func (g *GossipManager) getSyncLagSlots() uint64 {
+	currentSlot := g.ethClock.GetCurrentSlot()
+	highestSeen := g.forkChoice.HighestSeen()
+	if highestSeen >= currentSlot {
+		return 0
+	}
+	return currentSlot - highestSeen
 }
 
 func (g *GossipManager) Start(ctx context.Context) {
@@ -216,6 +234,15 @@ func (g *GossipManager) Start(ctx context.Context) {
 		}
 	}
 
+	// Exponential backoff parameters for reconnection
+	const (
+		initialBackoff = 1 * time.Second
+		maxBackoff     = 30 * time.Second
+		backoffFactor  = 2
+	)
+	currentBackoff := initialBackoff
+	consecutiveFailures := 0
+
 Reconnect:
 	for {
 		select {
@@ -226,19 +253,40 @@ Reconnect:
 
 		subscription, err := g.sentinel.SubscribeGossip(ctx, &sentinelproto.SubscriptionData{}, grpc.WaitForReady(true))
 		if err != nil {
-			return
+			log.Warn("[Beacon Gossip] Failed to subscribe to gossip", "err", err)
+			// Apply exponential backoff on subscription failure
+			time.Sleep(currentBackoff)
+			currentBackoff = min(currentBackoff*time.Duration(backoffFactor), maxBackoff)
+			consecutiveFailures++
+			if consecutiveFailures > 10 {
+				log.Error("[Beacon Gossip] Too many consecutive failures, giving up")
+				return
+			}
+			continue Reconnect
 		}
+
+		// Reset backoff on successful connection
+		currentBackoff = initialBackoff
+		consecutiveFailures = 0
+		log.Debug("[Beacon Gossip] Successfully subscribed to gossip")
 
 		for {
 			data, err := subscription.Recv()
 			if err != nil {
 				if grpcutil.IsRetryLater(err) || grpcutil.IsEndOfStream(err) {
-					time.Sleep(3 * time.Second)
+					log.Debug("[Beacon Gossip] Retryable error, reconnecting", "err", err)
+					time.Sleep(currentBackoff)
+					currentBackoff = min(currentBackoff*time.Duration(backoffFactor), maxBackoff)
 					continue Reconnect
 				}
-				log.Warn("[Beacon Gossip] Fatal error receiving gossip", "err", err)
+				log.Warn("[Beacon Gossip] Error receiving gossip, reconnecting", "err", err)
+				time.Sleep(currentBackoff)
+				currentBackoff = min(currentBackoff*time.Duration(backoffFactor), maxBackoff)
 				continue Reconnect
 			}
+
+			// Reset backoff on successful receive
+			currentBackoff = initialBackoff
 
 			switch {
 			case data.Name == gossip.TopicNameBeaconBlock:
